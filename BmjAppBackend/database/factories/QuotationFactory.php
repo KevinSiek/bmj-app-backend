@@ -1,0 +1,40 @@
+<?php
+
+namespace Database\Factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
+use App\Models\{Quotation,Customer,Employee};
+
+/**
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Quotation>
+ */
+class QuotationFactory extends Factory
+{
+    /**
+     * Define the model's default state.
+     *
+     * @return array<string, mixed>
+     */
+    protected $model = Quotation::class;
+
+    public function definition()
+    {
+        return [
+            'no' => Str::random(10),
+            'id_customer' => Customer::factory(),
+            'project' =>$this->faker->sentence,
+            'type' =>$this->faker->sentence,
+            'date' => $this->faker->date(),
+            'amount' => $this->faker->randomFloat(2, 1000, 10000),
+            'discount' => $this->faker->randomFloat(2, 100, 500),
+            'subtotal' => $this->faker->randomFloat(2, 5000, 9000),
+            'vat' => $this->faker->randomFloat(2, 500, 2000),
+            'total' => $this->faker->randomFloat(2, 6000, 12000),
+            'note' => $this->faker->sentence,
+            'employee_id' => Employee::factory(),
+            'status' => '',
+            'review' => $this->faker->boolean(),
+        ];
+    }
+}

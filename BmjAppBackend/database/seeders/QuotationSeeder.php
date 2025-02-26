@@ -1,0 +1,48 @@
+<?php
+namespace Database\Seeders;
+
+use App\Models\Quotation;
+use App\Models\DetailQuotation;
+use App\Models\Good;
+use Illuminate\Database\Seeder;
+
+class QuotationSeeder extends Seeder
+{
+    public function run(): void
+    {
+        Quotation::factory(30)
+            ->has(DetailQuotation::factory()->count(5)->state(function (array $attributes, Quotation $quotation) {
+                return [
+                    'id_goods' => Good::inRandomOrder()->first()->id,
+                    'quantity' => fake()->numberBetween(1, 5),
+                ];
+            }), 'detailQuotations')
+            ->create([
+                'no' => fn() => sprintf('%03d/QUOT/BMJ-MEGAH/P/%s/%d',
+                    fake()->numberBetween(1, 999),
+                    strtoupper(fake()->monthName()),
+                    now()->year
+                ),
+                'note' => fn() => fake()->randomElement([
+                    'Pemasangan generator di lokasi pelanggan',
+                    'Perbaikan sistem kelistrikan generator',
+                    'Penggantian sparepart utama',
+                    'Maintenance rutin generator'
+                ]),
+                'project'=> fn() =>fake()->randomElement([
+                    'Pemasangan Generator',
+                    'Maintenance Generator',
+                    'Pengadaan Sparepart',
+                    'Overhaul Generator'
+                ]),
+                'type'=> fn() =>fake()->randomElement([
+                    'Goods',
+                    'Service',
+                ]),
+                'status'=> fn() =>fake()->randomElement([
+                    'Ready',
+                    'Not ready',
+                ])
+            ]);
+    }
+}
