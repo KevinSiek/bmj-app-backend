@@ -14,7 +14,13 @@ class EmployeeController extends Controller
     }
 
     public function show($id) {
-        return Employee::find($id);
+        $employee = Employee::find($id);
+        $response = [
+            'message' => 'Employee data',
+            'data' => $employee
+        ];
+
+        return response()->json($response);
     }
 
     public function store(Request $request) {
@@ -34,15 +40,14 @@ class EmployeeController extends Controller
     // Extra function
     public function getAll()
     {
-        $employees = Employee::all()->map(function ($employee) {
-            return [
-                'id' => (string) $employee->id,
-                'name' => $employee->name,
-                'type' => $employee->role, // Assuming "role" is equivalent to "type"
-            ];
-        });
+        $employees = Employee::paginate(20);
 
-        return response()->json($employees);
+        $response = [
+            'message' => 'List all employees',
+            'data' => $employees
+        ];
+
+        return response()->json($response);
     }
 
     public function getEmployeeAccess($id)
@@ -86,7 +91,4 @@ class EmployeeController extends Controller
 
         return response()->json($response);
     }
-
-
-
 }
