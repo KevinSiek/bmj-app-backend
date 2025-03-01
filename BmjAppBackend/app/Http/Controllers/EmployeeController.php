@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DetailAccesses;
 use Illuminate\Http\Request;
 use App\Models\Employee;
+use Symfony\Component\HttpFoundation\Response;
 
 class EmployeeController extends Controller
 {
@@ -20,7 +21,7 @@ class EmployeeController extends Controller
             'data' => $employee
         ];
 
-        return response()->json($response);
+        return response()->json($response, Response::HTTP_OK);
     }
 
     public function store(Request $request) {
@@ -47,7 +48,7 @@ class EmployeeController extends Controller
             'data' => $employees
         ];
 
-        return response()->json($response);
+        return response()->json($response, Response::HTTP_OK);
     }
 
     public function getEmployeeAccess($id)
