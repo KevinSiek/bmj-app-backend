@@ -82,7 +82,7 @@ class AccessRoleSeeder extends Seeder
         // Create demo employees and their access mappings
         foreach ($menuRoles as $role) {
             $employee = Employee::create([
-                'name' => "Demo {$role['name']}",
+                'fullname' => "Demo {$role['name']}",
                 'role' => $role['name'],
                 'email' => strtolower($role['name']),
                 'password' => Hash::make('password'),

@@ -20,7 +20,7 @@ class EmployeeFactory extends Factory
     public function definition()
     {
         return [
-            'name' => $this->faker->name,
+            'fullname' => $this->faker->name,
             'role' => $this->faker->jobTitle,
             'email' => $this->faker->unique()->email,
             'password' => bcrypt('password'),

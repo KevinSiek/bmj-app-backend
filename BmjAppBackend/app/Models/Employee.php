@@ -11,7 +11,7 @@ class Employee extends Model
     use HasFactory;
 
         protected $fillable = [
-        'name', 'role', 'username', 'password', 'temp_password', 'temp_pass_already_use'
+        'fullname', 'role', 'username', 'password', 'temp_password', 'temp_pass_already_use'
     ];
 
     public function quotations()
