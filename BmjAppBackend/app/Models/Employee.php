@@ -4,14 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Employee extends Model
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
-    use HasFactory;
+    use HasApiTokens, HasFactory;
 
         protected $fillable = [
-        'fullname', 'role', 'username', 'password', 'temp_password', 'temp_pass_already_use'
+        'fullname', 'role', 'email', 'username', 'password', 'temp_password', 'temp_pass_already_use'
     ];
 
     public function quotations()

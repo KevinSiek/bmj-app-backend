@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DetailAccessesController;
+use App\Http\Controllers\AccessesController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\QuotationController;
@@ -15,17 +15,27 @@ use App\Http\Controllers\DetailBuyController;
 use App\Http\Controllers\DetailQuotationController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Middleware\RestApiTest;
+use Illuminate\Http\Request;
+use App\Http\Controllers\Api\LoginController;
 
 # For production use "auth:api"
 # For test Rest Api use "RestApiTest::class"
-Route::middleware([RestApiTest::class])->group(function () {
+
+Route::post('/tokens/create', function (Request $request) {
+    $token = $request->user()->createToken($request->token_name);
+    return ['token' => $token->plainTextToken];
+});
+Route::post('/login',  [LoginController::class, 'index']);
+Route::get('/logout', [LoginController::class, 'logout']);
+
+Route::middleware("auth:sanctum")->group(function () {
     // Employee Access
     Route::prefix('access')->group(function () {
-        Route::get('/', [EmployeeController::class, 'index']);
-        Route::get('/{id}', [EmployeeController::class, 'show']);
-        Route::post('/', [EmployeeController::class, 'store']);
-        Route::put('/{id}', [EmployeeController::class, 'update']);
-        Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+        Route::get('/', [AccessesController::class, 'index']);
+        Route::get('/{id}', [AccessesController::class, 'show']);
+        Route::post('/', [AccessesController::class, 'store']);
+        Route::put('/{id}', [AccessesController::class, 'update']);
+        Route::delete('/{id}', [AccessesController::class, 'destroy']);
     });
 
     // Employee Routes
@@ -37,6 +47,7 @@ Route::middleware([RestApiTest::class])->group(function () {
         Route::delete('/{id}', [EmployeeController::class, 'destroy']);
         // Aditional route
         Route::get('/access/{id}', [EmployeeController::class, 'getEmployeeAccess']);
+        Route::get('/search', [EmployeeController::class, 'search']);
     });
 
     // Customer Routes

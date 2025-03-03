@@ -173,4 +173,56 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+    public function search(Request $request){
+        try {
+            $query = Employee::query();
+
+            // General search across multiple fields using 'q' parameter
+            if ($request->has('q')) {
+                $searchTerm = $request->input('q');
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('fullname', 'like', "%{$searchTerm}%")
+                    ->orWhere('email', 'like', "%{$searchTerm}%")
+                    ->orWhere('role', 'like', "%{$searchTerm}%");
+                });
+            }
+
+            // Specific field filters
+            if ($request->has('name')) {
+                $query->where('name', 'like', '%' . $request->input('name') . '%');
+            }
+            if ($request->has('email')) {
+                $query->where('email', 'like', '%' . $request->input('email') . '%');
+            }
+            if ($request->has('role')) {
+                $query->where('role', $request->input('role')); // Exact match for role
+            }
+
+            // Validate and apply sorting
+            $allowedSortColumns = ['id', 'name', 'email', 'role', 'created_at', 'updated_at'];
+            $sortBy = $request->input('sort_by', 'id');
+            $sortBy = in_array($sortBy, $allowedSortColumns) ? $sortBy : 'id';
+
+            $sortOrder = strtolower($request->input('sort_order', 'asc'));
+            $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'asc';
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            // Validate and apply pagination
+            $perPage = (int)$request->input('per_page', 20);
+            $perPage = max(1, min($perPage, 100)); // Limit per_page between 1 and 100
+
+            $employees = $query->paginate($perPage);
+
+            return response()->json([
+                'message' => 'Employees retrieved successfully',
+                'data' => $employees
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }
