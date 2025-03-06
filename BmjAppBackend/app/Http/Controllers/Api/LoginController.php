@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\Employee;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
 class LoginController extends Controller
 {
@@ -18,29 +17,33 @@ class LoginController extends Controller
      */
     public function index(Request $request)
     {
-        $request->validate([
+        $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        $employee= Employee::where('email', $request->email)->first();
+        $isAuth = Auth::guard('employee')->attempt($credentials);
 
-            if (!$employee || !Hash::check($request->password, $employee->password)) {
-                return response([
-                    'success'   => false,
-                    'message' => ['These credentials do not match our records.']
-                ], 404);
-            }
-
-            $token = $employee->createToken('ApiToken')->plainTextToken;
-
+        if($isAuth){
+            $user = Auth::guard('employee')->user();
+            $token = $user->createToken('auth_token')->plainTextToken;
             $response = [
-                'success'   => true,
-                'Employee'      => $employee,
-                'token'     => $token
+                'status' => true,
+                'message' => 'Login successful',
+                'user' => $user,
+                'access_token' => $token,
+                'token_type' => 'Bearer'
             ];
 
-        return response($response, 201);
+            return response()->json($response, Response::HTTP_OK);
+        }
+        else{
+            $response = [
+                'status' => false,
+                'message' => 'Login failed',
+            ];
+            return response()->json($response, Response::HTTP_UNAUTHORIZED);
+        }
     }
 
     /**

@@ -21,6 +21,10 @@ use App\Http\Controllers\Api\LoginController;
 # For production use "auth:api"
 # For test Rest Api use "RestApiTest::class"
 
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
+
 Route::post('/tokens/create', function (Request $request) {
     $token = $request->user()->createToken($request->token_name);
     return ['token' => $token->plainTextToken];

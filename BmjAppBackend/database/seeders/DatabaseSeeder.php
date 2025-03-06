@@ -13,7 +13,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::factory(10)->create();
         $this->call([
             CustomerSeeder::class,
             AccessRoleSeeder::class,
@@ -25,6 +24,7 @@ class DatabaseSeeder extends Seeder
             WorkOrderSeeder::class,
             BackOrderSeeder::class,
             BuySeeder::class,
+            EmployeeSeeder::class
     ]);
     }
 }
