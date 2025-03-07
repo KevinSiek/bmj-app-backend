@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('invoice_number');
             $table->date('invoice_date');
             $table->string('term_of_pay')->nullable();
-            $table->foreignId('employee_id')->constrained('employees');
+            $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->timestamps();
         });
 

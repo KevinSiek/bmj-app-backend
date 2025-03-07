@@ -7,6 +7,7 @@ use App\Models\DetailAccesses;
 use Illuminate\Http\Request;
 use App\Models\Employee;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Str;
 
 class EmployeeController extends Controller
 {
@@ -26,10 +27,10 @@ class EmployeeController extends Controller
         }
     }
 
-    public function show($id)
+    public function show($slug)
     {
         try {
-            $employee = Employee::find($id);
+            $employee = Employee::where('slug', '=', $slug)->first();
 
             if (!$employee) {
                 return response()->json([
@@ -52,7 +53,21 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         try {
-            $employee = Employee::create($request->all());
+            $validatedData = $request->validate([
+                'fullname' => 'required|string|max:255',
+                'role' => 'required|string',
+                'email' => 'required|email|unique:employees,email',
+                'username' => 'required|string|unique:employees,username|max:255',
+                // 'password' => 'required|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
+                'password' => 'required',
+                'temp_password' => 'nullable|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
+                'temp_pass_already_use' => 'nullable|boolean',
+            ]);
+
+            $slug = Str::slug($validatedData['fullname']);
+            $validatedData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
+
+            $employee = Employee::create($validatedData);
             return response()->json([
                 'message' => 'Employee created successfully',
                 'data' => $employee
@@ -65,10 +80,19 @@ class EmployeeController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $slug)
     {
         try {
-            $employee = Employee::find($id);
+            // Validate the request data
+            $validatedData = $request->validate([
+                'fullname' => 'sometimes|string|max:255',
+                'role' => 'sometimes|string',
+                'email' => 'sometimes|email|unique:employees,email,' . $slug . ',slug',
+                'username' => 'sometimes|string|unique:employees,username,' . $slug . ',slug|max:255',
+            ]);
+
+            // Find the employee by slug
+            $employee = Employee::where('slug', $slug)->first();
 
             if (!$employee) {
                 return response()->json([
@@ -76,7 +100,9 @@ class EmployeeController extends Controller
                 ], Response::HTTP_NOT_FOUND);
             }
 
-            $employee->update($request->all());
+            // Update only the provided fields
+            $employee->update($validatedData);
+
             return response()->json([
                 'message' => 'Employee updated successfully',
                 'data' => $employee
@@ -89,10 +115,17 @@ class EmployeeController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy($slug)
     {
         try {
-            $deleted = Employee::destroy($id);
+            $employee = Employee::where('slug','=',$slug)->first();
+            if (!$employee) {
+                return response()->json([
+                    'message' => 'Employee not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            $deleted = $employee->delete();
 
             if (!$deleted) {
                 return response()->json([
@@ -112,10 +145,16 @@ class EmployeeController extends Controller
         }
     }
 
-    public function getAll()
+    public function getAll(Request $request)
     {
         try {
+            $q = $request->query('q');
             $employees = Employee::paginate(20);
+            if($q){
+                $searchTerm = $q;
+                $employeeData = Employee::where('fullname', 'like', "%$searchTerm%");
+                $employees = $employeeData->paginate(20);
+            }
             return response()->json([
                 'message' => 'List all employees',
                 'data' => $employees
@@ -165,58 +204,6 @@ class EmployeeController extends Controller
                 'path' => $roleData['path'],
                 'name' => $roleData['name'],
                 'feature' => $accesses
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Internal server error',
-                'error' => $th->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
-    public function search(Request $request){
-        try {
-            $query = Employee::query();
-
-            // General search across multiple fields using 'q' parameter
-            if ($request->has('q')) {
-                $searchTerm = $request->input('q');
-                $query->where(function ($q) use ($searchTerm) {
-                    $q->where('fullname', 'like', "%{$searchTerm}%")
-                    ->orWhere('email', 'like', "%{$searchTerm}%")
-                    ->orWhere('role', 'like', "%{$searchTerm}%");
-                });
-            }
-
-            // Specific field filters
-            if ($request->has('name')) {
-                $query->where('name', 'like', '%' . $request->input('name') . '%');
-            }
-            if ($request->has('email')) {
-                $query->where('email', 'like', '%' . $request->input('email') . '%');
-            }
-            if ($request->has('role')) {
-                $query->where('role', $request->input('role')); // Exact match for role
-            }
-
-            // Validate and apply sorting
-            $allowedSortColumns = ['id', 'name', 'email', 'role', 'created_at', 'updated_at'];
-            $sortBy = $request->input('sort_by', 'id');
-            $sortBy = in_array($sortBy, $allowedSortColumns) ? $sortBy : 'id';
-
-            $sortOrder = strtolower($request->input('sort_order', 'asc'));
-            $sortOrder = in_array($sortOrder, ['asc', 'desc']) ? $sortOrder : 'asc';
-
-            $query->orderBy($sortBy, $sortOrder);
-
-            // Validate and apply pagination
-            $perPage = (int)$request->input('per_page', 20);
-            $perPage = max(1, min($perPage, 100)); // Limit per_page between 1 and 100
-
-            $employees = $query->paginate($perPage);
-
-            return response()->json([
-                'message' => 'Employees retrieved successfully',
-                'data' => $employees
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return response()->json([

@@ -17,32 +17,39 @@ class LoginController extends Controller
      */
     public function index(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
+        try {
+            $credentials = $request->validate([
+                'email' => 'required|email',
+                'password' => 'required',
+            ]);
 
-        $isAuth = Auth::guard('employee')->attempt($credentials);
+            $isAuth = Auth::guard('employee')->attempt($credentials);
 
-        if($isAuth){
-            $user = Auth::guard('employee')->user();
-            $token = $user->createToken('auth_token')->plainTextToken;
-            $response = [
-                'status' => true,
-                'message' => 'Login successful',
-                'user' => $user,
-                'access_token' => $token,
-                'token_type' => 'Bearer'
-            ];
+            if($isAuth){
+                $user = Auth::guard('employee')->user();
+                $token = $user->createToken('auth_token')->plainTextToken;
+                $response = [
+                    'status' => true,
+                    'message' => 'Login successful',
+                    'user' => $user,
+                    'access_token' => $token,
+                    'token_type' => 'Bearer'
+                ];
 
-            return response()->json($response, Response::HTTP_OK);
-        }
-        else{
-            $response = [
-                'status' => false,
-                'message' => 'Login failed',
-            ];
-            return response()->json($response, Response::HTTP_UNAUTHORIZED);
+                return response()->json($response, Response::HTTP_OK);
+            }
+            else{
+                $response = [
+                    'status' => false,
+                    'message' => 'Login failed',
+                ];
+                return response()->json($response, Response::HTTP_UNAUTHORIZED);
+            }
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -51,12 +58,31 @@ class LoginController extends Controller
      *
      * @return void
      */
-    public function logout()
+    public function logout(Request $request)
     {
-        Auth::logout();
-        return response()->json([
-            'success'    => true
-        ], 200);
+        try {
+            $request->user()->currentAccessToken()->delete();
+            return response()->json([
+                'success'    => true,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
-
+    public function getCurrentUser(Request $request){
+        try {
+            $user = $request->user();
+            return response()->json([
+                'user'    => $user,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }

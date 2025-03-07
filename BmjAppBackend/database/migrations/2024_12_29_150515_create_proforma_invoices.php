@@ -20,7 +20,7 @@ return new class extends Migration
             $table->decimal('total', 15, 2)->nullable();
             $table->decimal('total_amount', 15, 2)->nullable();
             $table->string('total_amount_text')->nullable();
-            $table->foreignId('employee_id')->constrained('employees');
+            $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->timestamps();
         });
     }

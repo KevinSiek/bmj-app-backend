@@ -12,7 +12,7 @@ class Employee extends Authenticatable
     use HasApiTokens, HasFactory;
 
         protected $fillable = [
-        'fullname', 'role', 'email', 'username', 'password', 'temp_password', 'temp_pass_already_use'
+        'fullname', 'slug', 'role', 'email', 'username', 'password', 'temp_password', 'temp_pass_already_use'
     ];
 
     public function quotations()

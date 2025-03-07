@@ -18,21 +18,19 @@ use App\Http\Middleware\RestApiTest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 
-# For production use "auth:api"
-# For test Rest Api use "RestApiTest::class"
-
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-
 Route::post('/tokens/create', function (Request $request) {
     $token = $request->user()->createToken($request->token_name);
     return ['token' => $token->plainTextToken];
 });
 Route::post('/login',  [LoginController::class, 'index']);
-Route::get('/logout', [LoginController::class, 'logout']);
 
 Route::middleware("auth:sanctum")->group(function () {
+    // Athorization
+    Route::prefix('user')->group(function () {
+        Route::get('/', [LoginController::class,'getCurrentUser']);
+    });
+    Route::post('logout', [LoginController::class, 'logout']);
+
     // Employee Access
     Route::prefix('access')->group(function () {
         Route::get('/', [AccessesController::class, 'index']);
@@ -45,13 +43,12 @@ Route::middleware("auth:sanctum")->group(function () {
     // Employee Routes
     Route::prefix('employee')->group(function () {
         Route::get('/', [EmployeeController::class, 'getAll']);
-        Route::get('/{id}', [EmployeeController::class, 'show']);
-        Route::post('/', [EmployeeController::class, 'store']);
-        Route::put('/{id}', [EmployeeController::class, 'update']);
-        Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+        Route::get('/{slug}', [EmployeeController::class, 'show']);
+        Route::post('/add', [EmployeeController::class, 'store']);
+        Route::post('/update/{slug}', [EmployeeController::class, 'update']);
+        Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
         // Aditional route
         Route::get('/access/{id}', [EmployeeController::class, 'getEmployeeAccess']);
-        Route::get('/search', [EmployeeController::class, 'search']);
     });
 
     // Customer Routes

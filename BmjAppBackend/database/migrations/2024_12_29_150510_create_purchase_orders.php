@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('id_quotation')->constrained('quotations');
             $table->string('po_number');
             $table->date('po_date');
-            $table->foreignId('employee_id')->constrained('employees');
+            $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->timestamps();
         });
     }

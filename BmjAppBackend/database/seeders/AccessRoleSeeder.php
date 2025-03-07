@@ -7,6 +7,7 @@ use App\Models\Accesses;
 use App\Models\Employee;
 use App\Models\DetailAccesses;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AccessRoleSeeder extends Seeder
 {
@@ -81,13 +82,17 @@ class AccessRoleSeeder extends Seeder
 
         // Create demo employees and their access mappings
         foreach ($menuRoles as $role) {
+            $fullname = "Demo {$role['name']}";
+            $slug = Str::slug($fullname) . '-' . Str::random(6);
             $employee = Employee::create([
-                'fullname' => "Demo {$role['name']}",
+                'fullname' => $fullname,
+                'username' => 'username -'.$fullname,
                 'role' => $role['name'],
                 'email' => fake()->unique()->safeEmail(),
                 'password' => Hash::make('password'),
                 'temp_password' => null,
                 'temp_pass_already_use' => true,
+                'slug' => $slug
             ]);
 
             $accessIds = Accesses::whereIn('access', $role['feature'])

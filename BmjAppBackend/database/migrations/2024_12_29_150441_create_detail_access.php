@@ -14,8 +14,9 @@ return new class extends Migration
         Schema::create('detail_accesses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('accesses_id')->constrained('accesses');
-            $table->foreignId('id_employee')->constrained('employees');
+            $table->foreignId('id_employee')->constrained('employees')->onDelete('cascade');
             $table->timestamps();
+
         });
     }
 
