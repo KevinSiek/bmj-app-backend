@@ -15,6 +15,7 @@ class QuotationSeeder extends Seeder
                 return [
                     'id_goods' => Good::inRandomOrder()->first()->id,
                     'quantity' => fake()->numberBetween(1, 5),
+                    'unit_price' => fake()->numberBetween(10000, 50000),
                 ];
             }), 'detailQuotations')
             ->create([

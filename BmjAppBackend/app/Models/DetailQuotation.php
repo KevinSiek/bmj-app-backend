@@ -11,7 +11,7 @@ class DetailQuotation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_quotation', 'id_goods', 'quantity', 'total_unit'
+        'id_quotation', 'id_goods', 'quantity', 'total_unit', 'unit_price'
     ];
 
     public function quotation()

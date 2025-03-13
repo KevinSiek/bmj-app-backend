@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quotation;
+use App\Models\Good;
 use App\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -34,10 +35,10 @@ class QuotationController extends Controller
                 'vat'=>'required|numeric',
                 'total'=>'required|numeric',
                 'note'=>'sometimes|string',
-                'review'=>'required|boolean',
-                'goods' => 'required|array', // Array of goods to be added to the bridge table
-                'goods.*.id_goods' => 'required|exists:goods,id', // Validate each id_goods
-                'goods.*.quantity' => 'required|integer|min:1', // Validate each quantity
+                'goods' => 'required|array',
+                'goods.*.id_goods' => 'required|exists:goods,id',
+                'goods.*.quantity' => 'required|integer|min:1',
+                'goods.*.unit_price' => 'required|numeric|min:1',
             ]);
 
             // Generate a unique slug based on the 'project' field
@@ -45,18 +46,29 @@ class QuotationController extends Controller
             $validatedData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
             $validatedData['employee_id'] = $userId;
             $validatedData['date'] = now();
+            $validatedData['review'] = true;
 
             // Create the quotation with the validated data and slug
             $quotation = Quotation::create($validatedData);
 
             // Create DetailQuotation from list of goods in this quotations
             foreach ($request->input('goods') as $good) {
-                // revalidate each good data
+                $goodId = $good['id_goods'];
+                $goodUnitPrice =$good['unit_price'];
+                // Validate agans each good data
                 $goodValidator = Validator::make($good, [
                     'id_goods' => 'required|exists:goods,id',
                     'quantity' => 'required|integer|min:1',
+                    'unit_price' =>'required|numeric|min:1',
                 ]);
 
+                // If unit price that employee give different with official unit price, then this quotation need review
+                $goodDbData = Good::find($goodId);
+                $goodDbUnitPriceSell = $goodDbData->unit_price_sell;
+                if($goodUnitPrice != $goodDbUnitPriceSell){
+                    $validatedData['review'] = false;
+                    $quotation->update($validatedData);
+                }
                 if ($goodValidator->fails()) {
                     throw new \Exception('Invalid good data: ' . $goodValidator->errors()->first());
                 }
@@ -64,8 +76,9 @@ class QuotationController extends Controller
                 // Insert into the bridge table
                 DB::table('detail_quotations')->insert([
                     'id_quotation' => $quotation->id,
-                    'id_goods' => $good['id_goods'],
+                    'id_goods' => $goodId,
                     'quantity' => $good['quantity'],
+                    'unit_price' => $goodUnitPrice,
                     'created_at'=>now(),
                     'updated_at'=>now(),
                 ]);
@@ -131,8 +144,8 @@ class QuotationController extends Controller
                     'partName' => $detail->goods->name ?? '',
                     'partNumber' => $detail->goods->no_sparepart ?? '',
                     'quantity' => $detail->quantity,
-                    'unitPrice' => $detail->goods->unit_price_sell ?? 0,
-                    'totalPrice' => $detail->quantity * ($detail->goods->unit_price_sell ?? 0),
+                    'unitPrice' => $detail->unit_price ?? 0,
+                    'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
                     'stock' => 'INDENT'
                 ];
             });
@@ -208,7 +221,7 @@ class QuotationController extends Controller
             });
 
             // Replace the original collection with the transformed collection
-            $quotations->setCollection($transformedQuotations);
+            $quotations = $quotations->setCollection($transformedQuotations);
 
             // Return the response with transformed data and pagination details
             return response()->json([
@@ -291,7 +304,7 @@ class QuotationController extends Controller
 
             // Allow director to see all quotation
             if($role === 'Director'){
-                $quotation= Quotation::with('customer')->all();
+                $quotation= Quotation::with('customer');
             }
 
             // Return the response with transformed data and pagination details
