@@ -68,6 +68,7 @@ Route::middleware("auth:sanctum")->group(function () {
         // Aditional route
         Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
         Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
+        Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
     });
 
     // PO Routes

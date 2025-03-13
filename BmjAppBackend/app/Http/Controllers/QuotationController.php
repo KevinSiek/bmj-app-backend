@@ -97,8 +97,8 @@ class QuotationController extends Controller
                     'message' => 'Invalid review status'
                 ], Response::HTTP_BAD_REQUEST);
             }
-            $userId = $request->user()->id;
-            $quotation = Quotation::where('employee_id', $userId)->where('slug', $slug)->first();
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation = $quoatations->where('slug', $slug)->first();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -119,8 +119,8 @@ class QuotationController extends Controller
     public function getDetail(Request $request, $slug)
     {
         try {
-            $userId = $request->user()->id;
-            $quotation = Quotation::with(['customer', 'detailQuotations.goods'])->where('slug', $slug)->where('employee_id', $userId)->first();
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation = $quoatations->where('slug', $slug)->first();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -174,18 +174,24 @@ class QuotationController extends Controller
     public function getAll(Request $request)
     {
         try {
-            // Get the search query and user ID
             $q = $request->query('q');
-            $userId = $request->user()->id;
+            $month = $request->query('month'); // Month in English (e.g., "January")
+            $year = $request->query('year'); // Year (e.g., 2024)
 
+            $quoatations = $this->getAccessedQuotation($request);
             // Build the query with search functionality
-            $quotationsQuery = Quotation::with('customer')
-                ->where('employee_id', $userId)
-                ->where(function ($query) use ($q) {
+            $quotationsQuery = $quoatations->where(function ($query) use ($q) {
                     $query->where('project', 'like', "%$q%")
                         ->orWhere('no', 'like', "%$q%")
                         ->orWhere('type', 'like', "%$q%");
                 });
+
+            // Filter by month and year if provided
+            if ($month && $year) {
+                $monthNumber = date('m', strtotime($month));
+                $startDate = "{$year}-{$monthNumber}-01";
+                $quotationsQuery->where('date', '>=', $startDate);
+            }
 
             // Paginate the results
             $quotations = $quotationsQuery->paginate(20);
@@ -222,8 +228,8 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            $userId = $request->user()->id;
-            $quotation = Quotation::where('slug', $slug)->where('employee_id', $userId)->first();
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation =  $quoatations->where('slug', $slug)->first();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -251,6 +257,49 @@ class QuotationController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to promote quotation');
+        }
+    }
+    public function isNeedReview(Request $request, $isNeedReview)
+    {
+        try {
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotationNeedReview= $quoatations->where('review', !$isNeedReview);
+
+            // Paginate the results
+            $quotationNeedReview = $quotationNeedReview->paginate(20);
+
+            // Return the response with transformed data and pagination details
+            return response()->json([
+                'message' => 'List of all quotations that need to be review',
+                'data' => $quotationNeedReview,
+            ], Response::HTTP_OK);
+
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    // Helper function to get list of quotation by user role and user id
+    protected function getAccessedQuotation($request)
+    {
+        try {
+            $user = $request->user();
+            $userId = $user->id;
+            $role = $user->role;
+            $quotation= Quotation::with('customer')
+                ->where('employee_id', $userId);
+
+            // Allow director to see all quotation
+            if($role === 'Director'){
+                $quotation= Quotation::with('customer')->all();
+            }
+
+            // Return the response with transformed data and pagination details
+            return $quotation;
+
+        } catch (\Throwable $th) {
+            echo('Error at getAccessedQuotation: '.$th->getMessage());
+            return [];
         }
     }
 
