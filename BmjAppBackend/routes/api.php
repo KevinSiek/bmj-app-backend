@@ -44,7 +44,7 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::prefix('employee')->group(function () {
         Route::get('/', [EmployeeController::class, 'getAll']);
         Route::get('/{slug}', [EmployeeController::class, 'show']);
-        Route::post('/add', [EmployeeController::class, 'store']);
+        Route::post('/', [EmployeeController::class, 'store']);
         Route::post('/update/{slug}', [EmployeeController::class, 'update']);
         Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
         // Aditional route
@@ -63,13 +63,11 @@ Route::middleware("auth:sanctum")->group(function () {
     // Quotation Routes
     Route::prefix('quotation')->group(function () {
         Route::get('/', [QuotationController::class, 'getAll']);
-        Route::get('/{id}', [QuotationController::class, 'getDetail']);
+        Route::get('/{slug}', [QuotationController::class, 'getDetail']);
         Route::post('/', [QuotationController::class, 'store']);
-        Route::put('/{id}', [QuotationController::class, 'update']);
-        Route::delete('/{id}', [QuotationController::class, 'destroy']);
         // Aditional route
-        Route::get('/moveUp/{id}', [QuotationController::class, 'moveUp']);
-        Route::get('/review/{id}/{reviewState}', [QuotationController::class, 'review']);
+        Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+        Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
     });
 
     // PO Routes

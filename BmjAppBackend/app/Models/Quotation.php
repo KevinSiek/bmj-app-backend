@@ -11,7 +11,7 @@ class Quotation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'no', 'id_customer', 'project', 'type', 'date', 'amount', 'discount', 'subtotal', 'vat', 'total', 'note', 'employee_id', 'status', 'review'
+        'no', 'slug', 'id_customer', 'project', 'type', 'date', 'amount', 'discount', 'subtotal', 'vat', 'total', 'note', 'employee_id', 'status', 'review'
     ];
 
     public function customer()

@@ -20,10 +20,13 @@ class QuotationFactory extends Factory
 
     public function definition()
     {
+        $project = $this->faker->sentence;
+
         return [
             'no' => Str::random(10),
+            'slug' => Str::slug($project) . '-' . Str::random(6), // Generate a unique slug
             'id_customer' => Customer::factory(),
-            'project' =>$this->faker->sentence,
+            'project' =>$project,
             'type' =>$this->faker->sentence,
             'date' => $this->faker->date(),
             'amount' => $this->faker->randomFloat(2, 1000, 10000),

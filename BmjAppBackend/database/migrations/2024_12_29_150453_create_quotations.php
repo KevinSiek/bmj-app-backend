@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('quotations', function (Blueprint $table) {
             $table->id();
             $table->string('no');
+            $table->string('slug');
             $table->foreignId('id_customer')->constrained('customers');
             $table->string('project');
             $table->string('type');
