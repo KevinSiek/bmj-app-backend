@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Quotation;
 use App\Models\Good;
+use App\Models\Customer;
 use App\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -28,18 +29,56 @@ class QuotationController extends Controller
                 'no' => 'required|string|unique:quotations,no',
                 'type' => 'required|string',
                 'status' => 'required|string',
-                'id_customer' => 'required|exists:customers,id',
                 'amount'=>'required|numeric',
                 'discount'=>'required|numeric',
                 'subtotal'=>'required|numeric',
                 'vat'=>'required|numeric',
                 'total'=>'required|numeric',
                 'note'=>'sometimes|string',
+                // Customer validation
+                'company_name'=>'required|string',
+                'office'=>'required|string',
+                'address'=>'required|string',
+                'urban_area'=>'required|string',
+                'subdistrict'=>'required|string',
+                'city'=>'required|string',
+                'province'=>'required|string',
+                'postal_code'=>'required|numeric',
+                // Sparepart validation
                 'goods' => 'required|array',
                 'goods.*.id_goods' => 'required|exists:goods,id',
                 'goods.*.quantity' => 'required|integer|min:1',
                 'goods.*.unit_price' => 'required|numeric|min:1',
             ]);
+
+            // Handle Customer Data
+            $customerData = [
+                'slug' => Str::slug($validatedData['company_name']),
+                'company_name' => $validatedData['company_name'],
+                'office' => $validatedData['office'],
+                'address' => $validatedData['address'],
+                'urban_area' => $validatedData['urban_area'],
+                'subdistrict' => $validatedData['subdistrict'],
+                'city' => $validatedData['city'],
+                'province' => $validatedData['province'],
+                'postal_code' => $validatedData['postal_code'],
+            ];
+
+            // Check if customer already exists
+            $customer = Customer::where('company_name', $customerData['company_name'])
+                ->where('office', $customerData['office'])
+                ->where('address', $customerData['address'])
+                ->where('urban_area', $customerData['urban_area'])
+                ->where('subdistrict', $customerData['subdistrict'])
+                ->where('city', $customerData['city'])
+                ->where('province', $customerData['province'])
+                ->where('postal_code', $customerData['postal_code'])
+                ->first();
+
+            // Create new customer if it doesn't exist
+            if (!$customer) {
+                $customer = Customer::create($customerData);
+            }
 
             // Generate a unique slug based on the 'project' field
             $slug = Str::slug($validatedData['project']);
@@ -47,6 +86,7 @@ class QuotationController extends Controller
             $validatedData['employee_id'] = $userId;
             $validatedData['date'] = now();
             $validatedData['review'] = true;
+            $validatedData['id_customer'] = $customer->id; // Assign the customer ID to the quotation
 
             // Create the quotation with the validated data and slug
             $quotation = Quotation::create($validatedData);

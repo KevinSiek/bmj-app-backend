@@ -11,7 +11,7 @@ class Customer extends Model
     use HasFactory;
 
     protected $fillable = [
-        'company_name', 'office', 'address', 'urban_area', 'subdistrict', 'city', 'province', 'postal_code'
+        'slug', 'company_name', 'office', 'address', 'urban_area', 'subdistrict', 'city', 'province', 'postal_code'
     ];
 
     public function quotations()

@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class Inventory
+class isFinance
 {
     /**
      * Handle an incoming request.
@@ -15,7 +15,7 @@ class Inventory
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->header('access') === 'Inventory') {
+        if ($request->header('access') == 'Finance' or 'Director') {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

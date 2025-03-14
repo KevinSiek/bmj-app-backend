@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Customer;
+use Illuminate\Support\Str;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Customer>
@@ -19,8 +20,10 @@ class CustomerFactory extends Factory
 
     public function definition()
     {
+        $companyName =$this->faker->company;
         return [
-            'company_name' => $this->faker->company,
+            'slug' =>  Str::slug($companyName). '-' . Str::random(6),
+            'company_name' =>  $companyName,
             'office' => $this->faker->word,
             'address' => $this->faker->address,
             'urban_area' => $this->faker->city,
