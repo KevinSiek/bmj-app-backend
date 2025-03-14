@@ -11,10 +11,12 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\BackOrderController;
 use App\Http\Controllers\BuyController;
 use App\Http\Controllers\GoodController;
-use App\Http\Controllers\DetailBuyController;
-use App\Http\Controllers\DetailQuotationController;
 use App\Http\Controllers\WorkOrderController;
-use App\Http\Middleware\RestApiTest;
+use App\Http\Middleware\Director;
+use App\Http\Middleware\Marketing;
+use App\Http\Middleware\Finance;
+use App\Http\Middleware\Inventory;
+use App\Http\Middleware\Service;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 
@@ -23,7 +25,6 @@ Route::post('/tokens/create', function (Request $request) {
     return ['token' => $token->plainTextToken];
 });
 Route::post('/login',  [LoginController::class, 'index']);
-
 Route::middleware("auth:sanctum")->group(function () {
     // Athorization
     Route::prefix('user')->group(function () {
@@ -40,104 +41,224 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::delete('/{id}', [AccessesController::class, 'destroy']);
     });
 
-    // Employee Routes
-    Route::prefix('employee')->group(function () {
-        Route::get('/', [EmployeeController::class, 'getAll']);
-        Route::get('/{slug}', [EmployeeController::class, 'show']);
-        Route::post('/', [EmployeeController::class, 'store']);
-        Route::post('/update/{slug}', [EmployeeController::class, 'update']);
-        Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
-        // Aditional route
-        Route::get('/access/{id}', [EmployeeController::class, 'getEmployeeAccess']);
+    // Director has all access
+    Route::middleware([Director::class])->group(function () {
+        // Employee Routes
+        Route::prefix('employee')->group(function () {
+            Route::get('/', [EmployeeController::class, 'getAll']);
+            Route::get('/{slug}', [EmployeeController::class, 'show']);
+            Route::post('/', [EmployeeController::class, 'store']);
+            Route::post('/update/{slug}', [EmployeeController::class, 'update']);
+            Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
+            Route::get('/access/{id}', [EmployeeController::class, 'getEmployeeAccess']);
+        });
+
+        // Customer Routes
+        Route::prefix('customer')->group(function () {
+            Route::get('/', [CustomerController::class, 'index']);
+            Route::get('/{id}', [CustomerController::class, 'show']);
+            Route::post('/', [CustomerController::class, 'store']);
+            Route::put('/{id}', [CustomerController::class, 'update']);
+            Route::delete('/{id}', [CustomerController::class, 'destroy']);
+        });
+
+        // Quotation Routes
+        Route::prefix('quotation')->group(function () {
+            Route::get('/', [QuotationController::class, 'getAll']);
+            Route::get('/{slug}', [QuotationController::class, 'getDetail']);
+            Route::post('/', [QuotationController::class, 'store']);
+            Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+            Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
+            Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+        });
+
+        // PO Routes
+        Route::prefix('purchase-order')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'getAll']);
+            Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
+            Route::post('/', [PurchaseOrderController::class, 'store']);
+            Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+            Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
+            Route::get('/moveUp/{id}/{employeId}', [PurchaseOrderController::class, 'moveUp']);
+        });
+
+        // PI Routes
+        Route::prefix('proforma-invoice')->group(function () {
+            Route::get('/', [ProformaInvoiceController::class, 'index']);
+            Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
+            Route::post('/', [ProformaInvoiceController::class, 'store']);
+            Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
+            Route::delete('/{id}', [ProformaInvoiceController::class, 'destroy']);
+            Route::get('/moveUp/{id}', [ProformaInvoiceController::class, 'moveUp']);
+        });
+
+        // Invoice Routes
+        Route::prefix('invoice')->group(function () {
+            Route::get('/', [InvoiceController::class, 'index']);
+            Route::get('/{id}', [InvoiceController::class, 'show']);
+            Route::post('/', [InvoiceController::class, 'store']);
+            Route::put('/{id}', [InvoiceController::class, 'update']);
+            Route::delete('/{id}', [InvoiceController::class, 'destroy']);
+        });
+
+        // Work Order Routes
+        Route::prefix('work-order')->group(function () {
+            Route::get('/', [WorkOrderController::class, 'index']);
+            Route::get('/{id}', [WorkOrderController::class, 'show']);
+            Route::post('/', [WorkOrderController::class, 'store']);
+            Route::put('/{id}', [WorkOrderController::class, 'update']);
+            Route::delete('/{id}', [WorkOrderController::class, 'destroy']);
+        });
+
+        // BO Routes
+        Route::prefix('back-order')->group(function () {
+            Route::get('/', [BackOrderController::class, 'index']);
+            Route::get('/{id}', [BackOrderController::class, 'show']);
+            Route::post('/', [BackOrderController::class, 'store']);
+            Route::put('/{id}', [BackOrderController::class, 'update']);
+            Route::delete('/{id}', [BackOrderController::class, 'destroy']);
+        });
+
+        // Buy Routes
+        Route::prefix('buy')->group(function () {
+            Route::get('/', [BuyController::class, 'getAll']);
+            Route::get('/{id}', [BuyController::class, 'getDetail']);
+            Route::post('/', [BuyController::class, 'store']);
+            Route::put('/{id}', [BuyController::class, 'update']);
+            Route::delete('/{id}', [BuyController::class, 'destroy']);
+        });
+
+        // Sparepart Routes
+        Route::prefix('sparepart')->group(function () {
+            Route::get('/', [GoodController::class, 'index']);
+            Route::get('/{id}', [GoodController::class, 'show']);
+            Route::post('/', [GoodController::class, 'store']);
+            Route::put('/{id}', [GoodController::class, 'update']);
+            Route::delete('/{id}', [GoodController::class, 'destroy']);
+        });
     });
 
-    // Customer Routes
-    Route::prefix('customer')->group(function () {
-        Route::get('/', [CustomerController::class, 'index']);
-        Route::get('/{id}', [CustomerController::class, 'show']);
-        Route::post('/', [CustomerController::class, 'store']);
-        Route::put('/{id}', [CustomerController::class, 'update']);
-        Route::delete('/{id}', [CustomerController::class, 'destroy']);
+    // Marketing Middleware
+    Route::middleware([Marketing::class])->group(function () {
+        Route::prefix('quotation')->group(function () {
+            Route::get('/', [QuotationController::class, 'getAll']);
+            Route::get('/{slug}', [QuotationController::class, 'getDetail']);
+            Route::post('/', [QuotationController::class, 'store']);
+            Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+            Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
+            Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+        });
+
+        Route::prefix('purchase-order')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'getAll']);
+            Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
+            Route::post('/', [PurchaseOrderController::class, 'store']);
+            Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+            Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
+            Route::get('/moveUp/{id}/{employeId}', [PurchaseOrderController::class, 'moveUp']);
+        });
+
+        Route::prefix('proforma-invoice')->group(function () {
+            Route::get('/', [ProformaInvoiceController::class, 'index']);
+            Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
+            Route::post('/', [ProformaInvoiceController::class, 'store']);
+            Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
+            Route::delete('/{id}', [ProformaInvoiceController::class, 'destroy']);
+            Route::get('/moveUp/{id}', [ProformaInvoiceController::class, 'moveUp']);
+        });
+
+        Route::prefix('invoice')->group(function () {
+            Route::get('/', [InvoiceController::class, 'index']);
+            Route::get('/{id}', [InvoiceController::class, 'show']);
+            Route::post('/', [InvoiceController::class, 'store']);
+            Route::put('/{id}', [InvoiceController::class, 'update']);
+            Route::delete('/{id}', [InvoiceController::class, 'destroy']);
+        });
+
+        Route::prefix('back-order')->group(function () {
+            Route::get('/', [BackOrderController::class, 'index']);
+            Route::get('/{id}', [BackOrderController::class, 'show']);
+            Route::post('/', [BackOrderController::class, 'store']);
+            Route::put('/{id}', [BackOrderController::class, 'update']);
+            Route::delete('/{id}', [BackOrderController::class, 'destroy']);
+        });
     });
 
-    // Quotation Routes
-    Route::prefix('quotation')->group(function () {
-        Route::get('/', [QuotationController::class, 'getAll']);
-        Route::get('/{slug}', [QuotationController::class, 'getDetail']);
-        Route::post('/', [QuotationController::class, 'store']);
-        // Aditional route
-        Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
-        Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
-        Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+    // Finance Middleware
+    Route::middleware([Finance::class])->group(function () {
+        Route::prefix('proforma-invoice')->group(function () {
+            Route::get('/', [ProformaInvoiceController::class, 'index']);
+            Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
+            Route::post('/', [ProformaInvoiceController::class, 'store']);
+            Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
+            Route::delete('/{id}', [ProformaInvoiceController::class, 'destroy']);
+            Route::get('/moveUp/{id}', [ProformaInvoiceController::class, 'moveUp']);
+        });
+
+        Route::prefix('invoice')->group(function () {
+            Route::get('/', [InvoiceController::class, 'index']);
+            Route::get('/{id}', [InvoiceController::class, 'show']);
+            Route::post('/', [InvoiceController::class, 'store']);
+            Route::put('/{id}', [InvoiceController::class, 'update']);
+            Route::delete('/{id}', [InvoiceController::class, 'destroy']);
+        });
     });
 
-    // PO Routes
-    Route::prefix('purchase-order')->group(function () {
-        Route::get('/', [PurchaseOrderController::class, 'getAll']);
-        Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
-        Route::post('/', [PurchaseOrderController::class, 'store']);
-        Route::put('/{id}', [PurchaseOrderController::class, 'update']);
-        Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
-        // Aditional route
-        Route::get('/moveUp/{id}/{employeId}', [PurchaseOrderController::class, 'moveUp']);
+    // Service Middleware
+    Route::middleware([Service::class])->group(function () {
+        Route::prefix('quotation')->group(function () {
+            Route::get('/', [QuotationController::class, 'getAll']);
+            Route::get('/{slug}', [QuotationController::class, 'getDetail']);
+            Route::post('/', [QuotationController::class, 'store']);
+            Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+            Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
+            Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+        });
+
+        Route::prefix('purchase-order')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'getAll']);
+            Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
+            Route::post('/', [PurchaseOrderController::class, 'store']);
+            Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+            Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
+            Route::get('/moveUp/{id}/{employeId}', [PurchaseOrderController::class, 'moveUp']);
+        });
+
+        Route::prefix('work-order')->group(function () {
+            Route::get('/', [WorkOrderController::class, 'index']);
+            Route::get('/{id}', [WorkOrderController::class, 'show']);
+            Route::post('/', [WorkOrderController::class, 'store']);
+            Route::put('/{id}', [WorkOrderController::class, 'update']);
+            Route::delete('/{id}', [WorkOrderController::class, 'destroy']);
+        });
     });
 
-    // PI Routes
-    Route::prefix('proforma-invoice')->group(function () {
-        Route::get('/', [ProformaInvoiceController::class, 'index']);
-        Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
-        Route::post('/', [ProformaInvoiceController::class, 'store']);
-        Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
-        Route::delete('/{id}', [ProformaInvoiceController::class, 'destroy']);
-        // Aditional route
-        Route::get('/moveUp/{id}', [ProformaInvoiceController::class, 'moveUp']);
-    });
+    // Inventory Middleware
+    Route::middleware([Inventory::class])->group(function () {
+        Route::prefix('quotation')->group(function () {
+            Route::get('/', [QuotationController::class, 'getAll']);
+            Route::get('/{slug}', [QuotationController::class, 'getDetail']);
+            Route::post('/', [QuotationController::class, 'store']);
+            Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+            Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
+            Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+        });
 
-    // Invoice Routes
-    Route::prefix('invoice')->group(function () {
-        Route::get('/', [InvoiceController::class, 'index']);
-        Route::get('/{id}', [InvoiceController::class, 'show']);
-        Route::post('/', [InvoiceController::class, 'store']);
-        Route::put('/{id}', [InvoiceController::class, 'update']);
-        Route::delete('/{id}', [InvoiceController::class, 'destroy']);
-        // TODO: Handle status done
-    });
+        Route::prefix('purchase-order')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'getAll']);
+            Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
+            Route::post('/', [PurchaseOrderController::class, 'store']);
+            Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+            Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
+            Route::get('/moveUp/{id}/{employeId}', [PurchaseOrderController::class, 'moveUp']);
+        });
 
-    // Work Order Routes
-    Route::prefix('work-order')->group(function () {
-        Route::get('/', [WorkOrderController::class, 'index']);
-        Route::get('/{id}', [WorkOrderController::class, 'show']);
-        Route::post('/', [WorkOrderController::class, 'store']);
-        Route::put('/{id}', [WorkOrderController::class, 'update']);
-        Route::delete('/{id}', [WorkOrderController::class, 'destroy']);
-        // TODO: Handle status
-    });
-
-    // BO Routes
-    Route::prefix('back-order')->group(function () {
-        Route::get('/', [BackOrderController::class, 'index']);
-        Route::get('/{id}', [BackOrderController::class, 'show']);
-        Route::post('/', [BackOrderController::class, 'store']);
-        Route::put('/{id}', [BackOrderController::class, 'update']);
-        Route::delete('/{id}', [BackOrderController::class, 'destroy']);
-        // TODO: Handle status
-    });
-
-    // Buy Routes
-    Route::prefix('buy')->group(function () {
-        Route::get('/', [BuyController::class, 'getAll']);
-        Route::get('/{id}', [BuyController::class, 'getDetail']);
-        Route::post('/', [BuyController::class, 'store']);
-        Route::put('/{id}', [BuyController::class, 'update']);
-        Route::delete('/{id}', [BuyController::class, 'destroy']);
-    });
-
-    // Sparepart Routes
-    Route::prefix('sparepart')->group(function () {
-        Route::get('/', [GoodController::class, 'index']);
-        Route::get('/{id}', [GoodController::class, 'show']);
-        Route::post('/', [GoodController::class, 'store']);
-        Route::put('/{id}', [GoodController::class, 'update']);
-        Route::delete('/{id}', [GoodController::class, 'destroy']);
+        Route::prefix('back-order')->group(function () {
+            Route::get('/', [BackOrderController::class, 'index']);
+            Route::get('/{id}', [BackOrderController::class, 'show']);
+            Route::post('/', [BackOrderController::class, 'store']);
+            Route::put('/{id}', [BackOrderController::class, 'update']);
+            Route::delete('/{id}', [BackOrderController::class, 'destroy']);
+        });
     });
 });
