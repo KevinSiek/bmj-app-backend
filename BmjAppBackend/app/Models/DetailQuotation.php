@@ -11,7 +11,7 @@ class DetailQuotation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_quotation', 'id_goods', 'quantity', 'total_unit', 'unit_price'
+        'id_quotation', 'id_spareparts', 'quantity', 'total_unit', 'unit_price'
     ];
 
     public function quotation()
@@ -19,8 +19,8 @@ class DetailQuotation extends Model
         return $this->belongsTo(Quotation::class, 'id_quotation');
     }
 
-    public function goods()
+    public function spareparts()
     {
-        return $this->belongsTo(Good::class, 'id_goods');
+        return $this->belongsTo(Sparepart::class, 'id_spareparts');
     }
 }

@@ -4,18 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Good;
+use App\Models\Sparepart;
 use Symfony\Component\HttpFoundation\Response;
 
-class GoodController extends Controller
+class SparepartController extends Controller
 {
     public function index()
     {
         try {
-            $goods = Good::all();
+            $spareparts = Sparepart::all();
             return response()->json([
-                'message' => 'Goods retrieved successfully',
-                'data' => $goods
+                'message' => 'Spareparts retrieved successfully',
+                'data' => $spareparts
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -25,15 +25,15 @@ class GoodController extends Controller
     public function show($id)
     {
         try {
-            $good = Good::find($id);
+            $spareparts = Sparepart::find($id);
 
-            if (!$good) {
-                return $this->handleNotFound('Good not found');
+            if (!$spareparts) {
+                return $this->handleNotFound('Spareparts not found');
             }
 
             return response()->json([
-                'message' => 'Good retrieved successfully',
-                'data' => $good
+                'message' => 'Spareparts retrieved successfully',
+                'data' => $spareparts
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -43,51 +43,51 @@ class GoodController extends Controller
     public function store(Request $request)
     {
         try {
-            $good = Good::create($request->all());
+            $spareparts = Sparepart::create($request->all());
             return response()->json([
-                'message' => 'Good created successfully',
-                'data' => $good
+                'message' => 'Spareparts created successfully',
+                'data' => $spareparts
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Good creation failed');
+            return $this->handleError($th, 'Spareparts creation failed');
         }
     }
 
     public function update(Request $request, $id)
     {
         try {
-            $good = Good::find($id);
+            $spareparts = Sparepart::find($id);
 
-            if (!$good) {
-                return $this->handleNotFound('Good not found');
+            if (!$spareparts) {
+                return $this->handleNotFound('Spareparts not found');
             }
 
-            $good->update($request->all());
+            $spareparts->update($request->all());
             return response()->json([
-                'message' => 'Good updated successfully',
-                'data' => $good
+                'message' => 'Spareparts updated successfully',
+                'data' => $spareparts
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Good update failed');
+            return $this->handleError($th, 'Spareparts update failed');
         }
     }
 
     public function destroy($id)
     {
         try {
-            $good = Good::find($id);
+            $spareparts = Sparepart::find($id);
 
-            if (!$good) {
-                return $this->handleNotFound('Good not found');
+            if (!$spareparts) {
+                return $this->handleNotFound('Spareparts not found');
             }
 
-            $good->delete();
+            $spareparts->delete();
             return response()->json([
-                'message' => 'Good deleted successfully',
+                'message' => 'Spareparts deleted successfully',
                 'data' => null
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Good deletion failed');
+            return $this->handleError($th, 'Spareparts deletion failed');
         }
     }
 

@@ -3,7 +3,7 @@ namespace Database\Seeders;
 
 use App\Models\Quotation;
 use App\Models\DetailQuotation;
-use App\Models\Good;
+use App\Models\Sparepart;
 use Illuminate\Database\Seeder;
 
 class QuotationSeeder extends Seeder
@@ -13,7 +13,7 @@ class QuotationSeeder extends Seeder
         Quotation::factory(30)
             ->has(DetailQuotation::factory()->count(5)->state(function (array $attributes, Quotation $quotation) {
                 return [
-                    'id_goods' => Good::inRandomOrder()->first()->id,
+                    'id_spareparts' => Sparepart::inRandomOrder()->first()->id,
                     'quantity' => fake()->numberBetween(1, 5),
                     'unit_price' => fake()->numberBetween(10000, 50000),
                 ];
@@ -37,7 +37,7 @@ class QuotationSeeder extends Seeder
                     'Overhaul Generator'
                 ]),
                 'type'=> fn() =>fake()->randomElement([
-                    'Goods',
+                    'Spareparts',
                     'Service',
                 ]),
                 'status'=> fn() =>fake()->randomElement([

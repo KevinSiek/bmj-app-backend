@@ -118,7 +118,7 @@ class PurchaseOrderController extends Controller
     public function getDetail($id)
     {
         try {
-            $purchaseOrder = PurchaseOrder::with(['quotation.customer', 'quotation.detailQuotations.goods', 'proformaInvoices', 'employee'])
+            $purchaseOrder = PurchaseOrder::with(['quotation.customer', 'quotation.detailQuotations.spareparts', 'proformaInvoices', 'employee'])
                 ->find($id);
 
             if (!$purchaseOrder) {
@@ -131,12 +131,12 @@ class PurchaseOrderController extends Controller
 
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
-                    'partName' => $detail->goods->name ?? '',
-                    'partNumber' => $detail->goods->no_sparepart ?? '',
+                    'partName' => $detail->spareparts->name ?? '',
+                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
                     'quantity' => $detail->quantity,
                     'unit' => 'pcs',
-                    'unitPrice' => $detail->goods->unit_price_sell ?? 0,
-                    'amount' => ($detail->quantity * ($detail->goods->unit_price_sell ?? 0))
+                    'unitPrice' => $detail->spareparts->unit_price_sell ?? 0,
+                    'amount' => ($detail->quantity * ($detail->spareparts->unit_price_sell ?? 0))
                 ];
             });
 

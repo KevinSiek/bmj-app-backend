@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 use App\Models\{WorkOrder,Employee, Quotation};
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Good>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Sparepart>
  */
 class WorkOrderFactory extends Factory
 {

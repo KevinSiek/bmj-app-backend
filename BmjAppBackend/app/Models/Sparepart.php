@@ -5,9 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Good extends Model
+class Sparepart extends Model
 {
-    /** @use HasFactory<\Database\Factories\GoodFactory> */
+    /** @use HasFactory<\Database\Factories\SparepartFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -16,11 +16,11 @@ class Good extends Model
 
     public function detailQuotations()
     {
-        return $this->hasMany(DetailQuotation::class, 'id_goods');
+        return $this->hasMany(DetailQuotation::class, 'id_spareparts');
     }
 
     public function detailBuys()
     {
-        return $this->hasMany(DetailBuy::class, 'id_goods');
+        return $this->hasMany(DetailBuy::class, 'id_spareparts');
     }
 }

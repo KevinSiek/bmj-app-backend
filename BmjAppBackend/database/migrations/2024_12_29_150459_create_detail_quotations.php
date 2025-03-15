@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('detail_quotations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_quotation')->constrained('quotations');
-            $table->foreignId('id_goods')->constrained('goods');
+            $table->foreignId('id_spareparts')->constrained('spareparts');
             $table->integer('quantity');
             $table->integer('unit_price');
             $table->timestamps();

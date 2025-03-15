@@ -11,7 +11,7 @@ class DetailBuy extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_buy', 'id_goods', 'quantity'
+        'id_buy', 'id_spareparts', 'quantity'
     ];
 
     public function buy()
@@ -19,8 +19,8 @@ class DetailBuy extends Model
         return $this->belongsTo(Buy::class, 'id_buy');
     }
 
-    public function goods()
+    public function spareparts()
     {
-        return $this->belongsTo(Good::class, 'id_goods');
+        return $this->belongsTo(Sparepart::class, 'id_spareparts');
     }
 }

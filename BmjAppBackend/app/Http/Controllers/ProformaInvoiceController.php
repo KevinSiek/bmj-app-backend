@@ -102,7 +102,7 @@ class ProformaInvoiceController extends Controller
                     'id' => (string) $invoice->id,
                     'customer' => $invoice->purchaseOrder ? $invoice->purchaseOrder->customer_name : 'Unknown',
                     'date' => $invoice->pi_date ? date('d M Y', strtotime($invoice->pi_date)) : '',
-                    'type' => 'Goods' // Assuming all invoices are goods-related
+                    'type' => 'Spareparts'
                 ];
             });
 
@@ -120,7 +120,7 @@ class ProformaInvoiceController extends Controller
         try {
             $proformaInvoice = ProformaInvoice::with([
                 'purchaseOrder.quotation.customer',
-                'purchaseOrder.quotation.detailQuotations.goods.detailBuys'
+                'purchaseOrder.quotation.detailQuotations.spareparts.detailBuys'
             ])->find($id);
 
             if (!$proformaInvoice) {
@@ -134,15 +134,15 @@ class ProformaInvoiceController extends Controller
 
             $spareparts = collect();
             foreach ($detailQuotations as $detailQuotation) {
-                $good = $detailQuotation->goods;
-                foreach ($good->detailBuys as $detailBuy) {
+                $sparepart = $detailQuotation->spareparts;
+                foreach ($sparepart->detailBuys as $detailBuy) {
                     $spareparts->push([
-                        'partName' => $good->name ?? '',
-                        'partNumber' => $good->no_sparepart ?? '',
+                        'partName' => $sparepart->name ?? '',
+                        'partNumber' => $sparepart->no_sparepart ?? '',
                         'quantity' => $detailBuy->quantity ?? 0,
                         'unit' => 'pcs',
-                        'unitPrice' => $good->unit_price_sell ?? 0,
-                        'amount' => ($detailBuy->quantity ?? 0) * ($good->unit_price_sell ?? 0),
+                        'unitPrice' => $sparepart->unit_price_sell ?? 0,
+                        'amount' => ($detailBuy->quantity ?? 0) * ($sparepart->unit_price_sell ?? 0),
                     ]);
                 }
             }

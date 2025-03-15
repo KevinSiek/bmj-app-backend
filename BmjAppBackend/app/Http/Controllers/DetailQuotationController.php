@@ -9,11 +9,11 @@ use App\Models\DetailQuotation;
 class DetailQuotationController extends Controller
 {
     public function index() {
-        return DetailQuotation::with('quotation', 'goods')->get();
+        return DetailQuotation::with('quotation', 'spareparts')->get();
     }
 
     public function show($id) {
-        return DetailQuotation::with('quotation', 'goods')->find($id);
+        return DetailQuotation::with('quotation', 'spareparts')->find($id);
     }
 
     public function store(Request $request) {

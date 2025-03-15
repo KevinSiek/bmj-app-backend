@@ -1,19 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DetailAccessesController;
-use App\Http\Controllers\EmployeeController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\QuotationController;
-use App\Http\Controllers\PurchaseOrderController;
-use App\Http\Controllers\ProformaInvoiceController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\BackOrderController;
-use App\Http\Controllers\BuyController;
-use App\Http\Controllers\GoodController;
-use App\Http\Controllers\DetailBuyController;
-use App\Http\Controllers\DetailQuotationController;
-use App\Http\Controllers\WorkOrderController;
 use App\Http\Middleware\RestApiTest;
 
 # For production use "auth:api"

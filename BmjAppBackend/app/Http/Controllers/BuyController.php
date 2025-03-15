@@ -116,7 +116,7 @@ class BuyController extends Controller
     public function getDetail($id)
     {
         try {
-            $buy = Buy::with('detailBuys.goods')->find($id);
+            $buy = Buy::with('detailBuys.spareparts')->find($id);
 
             if (!$buy) {
                 return $this->handleNotFound('Buy record not found');
@@ -124,17 +124,17 @@ class BuyController extends Controller
 
             // Calculate total purchase amount
             $totalPurchase = $buy->detailBuys->sum(function ($detail) {
-                return $detail->quantity * $detail->goods->unit_price_buy;
+                return $detail->quantity * $detail->spareparts->unit_price_buy;
             });
 
             // Get spare parts details
             $spareParts = $buy->detailBuys->map(function ($detail) {
                 return [
-                    'partName'   => $detail->goods->name,
-                    'partNumber' => $detail->goods->no_sparepart,
+                    'partName'   => $detail->spareparts->name,
+                    'partNumber' => $detail->spareparts->no_sparepart,
                     'quantity'   => $detail->quantity,
-                    'unitPrice'  => $detail->goods->unit_price_buy,
-                    'totalPrice' => $detail->quantity * $detail->goods->unit_price_buy
+                    'unitPrice'  => $detail->spareparts->unit_price_buy,
+                    'totalPrice' => $detail->quantity * $detail->spareparts->unit_price_buy
                 ];
             });
 

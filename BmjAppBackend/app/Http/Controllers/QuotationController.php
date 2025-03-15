@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quotation;
-use App\Models\Good;
+use App\Models\Sparepart;
 use App\Models\Customer;
 use App\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
@@ -45,10 +45,10 @@ class QuotationController extends Controller
                 'province'=>'required|string',
                 'postal_code'=>'required|numeric',
                 // Sparepart validation
-                'goods' => 'required|array',
-                'goods.*.id_goods' => 'required|exists:goods,id',
-                'goods.*.quantity' => 'required|integer|min:1',
-                'goods.*.unit_price' => 'required|numeric|min:1',
+                'spareparts' => 'required|array',
+                'spareparts.*.id_spareparts' => 'required|exists:spareparts,id',
+                'spareparts.*.quantity' => 'required|integer|min:1',
+                'spareparts.*.unit_price' => 'required|numeric|min:1',
             ]);
 
             // Handle Customer Data
@@ -91,34 +91,34 @@ class QuotationController extends Controller
             // Create the quotation with the validated data and slug
             $quotation = Quotation::create($validatedData);
 
-            // Create DetailQuotation from list of goods in this quotations
-            foreach ($request->input('goods') as $good) {
-                $goodId = $good['id_goods'];
-                $goodUnitPrice =$good['unit_price'];
-                // Validate agans each good data
-                $goodValidator = Validator::make($good, [
-                    'id_goods' => 'required|exists:goods,id',
+            // Create DetailQuotation from list of spareparts in this quotations
+            foreach ($request->input('spareparts') as $spareparts) {
+                $sparepartsId = $spareparts['id_spareparts'];
+                $sparepartsUnitPrice =$spareparts['unit_price'];
+                // Validate agans each spareparts data
+                $sparepartsValidator = Validator::make($spareparts, [
+                    'id_spareparts' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
                     'unit_price' =>'required|numeric|min:1',
                 ]);
 
                 // If unit price that employee give different with official unit price, then this quotation need review
-                $goodDbData = Good::find($goodId);
-                $goodDbUnitPriceSell = $goodDbData->unit_price_sell;
-                if($goodUnitPrice != $goodDbUnitPriceSell){
+                $sparepartsDbData = Sparepart::find($sparepartsId);
+                $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
+                if($sparepartsUnitPrice != $sparepartsDbUnitPriceSell){
                     $validatedData['review'] = false;
                     $quotation->update($validatedData);
                 }
-                if ($goodValidator->fails()) {
-                    throw new \Exception('Invalid good data: ' . $goodValidator->errors()->first());
+                if ($sparepartsValidator->fails()) {
+                    throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
                 }
 
                 // Insert into the bridge table
                 DB::table('detail_quotations')->insert([
                     'id_quotation' => $quotation->id,
-                    'id_goods' => $goodId,
-                    'quantity' => $good['quantity'],
-                    'unit_price' => $goodUnitPrice,
+                    'id_spareparts' => $sparepartsId,
+                    'quantity' => $spareparts['quantity'],
+                    'unit_price' => $sparepartsUnitPrice,
                     'created_at'=>now(),
                     'updated_at'=>now(),
                 ]);
@@ -181,8 +181,8 @@ class QuotationController extends Controller
             $customer = $quotation->customer;
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
-                    'partName' => $detail->goods->name ?? '',
-                    'partNumber' => $detail->goods->no_sparepart ?? '',
+                    'partName' => $detail->spareparts->name ?? '',
+                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
                     'quantity' => $detail->quantity,
                     'unitPrice' => $detail->unit_price ?? 0,
                     'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),

@@ -9,11 +9,11 @@ use App\Models\DetailBuy;
 class DetailBuyController extends Controller
 {
     public function index() {
-        return DetailBuy::with('buy', 'goods')->get();
+        return DetailBuy::with('buy', 'spareparts')->get();
     }
 
     public function show($id) {
-        return DetailBuy::with('buy', 'goods')->find($id);
+        return DetailBuy::with('buy', 'spareparts')->find($id);
     }
 
     public function store(Request $request) {

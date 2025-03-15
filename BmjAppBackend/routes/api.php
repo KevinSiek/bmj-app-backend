@@ -9,13 +9,8 @@ use App\Http\Controllers\ProformaInvoiceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\BackOrderController;
 use App\Http\Controllers\BuyController;
-use App\Http\Controllers\GoodController;
+use App\Http\Controllers\SparepartController;
 use App\Http\Controllers\WorkOrderController;
-use App\Http\Middleware\Director;
-use App\Http\Middleware\Marketing;
-use App\Http\Middleware\Finance;
-use App\Http\Middleware\Inventory;
-use App\Http\Middleware\Service;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 
@@ -187,11 +182,11 @@ Route::middleware("auth:sanctum")->group(function () {
 
         // Sparepart Routes
         Route::prefix('sparepart')->group(function () {
-            Route::get('/', [GoodController::class, 'index']);
-            Route::get('/{id}', [GoodController::class, 'show']);
-            Route::post('/', [GoodController::class, 'store']);
-            Route::put('/{id}', [GoodController::class, 'update']);
-            Route::delete('/{id}', [GoodController::class, 'destroy']);
+            Route::get('/', [SparepartController::class, 'index']);
+            Route::get('/{id}', [SparepartController::class, 'show']);
+            Route::post('/', [SparepartController::class, 'store']);
+            Route::put('/{id}', [SparepartController::class, 'update']);
+            Route::delete('/{id}', [SparepartController::class, 'destroy']);
         });
     });
 });

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Sparepart;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -16,7 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CustomerSeeder::class,
             AccessRoleSeeder::class,
-            GoodSeeder::class,
+            SparepartSeeder::class,
             QuotationSeeder::class,
             PurchaseOrderSeeder::class,
             ProformaInvoiceSeeder::class,

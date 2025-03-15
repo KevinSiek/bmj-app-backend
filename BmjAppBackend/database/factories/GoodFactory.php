@@ -3,19 +3,19 @@
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use App\Models\Good;
+use App\Models\Sparepart;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Good>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Sparepart>
  */
-class GoodFactory extends Factory
+class SparepartFactory extends Factory
 {
     /**
      * Define the model's default state.
      *
      * @return array<string, mixed>
      */
-    protected $model = Good::class;
+    protected $model = Sparepart::class;
 
     public function definition()
     {
