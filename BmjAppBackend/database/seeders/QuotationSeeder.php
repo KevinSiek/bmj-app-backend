@@ -15,6 +15,7 @@ class QuotationSeeder extends Seeder
                 return [
                     'id_spareparts' => Sparepart::inRandomOrder()->first()->id,
                     'quantity' => fake()->numberBetween(1, 5),
+                    'is_indent' => fake()->numberBetween(0, 1),
                     'unit_price' => fake()->numberBetween(10000, 50000),
                 ];
             }), 'detailQuotations')

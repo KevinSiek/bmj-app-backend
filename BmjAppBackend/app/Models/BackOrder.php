@@ -11,7 +11,7 @@ class BackOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_po', 'number_delivery_order', 'number_back_order', 'status'
+        'id_po', 'no_bo', 'status'
     ];
 
     public function purchaseOrder()
@@ -19,8 +19,8 @@ class BackOrder extends Model
         return $this->belongsTo(PurchaseOrder::class, 'id_po');
     }
 
-    public function buys()
+    public function detailBackOrders()
     {
-        return $this->hasMany(Buy::class, 'id_bo');
+        return $this->hasMany(DetailBackOrder::class, 'id_bo');
     }
 }

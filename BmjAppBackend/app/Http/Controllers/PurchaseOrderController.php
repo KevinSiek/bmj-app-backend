@@ -102,7 +102,7 @@ class PurchaseOrderController extends Controller
                     'customer' => $po->quotation->customer->company_name ?? 'Unknown',
                     'date' => $po->po_date,
                     'type' => $po->quotation->type ?? 'Unknown',
-                    'status' => $po->quotation->status // Replace with actual status if available
+                    'status' => $po->quotation->status 
                 ];
             });
 

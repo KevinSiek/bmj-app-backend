@@ -5,20 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class DetailQuotation extends Model
+class DetailBackOrder extends Model
 {
-    /** @use HasFactory<\Database\Factories\DetailQuotationFactory> */
+    /** @use HasFactory<\Database\Factories\BackOrderFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_quotation', 'id_spareparts', 'quantity', 'total_unit', 'unit_price', 'is_indent'
+        'id_bo', 'id_spareparts', 'number_delivery_order', 'number_back_order',
     ];
-
-    public function quotation()
+    public function backOrders()
     {
-        return $this->belongsTo(Quotation::class, 'id_quotation');
+        return $this->belongsTo(BackOrder::class, 'id_bo');
     }
-
     public function spareparts()
     {
         return $this->belongsTo(Sparepart::class, 'id_spareparts');

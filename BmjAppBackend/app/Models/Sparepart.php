@@ -11,7 +11,7 @@ class Sparepart extends Model
     use HasFactory;
 
     protected $fillable = [
-        'no_sparepart','name', 'unit_price_buy', 'unit_price_sell', 'total_unit'
+        'slug','no_sparepart','name', 'unit_price_buy', 'unit_price_sell', 'total_unit'
     ];
 
     public function detailQuotations()
@@ -22,5 +22,9 @@ class Sparepart extends Model
     public function detailBuys()
     {
         return $this->hasMany(DetailBuy::class, 'id_spareparts');
+    }
+    public function detailBackOrders()
+    {
+        return $this->hasMany(DetailBackOrder::class, 'id_spareparts');
     }
 }

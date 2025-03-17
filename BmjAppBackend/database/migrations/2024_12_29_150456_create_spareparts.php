@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('spareparts', function (Blueprint $table) {
             $table->id();
+            $table->string('slug');
             $table->string('no_sparepart');
             $table->string('name');
             $table->decimal('unit_price_buy', 15, 2);
