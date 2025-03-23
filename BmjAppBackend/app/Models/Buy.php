@@ -11,13 +11,8 @@ class Buy extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_bo', 'no_buy', 'total_amount', 'review', 'note'
+        'no_buy', 'total_amount', 'review', 'note'
     ];
-
-    public function backOrder()
-    {
-        return $this->belongsTo(BackOrder::class, 'id_bo');
-    }
 
     public function detailBuys()
     {

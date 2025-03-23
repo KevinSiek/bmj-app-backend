@@ -15,7 +15,7 @@ class isDirector
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->header('access') == 'Director') {
+        if ($request->user()->role == 'Director') {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

@@ -21,7 +21,6 @@ class BuyFactory extends Factory
     public function definition()
     {
         return [
-            'id_bo' => BackOrder::inRandomOrder()->first()->id,
             'no_buy' => Str::random(10),
             'total_amount' => $this->faker->randomFloat(2, 1000, 10000),
             'review' => $this->faker->boolean,

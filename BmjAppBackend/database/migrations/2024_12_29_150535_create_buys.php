@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('buys', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_bo')->constrained('back_orders');
             $table->string('no_buy');
             $table->decimal('total_amount', 15, 2);
             $table->boolean('review')->default(false);

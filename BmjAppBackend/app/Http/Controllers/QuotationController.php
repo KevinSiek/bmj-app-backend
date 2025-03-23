@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Validator;
 
 class QuotationController extends Controller
 {
+    const APPROVE = "approve";
+    const DECLINE = "decline";
+    const NEED_CHANGE = "change";
+
     public function store(Request $request)
     {
         // Start a database transaction
@@ -32,7 +36,6 @@ class QuotationController extends Controller
                 'project' => 'required|string|max:255',
                 'no' => 'required|string|unique:quotations,no',
                 'type' => 'required|string',
-                'status' => 'required|string',
                 'amount'=>'required|numeric',
                 'discount'=>'required|numeric',
                 'subtotal'=>'required|numeric',
@@ -90,6 +93,7 @@ class QuotationController extends Controller
             $validatedData['employee_id'] = $userId;
             $validatedData['date'] = now();
             $validatedData['review'] = true;
+            $validatedData['status'] = QuotationController::APPROVE;
             $validatedData['id_customer'] = $customer->id; // Assign the customer ID to the quotation
 
             // Create the quotation with the validated data and slug
@@ -112,6 +116,7 @@ class QuotationController extends Controller
                 $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
                 if($sparepartsUnitPrice != $sparepartsDbUnitPriceSell){
                     $validatedData['review'] = false;
+                    $validatedData['status'] = '';
                     $quotation->update($validatedData);
                 }
                 // Determine if current sparepart quantity is exist or not.
@@ -119,10 +124,6 @@ class QuotationController extends Controller
                 if($quantityOrderSparepart > $sparepartsDbData->total_unit){
                     $spareparts['is_indent'] = true;
                 }
-
-                // Decrease the total_unit of the sparepart
-                $sparepartsDbData->total_unit -= $quantityOrderSparepart;
-                $sparepartsDbData->save();
 
                 if ($sparepartsValidator->fails()) {
                     throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
@@ -165,137 +166,124 @@ class QuotationController extends Controller
 
         try {
             // Find the quotation by slug
-            $quotation = Quotation::where('slug', $slug)->firstOrFail();
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation = $quoatations->where('slug', $slug)->firstOrFail();
+            $po = $quotation->purchaseOrder;
+
+            if($po){
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             // Validate the request data
             $validatedData = $request->validate([
-                'project' => 'sometimes|string|max:255',
+                'project' => 'required|string|max:255',
                 'no' => 'sometimes|string|unique:quotations,no,' . $quotation->id,
-                'type' => 'sometimes|string',
-                'status' => 'sometimes|string',
-                'amount' => 'sometimes|numeric',
-                'discount' => 'sometimes|numeric',
-                'subtotal' => 'sometimes|numeric',
-                'vat' => 'sometimes|numeric',
-                'total' => 'sometimes|numeric',
+                'type' => 'required|string',
+                'amount' => 'required|numeric',
+                'discount' => 'required|numeric',
+                'subtotal' => 'required|numeric',
+                'vat' => 'required|numeric',
+                'total' => 'required|numeric',
                 'note' => 'sometimes|string',
                 // Customer validation
-                'company_name' => 'sometimes|string',
-                'office' => 'sometimes|string',
-                'address' => 'sometimes|string',
-                'urban_area' => 'sometimes|string',
-                'subdistrict' => 'sometimes|string',
-                'city' => 'sometimes|string',
-                'province' => 'sometimes|string',
-                'postal_code' => 'sometimes|numeric',
+                'company_name' => 'required|string',
+                'office' => 'required|string',
+                'address' => 'required|string',
+                'urban_area' => 'required|string',
+                'subdistrict' => 'required|string',
+                'city' => 'required|string',
+                'province' => 'required|string',
+                'postal_code' => 'required|numeric',
                 // Sparepart validation
-                'spareparts' => 'sometimes|array',
-                'spareparts.*.id_spareparts' => 'sometimes|exists:spareparts,id',
-                'spareparts.*.quantity' => 'sometimes|integer|min:1',
-                'spareparts.*.unit_price' => 'sometimes|numeric|min:1',
+                'spareparts' => 'required|array',
+                'spareparts.*.id_spareparts' => 'required|exists:spareparts,id',
+                'spareparts.*.quantity' => 'required|integer|min:1',
+                'spareparts.*.unit_price' => 'required|numeric|min:1',
             ]);
 
             // Handle Customer Data if provided
-            if (isset($validatedData['company_name'])) {
-                $customerData = [
-                    'slug' => Str::slug($validatedData['company_name']) . '-' . Str::random(6),
-                    'company_name' => $validatedData['company_name'],
-                    'office' => $validatedData['office'],
-                    'address' => $validatedData['address'],
-                    'urban_area' => $validatedData['urban_area'],
-                    'subdistrict' => $validatedData['subdistrict'],
-                    'city' => $validatedData['city'],
-                    'province' => $validatedData['province'],
-                    'postal_code' => $validatedData['postal_code'],
-                ];
+            $customerData = [
+                'slug' => Str::slug($validatedData['company_name']) . '-' . Str::random(6),
+                'company_name' => $validatedData['company_name'],
+                'office' => $validatedData['office'],
+                'address' => $validatedData['address'],
+                'urban_area' => $validatedData['urban_area'],
+                'subdistrict' => $validatedData['subdistrict'],
+                'city' => $validatedData['city'],
+                'province' => $validatedData['province'],
+                'postal_code' => $validatedData['postal_code'],
+            ];
 
-                // Check if customer already exists
-                $customer = Customer::where('company_name', $customerData['company_name'])
-                    ->where('office', $customerData['office'])
-                    ->where('address', $customerData['address'])
-                    ->where('urban_area', $customerData['urban_area'])
-                    ->where('subdistrict', $customerData['subdistrict'])
-                    ->where('city', $customerData['city'])
-                    ->where('province', $customerData['province'])
-                    ->where('postal_code', $customerData['postal_code'])
-                    ->first();
+            // Check if customer already exists
+            $customer = Customer::where('company_name', $customerData['company_name'])
+                ->where('office', $customerData['office'])
+                ->where('address', $customerData['address'])
+                ->where('urban_area', $customerData['urban_area'])
+                ->where('subdistrict', $customerData['subdistrict'])
+                ->where('city', $customerData['city'])
+                ->where('province', $customerData['province'])
+                ->where('postal_code', $customerData['postal_code'])
+                ->first();
 
-                // Create new customer if it doesn't exist
-                if (!$customer) {
-                    $customer = Customer::create($customerData);
-                }
-
-                // Assign the customer ID to the quotation
-                $validatedData['id_customer'] = $customer->id;
+            // Create new customer if it doesn't exist
+            if (!$customer) {
+                $customer = Customer::create($customerData);
             }
+
+            // Assign the customer ID to the quotation
+            $validatedData['id_customer'] = $customer->id;
 
             // Update the quotation with the validated data
             $quotation->update($validatedData);
 
-            // Handle Spareparts if provided
-            if (isset($validatedData['spareparts'])) {
-                // Get the existing spareparts for this quotation
-                $existingSpareparts = DB::table('detail_quotations')
-                    ->where('id_quotation', $quotation->id)
-                    ->get();
+            // Handle Spareparts
+            // Delete existing spareparts for this quotation
+            DB::table('detail_quotations')->where('id_quotation', $quotation->id)->delete();
 
-                // Restore the total_unit for existing spareparts
-                foreach ($existingSpareparts as $existingSparepart) {
-                    $sparepart = Sparepart::find($existingSparepart->id_spareparts);
-                    $sparepart->total_unit += $existingSparepart->quantity;
-                    $sparepart->save();
+            // Create DetailQuotation from list of spareparts in this quotations
+            foreach ($request->input('spareparts') as $spareparts) {
+                $sparepartsId = $spareparts['id_spareparts'];
+                $sparepartsUnitPrice = $spareparts['unit_price'];
+
+                // Validate against each spareparts data
+                $sparepartsValidator = Validator::make($spareparts, [
+                    'id_spareparts' => 'required|exists:spareparts,id',
+                    'quantity' => 'required|integer|min:1',
+                    'unit_price' => 'required|numeric|min:1',
+                ]);
+
+                // If unit price that employee give different with official unit price, then this quotation need review
+                $sparepartsDbData = Sparepart::find($sparepartsId);
+                $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
+                if ($sparepartsUnitPrice != $sparepartsDbUnitPriceSell) {
+                    $validatedData['review'] = false;
+                    $validatedData['status'] = '';
+                    $quotation->update($validatedData);
                 }
 
-                // Delete existing spareparts for this quotation
-                DB::table('detail_quotations')->where('id_quotation', $quotation->id)->delete();
-
-                // Create DetailQuotation from list of spareparts in this quotations
-                foreach ($request->input('spareparts') as $spareparts) {
-                    $sparepartsId = $spareparts['id_spareparts'];
-                    $sparepartsUnitPrice = $spareparts['unit_price'];
-
-                    // Validate against each spareparts data
-                    $sparepartsValidator = Validator::make($spareparts, [
-                        'id_spareparts' => 'required|exists:spareparts,id',
-                        'quantity' => 'required|integer|min:1',
-                        'unit_price' => 'required|numeric|min:1',
-                    ]);
-
-                    // If unit price that employee give different with official unit price, then this quotation need review
-                    $sparepartsDbData = Sparepart::find($sparepartsId);
-                    $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
-                    if ($sparepartsUnitPrice != $sparepartsDbUnitPriceSell) {
-                        $validatedData['review'] = false;
-                        $quotation->update($validatedData);
-                    }
-
-                    // Determine if current sparepart quantity is exist or not.
-                    $spareparts['is_indent'] = false;
-                    if ($spareparts['quantity'] > $sparepartsDbData->total_unit) {
-                        $spareparts['is_indent'] = true;
-                    }
-
-                    if ($sparepartsValidator->fails()) {
-                        throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
-                    }
-
-                    // Decrease the total_unit of the sparepart
-                    $sparepartsDbData->total_unit -= $spareparts['quantity'];
-                    $sparepartsDbData->save();
-
-                    // Insert into the bridge table
-                    DB::table('detail_quotations')->insert([
-                        'id_quotation' => $quotation->id,
-                        'id_spareparts' => $sparepartsId,
-                        'quantity' => $spareparts['quantity'],
-                        'is_indent' => $spareparts['is_indent'],
-                        'unit_price' => $sparepartsUnitPrice,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                // Determine if current sparepart quantity is exist or not.
+                $spareparts['is_indent'] = false;
+                if ($spareparts['quantity'] > $sparepartsDbData->total_unit) {
+                    $spareparts['is_indent'] = true;
                 }
+
+                if ($sparepartsValidator->fails()) {
+                    throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
+                }
+
+                // Insert into the bridge table
+                DB::table('detail_quotations')->insert([
+                    'id_quotation' => $quotation->id,
+                    'id_spareparts' => $sparepartsId,
+                    'quantity' => $spareparts['quantity'],
+                    'is_indent' => $spareparts['is_indent'],
+                    'unit_price' => $sparepartsUnitPrice,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
             }
-
             // Commit the transaction if everything is successful
             DB::commit();
 
@@ -314,34 +302,7 @@ class QuotationController extends Controller
         }
     }
 
-    public function review(Request $request, $slug, $reviewState)
-    {
-        try {
-            if (!$reviewState) {
-                return response()->json([
-                    'message' => 'Invalid review status'
-                ], Response::HTTP_BAD_REQUEST);
-            }
-            $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->first();
-
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
-            }
-
-            $quotation->status = $reviewState;
-            $quotation->save();
-
-            return response()->json([
-                'message' => 'Quotation status updated successfully',
-                'data' => $quotation
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Failed to update quotation status');
-        }
-    }
-
-    public function cancelled(Request $request, $slug)
+    public function needChange(Request $request, $slug)
     {
         // Start a database transaction
         DB::beginTransaction();
@@ -355,23 +316,78 @@ class QuotationController extends Controller
                 return $this->handleNotFound('Quotation not found');
             }
 
-            // Get the spareparts associated with the quotation
-            $spareparts = DB::table('detail_quotations')
-                ->where('id_quotation', $quotation->id)
-                ->get();
+            $quotation->review = true;
+            $quotation->status = QuotationController::NEED_CHANGE;
+            $quotation->save();
 
-            // Restore the total_unit for each sparepart
-            foreach ($spareparts as $sparepart) {
-                $sparepartRecord = Sparepart::find($sparepart->id_spareparts);
-                if ($sparepartRecord) {
-                    $sparepartRecord->total_unit += $sparepart->quantity;
-                    $sparepartRecord->save();
-                }
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Quotation status updated successfully',
+                'data' => $quotation
+            ], Response::HTTP_OK);
+
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to update quotation status');
+        }
+    }
+
+    public function approve(Request $request, $slug)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation = $quoatations->where('slug', $slug)->first();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
             }
 
-            // Update the quotation status to "cancelled"
             $quotation->review = true;
-            $quotation->status = 'cancelled';
+            $quotation->status = QuotationController::APPROVE;
+            $quotation->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Quotation status updated successfully',
+                'data' => $quotation
+            ], Response::HTTP_OK);
+
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to update quotation status');
+        }
+    }
+
+    public function decline(Request $request, $slug)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation = $quoatations->where('slug', $slug)->first();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $quotation->review = true;
+            $quotation->status = QuotationController::DECLINE;
             $quotation->save();
 
             // Commit the transaction
@@ -505,6 +521,25 @@ class QuotationController extends Controller
         try {
             $quoatations = $this->getAccessedQuotation($request);
             $quotation =  $quoatations->where('slug', $slug)->first();
+            $isNeedReview = $quotation->review;
+            $isApproved = $quotation->status == QuotationController::APPROVE;
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            if ($quotation->purchaseOrder) {
+                return response()->json([
+                    'message' => 'Quotation already has a purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            if(!$isNeedReview || !$isApproved){
+                return response()->json([
+                    'message' => 'Quotation need to reviewed or approved first before move to purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             $quotation->update(['status' => 'PO']);
 
             // Get the spareparts associated with the quotation
@@ -526,11 +561,6 @@ class QuotationController extends Controller
                 'status' => 'Pending',
             ]);
 
-            // Create data at Buy table first with total amount of 0
-            // If there is BO in single sparepart, we will keep this data and update total_amount
-            // But if there is no BO in this PO, then we will delete this data, because we don't need it
-            $alreadyCreateBuyData = false;
-            $buyData= Buy::get();
             // Decrease the total_unit for each sparepart after moveToPo
             foreach ($spareparts as $sparepart) {
                 $sparepartRecord = Sparepart::find($sparepart->id_spareparts);
@@ -556,6 +586,8 @@ class QuotationController extends Controller
                     $numberBoInBo = $sparepartQuantityOrderInPo;
                     $numberDoInBo = 0;
                 }
+
+                // Decrease the number of sparepart
                 if ($sparepartRecord) {
                     $sparepartRecord->total_unit -= $sparepartQuantityOrderInPo;
                     $sparepartRecord->save();
@@ -573,58 +605,19 @@ class QuotationController extends Controller
                 DetailBackOrder::create([
                     'id_bo' => $backOrder->id,
                     'id_spareparts' => $sparepart->id_spareparts,
-                    'number_delivery_order' => $numberBoInBo,
-                    'number_back_order' => $numberDoInBo,
+                    'number_delivery_order' => $numberDoInBo,
+                    'number_back_order' => $numberBoInBo,
                 ]);
-                // Create Buy order for each sparepart that has BO
-                if($numberBoInBo){
-                    $totalAmount = $numberBoInBo * $sparepartRecord->unit_price_buy;
-                    if(!$alreadyCreateBuyData){
-                        // If never create buy data then create it for first time
-                        $buyData = Buy::create([
-                            'id_bo' => $backOrder->id,
-                            'no_buy' => 'BUY-'.now(),
-                            'total_amount' => $totalAmount,
-                            'review' => 0,
-                            'note' => '',
-                        ]);
-                        $alreadyCreateBuyData = true;
-                    }
-                    else{
-                        // Add more total_amount with total price if this sparepart
-                        $buyData->total_amount += $totalAmount;
-                        $buyData->save();
-
-                        // Create detail buy fir this sparepart
-                        DetailBuy::create([
-                            'id_buy'=> $buyData->id,
-                            'id_spareparts' => $sparepart->id_spareparts,
-                            'quantity' =>$numberBoInBo
-                        ]);
-                    }
-                }
             }
-
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
-            }
-
-            if ($quotation->purchaseOrder) {
-                return response()->json([
-                    'message' => 'Quotation already has a purchase order'
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
-
             DB::commit();
 
             return response()->json([
-                'message' => 'Quotation promoted to purchase order successfully',
+                'message' => 'Quotation move to purchase order successfully',
                 'data' => $purchaseOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to promote quotation');
+            return $this->handleError($th, 'Failed to move quotation to purchase order');
         }
     }
     public function isNeedReview(Request $request, $isNeedReview)

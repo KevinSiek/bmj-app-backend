@@ -18,7 +18,6 @@ class BuySeeder extends Seeder
                 'review' => fake()->boolean(70)
             ])
             ->create([
-                'id_bo' => BackOrder::inRandomOrder()->first()->id,
                 'note' => fake()->randomElement([
                     'Order for customer x1',
                     'Order for customer x2',

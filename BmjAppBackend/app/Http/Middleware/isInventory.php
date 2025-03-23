@@ -15,7 +15,7 @@ class isInventory
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->header('access') == 'Inventory' or 'Director') {
+        if ($request->user()->role == 'Inventory' or 'Director') {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

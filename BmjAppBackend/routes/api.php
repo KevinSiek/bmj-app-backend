@@ -57,10 +57,12 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/', [QuotationController::class, 'getAll']);
             Route::get('/{slug}', [QuotationController::class, 'getDetail']);
             Route::post('/', [QuotationController::class, 'store']);
+            Route::put('/{slug}', [QuotationController::class, 'update']);
             Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
-            Route::get('/cancel/{slug}', [QuotationController::class, 'cancelled']);
-            Route::get('/review/{slug}/{reviewState}', [QuotationController::class, 'review']);
             Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+            Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
+            Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
+            Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
         });
 
         Route::prefix('purchase-order')->group(function () {
