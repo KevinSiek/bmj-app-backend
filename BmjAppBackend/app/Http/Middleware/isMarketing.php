@@ -15,7 +15,8 @@ class isMarketing
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()->role == 'Marketing' or 'Director') {
+        $role = $request->user()->role;
+        if ($role == 'Marketing' or $role == 'Director') {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

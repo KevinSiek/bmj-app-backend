@@ -2,9 +2,10 @@
 
 namespace Database\Factories;
 
+use App\Http\Controllers\BuyController;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
-use App\Models\{BackOrder,Buy};
+use App\Models\{Buy};
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Buy>
@@ -24,6 +25,12 @@ class BuyFactory extends Factory
             'no_buy' => Str::random(10),
             'total_amount' => $this->faker->randomFloat(2, 1000, 10000),
             'review' => $this->faker->boolean,
+            'status' => $this->faker->randomElement([
+                BuyController::APPROVE,
+                BuyController::NEED_CHANGE,
+                BuyController::DECLINE,
+                BuyController::DONE,
+            ]),
             'note' => $this->faker->sentence,
         ];
     }

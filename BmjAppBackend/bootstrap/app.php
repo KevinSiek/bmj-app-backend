@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'is_finance' => \App\Http\Middleware\isFinance::class,
             'is_service' => \App\Http\Middleware\isService::class,
             'is_inventory' => \App\Http\Middleware\isInventory::class,
+            'is_common_route' =>  \App\Http\Middleware\isCommonRoute::class,
         ]);
 
     })

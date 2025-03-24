@@ -11,7 +11,7 @@ class Employee extends Authenticatable
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
     use HasApiTokens, HasFactory;
 
-        protected $fillable = [
+    protected $fillable = [
         'fullname', 'slug', 'role', 'email', 'username', 'password', 'temp_password', 'temp_pass_already_use'
     ];
 
@@ -24,7 +24,7 @@ class Employee extends Authenticatable
     {
         return $this->hasMany(PurchaseOrder::class);
     }
-
+    
     public function invoices()
     {
         return $this->hasMany(Invoice::class);

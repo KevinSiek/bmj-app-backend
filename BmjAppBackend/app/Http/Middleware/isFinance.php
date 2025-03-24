@@ -15,7 +15,8 @@ class isFinance
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()->role == 'Finance' or 'Director') {
+        $role = $request->user()->role;
+        if ($role == 'Finance' or $role =='Director') {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

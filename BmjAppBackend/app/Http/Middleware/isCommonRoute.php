@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class isInventory
+class isCommonRoute
 {
     /**
      * Handle an incoming request.
@@ -16,7 +16,9 @@ class isInventory
     public function handle(Request $request, Closure $next): Response
     {
         $role = $request->user()->role;
-        if ($role == 'Inventory' or $role == 'Director') {
+        $commonAccess = array("Director", "Marketing", "Inventory", "Finance", "Service");
+
+        if (in_array($role, $commonAccess)) {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

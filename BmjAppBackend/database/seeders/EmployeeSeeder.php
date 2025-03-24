@@ -11,33 +11,55 @@ class EmployeeSeeder extends Seeder
     {
         DB::table('employees')->insert([
             [
-                'email' => 'testing@gmail.com',
-                'slug'=>'Testing-1',
-                'role' => 'director',
-                'fullname' => 'Testing',
-                'username'=>'username -Testing',
+                'email' => 'testingDirector@gmail.com',
+                'slug'=>'Testing-Director',
+                'role' => 'Director',
+                'fullname' => 'Fullname Director',
+                'username'=>'username -Director',
                 'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             ]
         ]);
 
         DB::table('employees')->insert([
             [
-                'email' => 'testing2@gmail.com',
-                'slug'=>'Testing2-2',
-                'role' => 'director',
-                'fullname' => 'Testing2',
-                'username'=>'username -Testing2',
+                'email' => 'testingMarketing@gmail.com',
+                'slug'=>'Testing2-Marketing',
+                'role' => 'Marketing',
+                'fullname' => 'Fullname Marketing',
+                'username'=>'username -Marketing',
                 'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             ]
         ]);
 
         DB::table('employees')->insert([
             [
-                'email' => 'testing3@gmail.com',
-                'slug'=>'Testing3-3',
-                'role' => 'director',
-                'fullname' => 'Testing3',
-                'username'=>'username -Testing3',
+                'email' => 'testingInventory@gmail.com',
+                'slug'=>'Testing3-Inventory',
+                'role' => 'Inventory',
+                'fullname' => 'Fullname Inventory',
+                'username'=>'username -Inventory',
+                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
+            ]
+        ]);
+
+        DB::table('employees')->insert([
+            [
+                'email' => 'testingFinance@gmail.com',
+                'slug'=>'Testing3-Finance',
+                'role' => 'Finance',
+                'fullname' => 'Fullname Finance',
+                'username'=>'username -Finance',
+                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
+            ]
+        ]);
+
+        DB::table('employees')->insert([
+            [
+                'email' => 'testingService@gmail.com',
+                'slug'=>'Testing3-Service',
+                'role' => 'Service',
+                'fullname' => 'Fullname Service',
+                'username'=>'username -Service',
                 'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             ]
         ]);

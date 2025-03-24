@@ -15,7 +15,8 @@ class isService
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()->role == 'Service' or 'Director') {
+        $role = $request->user()->role;
+        if ($role == 'Service' or $role == 'Director') {
             return $next($request);
         }else{
             return response()->json(['isNotAthorized' => true], 400);

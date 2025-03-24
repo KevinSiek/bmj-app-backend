@@ -33,13 +33,13 @@ class SparepartController extends Controller
                 });
 
             // Paginate the results
-            $spareparts = $sparepartsQuery->paginate(20);
+            $paginatedSpareparts = $sparepartsQuery->paginate(20);
 
             // Return the response with transformed data and pagination details
             return response()->json([
                 'message' => 'List of all spareparts retrieved successfully',
                 'data' => [
-                    'items' => $spareparts,
+                    'items' => $paginatedSpareparts
                 ],
             ], Response::HTTP_OK);
 
@@ -77,9 +77,11 @@ class SparepartController extends Controller
 
             if ($role == 'Inventory') {
                 // Hide the 'unit_price_sell' field for Inventory role
-                $spareparts = Sparepart::all()->makeHidden('unit_price_sell');
+                $spareparts = Sparepart::query()->select('*')->addSelect(['unit_price_sell' => function ($query) {
+                    $query->selectRaw('NULL');
+                }]);
             } else {
-                $spareparts = Sparepart::all();
+                $spareparts = Sparepart::query();
             }
 
             // Return the response with transformed data and pagination details

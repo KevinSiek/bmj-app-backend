@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('no_buy');
             $table->decimal('total_amount', 15, 2);
             $table->boolean('review')->default(false);
+            $table->string('status');
             $table->string('note');
             $table->timestamps();
         });

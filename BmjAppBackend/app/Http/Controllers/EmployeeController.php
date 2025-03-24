@@ -58,20 +58,30 @@ class EmployeeController extends Controller
                 'role' => 'required|string',
                 'email' => 'required|email|unique:employees,email',
                 'username' => 'required|string|unique:employees,username|max:255',
-                // 'password' => 'required|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
-                'password' => 'required',
-                'temp_password' => 'nullable|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
-                'temp_pass_already_use' => 'nullable|boolean',
             ]);
 
-            $slug = Str::slug($validatedData['fullname']);
-            $validatedData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
+            // Generate a random temporary password
+            $tempPassword = Str::random(12);
+            $validatedData['password'] = bcrypt($tempPassword);
+            $validatedData['temp_password'] = $tempPassword;
+            $validatedData['temp_pass_already_use'] = false;
 
+            // Create a slug for the employee
+            $slug = Str::slug($validatedData['fullname']);
+            $validatedData['slug'] = $slug . '-' . Str::random(6);
+
+            // Create the employee
             $employee = Employee::create($validatedData);
+
+            // Return the response with the temporary password
             return response()->json([
                 'message' => 'Employee created successfully',
-                'data' => $employee
+                'data' => [
+                    'employee' => $employee,
+                    'temp_password' => $tempPassword,
+                ],
             ], Response::HTTP_CREATED);
+
         } catch (\Throwable $th) {
             return response()->json([
                 'message' => 'Employee creation failed',
@@ -83,14 +93,6 @@ class EmployeeController extends Controller
     public function update(Request $request, $slug)
     {
         try {
-            // Validate the request data
-            $validatedData = $request->validate([
-                'fullname' => 'sometimes|string|max:255',
-                'role' => 'sometimes|string',
-                'email' => 'sometimes|email|unique:employees,email,' . $slug . ',slug',
-                'username' => 'sometimes|string|unique:employees,username,' . $slug . ',slug|max:255',
-            ]);
-
             // Find the employee by slug
             $employee = Employee::where('slug', $slug)->first();
 
@@ -99,6 +101,14 @@ class EmployeeController extends Controller
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
             }
+
+            // Validate the request data
+            $validatedData = $request->validate([
+                'fullname' => 'required|string|max:255',
+                'role' => 'required|string',
+                'email' => 'required|email|unique:employees,email,'. $slug . ',slug',
+                'username' => 'required|string|unique:employees,username,'. $slug . ',slug',
+            ]);
 
             // Update only the provided fields
             $employee->update($validatedData);
@@ -110,6 +120,75 @@ class EmployeeController extends Controller
         } catch (\Throwable $th) {
             return response()->json([
                 'message' => 'Employee update failed',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function resetPassword($slug)
+    {
+        try {
+            // Find the employee by slug
+            $employee = Employee::where('slug', $slug)->first();
+
+            if (!$employee) {
+                return response()->json([
+                    'message' => 'Employee not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            $tempPassword = Str::random(12);
+            $encryptPassword= bcrypt($tempPassword);
+            // Update only the provided fields
+            $employee->update([
+                'temp_password'=> $tempPassword,
+                'password'=>$encryptPassword,
+                'temp_pass_already_use' => false,
+            ]);
+
+            return response()->json([
+                'message' => 'Reset password success',
+                'data' => $employee
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Reset password failed',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public function changePassword(Request $request, $slug)
+    {
+        try {
+            $employee = Employee::where('slug', $slug)->first();
+            $user = $request->user();
+
+            if (!$employee) {
+                return response()->json([
+                    'message' => 'Employee not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+            // Make sure only user that login that change his own password only
+            $employeeIsCurrentUser = $employee->id == $user->id;
+            if(!$employeeIsCurrentUser){
+                return response()->json([
+                    'message' => 'You don\'t have permission to change password of this user.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+            // Validate the request data
+            $validatedData = $request->validate([
+                'password' => 'required|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
+            ]);
+            $validatedData['password'] = bcrypt($request->password);
+            $employee->update($validatedData);
+
+            return response()->json([
+                'message' => 'Change password success',
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Fail to change password',
                 'error' => $th->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
@@ -144,7 +223,6 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
     public function getAll(Request $request)
     {
         try {
@@ -166,19 +244,19 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-
-    public function getEmployeeAccess($id)
+    
+    public function getEmployeeAccess($slug)
     {
         try {
-            $employee = Employee::find($id);
+            $employee = Employee::where('slug','=',$slug)->first();
 
             if (!$employee) {
                 return response()->json([
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
             }
-
-            $accesses = DetailAccesses::where('id_employee', $id)
+            $employeeId = $employee->id;
+            $accesses = DetailAccesses::where('id_employee', $employeeId)
                 ->with('accesses')
                 ->get()
                 ->pluck('accesses.access')

@@ -2,6 +2,7 @@
 // database/seeders/BuySeeder.php
 namespace Database\Seeders;
 
+use App\Http\Controllers\BuyController;
 use App\Models\Buy;
 use App\Models\BackOrder;
 use App\Models\DetailBuy;
@@ -15,7 +16,13 @@ class BuySeeder extends Seeder
             ->has(DetailBuy::factory()->count(5), 'detailBuys')
             ->state([
                 'no_buy' => fn() => 'BUY-' . fake()->unique()->bothify('####-##'),
-                'review' => fake()->boolean(70)
+                'review' => fake()->boolean(70),
+                'status' => fake()->randomElement([
+                    BuyController::APPROVE,
+                    BuyController::NEED_CHANGE,
+                    BuyController::DECLINE,
+                    BuyController::DONE,
+                ]),
             ])
             ->create([
                 'note' => fake()->randomElement([

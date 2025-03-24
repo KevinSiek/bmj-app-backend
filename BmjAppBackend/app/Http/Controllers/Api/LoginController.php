@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -27,9 +28,25 @@ class LoginController extends Controller
 
             if($isAuth){
                 $user = Auth::guard('employee')->user();
+                $isUseTempPassword = $request->password == $user->temp_password;
+                if($isUseTempPassword){
+                    // Use temp password to login for first time
+                    $tempAlreadyUse = $user->temp_pass_already_use;
+                    if($tempAlreadyUse){
+                        // Temp password already use, prevent to login with it again
+                        return response()->json([
+                            'message' => 'This temporary password already use, please contact the admin.'
+                        ], Response::HTTP_BAD_REQUEST);
+                    }
+                    $userId =$user->id;
+                    $userDb = Employee::find($userId);
+                    $userDb->temp_pass_already_use = true;
+                    $userDb->save();
+                }
                 $token = $user->createToken('auth_token')->plainTextToken;
                 $response = [
                     'status' => true,
+                    'use_temp_password' => $isUseTempPassword,
                     'message' => 'Login successful',
                     'user' => $user,
                     'access_token' => $token,

@@ -9,10 +9,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class BuyController extends Controller
 {
+    const APPROVE = "approve";
+    const DECLINE = "decline";
+    const NEED_CHANGE = "change";
+    const DONE = "done";
+
     public function index()
     {
         try {
-            $buys = Buy::with('backOrder')->get();
+            $buys = Buy::paginate(20);
             return response()->json([
                 'message' => 'Buys retrieved successfully',
                 'data' => $buys
@@ -22,10 +27,10 @@ class BuyController extends Controller
         }
     }
 
-    public function show($id)
+    public function show($slug)
     {
         try {
-            $buy = Buy::with('backOrder')->find($id);
+            $buy = Buy::paginate(20)->where('slug', $slug)->first();
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -53,10 +58,10 @@ class BuyController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $slug)
     {
         try {
-            $buy = Buy::find($id);
+            $buy = Buy::where('slug', $slug)->first();
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -72,10 +77,10 @@ class BuyController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy($slug)
     {
         try {
-            $buy = Buy::find($id);
+            $buy = Buy::where('slug', $slug)->first();
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -94,19 +99,22 @@ class BuyController extends Controller
     public function getAll()
     {
         try {
-            $buys = Buy::with('backOrder')->get();
-            $buysData = $buys->map(function ($buy) {
-                $backOrder = $buy->backOrder;
+            $buys = Buy::paginate(20);
+            $transformedBuys = $buys->getCollection()->map(function ($buy) {
                 return [
                     'name' => $buy->no_buy ?? '',
                     'date' => $buy->created_at ?? '',
-                    'status' => $backOrder->status ?? '',
+                    'status' => $buy->status ?? '',
                 ];
             });
+            $buysData = $buys->setCollection($transformedBuys);
 
             return response()->json([
                 'message' => 'List of all buys retrieved successfully',
-                'data' => $buysData
+                'data' => [
+                    'items'=>$buysData
+                ]
+
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
