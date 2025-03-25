@@ -3,91 +3,172 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Invoice;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class InvoiceController extends Controller
 {
-    public function index()
+    public function getAll(Request $request)
     {
         try {
-            $invoices = Invoice::with('proformaInvoice', 'employee')->get();
+            $query = $this->getAccessedInvoice($request)
+                ->with(['proformaInvoice.purchaseOrder.quotation.customer', 'employee']);
+
+            // Get query parameters
+            $q = $request->query('q');
+            $month = $request->query('month');
+            $year = $request->query('year');
+
+            // Apply search term filter if 'q' is provided
+            if ($q) {
+                $query->where(function($query) use ($q) {
+                    $query->where('invoice_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('proformaInvoice.purchaseOrder.quotation.customer', function($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
+                });
+            }
+
+            // Apply month and year filter if both are provided
+            if ($month && $year) {
+                $monthNumber = date('m', strtotime($month));
+                $startDate = "{$year}-{$monthNumber}-01";
+                $endDate = date("Y-m-t", strtotime($startDate));
+
+                $query->whereBetween('invoice_date', [$startDate, $endDate]);
+            }
+
+            // Paginate the results
+            $invoices = $query->orderBy('invoice_date', 'desc')
+                ->paginate(20);
+
+            // Transform the results
+            $transformed = $invoices->map(function ($invoice) {
+                return [
+                    'id' => (string) $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'customer' => $invoice->proformaInvoice->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
+                    'date' => $invoice->invoice_date,
+                    'type' => $invoice->proformaInvoice->purchaseOrder->quotation->type ?? 'Unknown',
+                    'status' => $invoice->proformaInvoice->purchaseOrder->quotation->status ?? 'Unknown',
+                    'employee' => $invoice->employee->name ?? 'Unknown'
+                ];
+            });
+
             return response()->json([
-                'message' => 'Invoices retrieved successfully',
-                'data' => $invoices
+                'message' => 'List of invoices retrieved successfully',
+                'data' => $transformed,
+                'meta' => [
+                    'current_page' => $invoices->currentPage(),
+                    'per_page' => $invoices->perPage(),
+                    'total' => $invoices->total(),
+                    'last_page' => $invoices->lastPage(),
+                ]
+            ], Response::HTTP_OK);
+
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    public function getDetail(Request $request, $id)
+    {
+        try {
+            $invoice = $this->getAccessedInvoice($request)
+                ->with([
+                    'proformaInvoice.purchaseOrder.quotation.customer',
+                    'employee'
+                ])
+                ->find($id);
+
+            if (!$invoice) {
+                return $this->handleNotFound('Invoice not found');
+            }
+
+            $proformaInvoice = $invoice->proformaInvoice;
+            $purchaseOrder = $proformaInvoice->purchaseOrder;
+            $quotation = $purchaseOrder->quotation;
+            $customer = $quotation->customer ?? null;
+
+            $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                return [
+                    'partName' => $detail->spareparts->name ?? '',
+                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
+                    'quantity' => $detail->quantity,
+                    'unit' => 'pcs',
+                    'unitPrice' => $detail->spareparts->unit_price_sell ?? 0,
+                    'amount' => ($detail->quantity * ($detail->spareparts->unit_price_sell ?? 0))
+                ];
+            });
+
+            $response = [
+                'invoice' => [
+                    'no' => $invoice->invoice_number,
+                    'date' => $invoice->invoice_date,
+                    'term_of_pay' => $invoice->term_of_pay ?? ''
+                ],
+                'proformaInvoice' => [
+                    'no' => $proformaInvoice->pi_number ?? '',
+                    'date' => $proformaInvoice->pi_date ?? ''
+                ],
+                'purchaseOrder' => [
+                    'no' => $purchaseOrder->po_number ?? '',
+                    'date' => $purchaseOrder->po_date ?? ''
+                ],
+                'customer' => [
+                    'companyName' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban_area ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postalCode' => $customer->postal_code ?? ''
+                ],
+                'price' => [
+                    'amount' => $quotation->amount ?? 0,
+                    'discount' => $quotation->discount ?? 0,
+                    'subtotal' => $quotation->subtotal ?? 0,
+                    'advancePayment' => $proformaInvoice->advance_payment ?? 0,
+                    'total' => $quotation->total ?? 0,
+                    'vat' => $quotation->vat ?? 0,
+                    'totalAmount' => $quotation->total + ($quotation->total * $quotation->vat / 100)
+                ],
+                'notes' => $quotation->note ?? '',
+                'downPayment' => $proformaInvoice->advance_payment ?? 0,
+                'spareparts' => $spareParts
+            ];
+
+            return response()->json([
+                'message' => 'Invoice details retrieved successfully',
+                'data' => $response
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
     }
 
-    public function show($id)
+    protected function getAccessedInvoice($request)
     {
         try {
-            $invoice = Invoice::with('proformaInvoice', 'employee')->find($id);
+            $user = $request->user();
+            $userId = $user->id;
+            $role = $user->role;
 
-            if (!$invoice) {
-                return $this->handleNotFound('Invoice not found');
+            $query = Invoice::query();
+
+            // Only allow invoices for authorized users
+            if ($role == 'Marketing') {
+                $query->where('employee_id', $userId);
             }
 
-            return response()->json([
-                'message' => 'Invoice retrieved successfully',
-                'data' => $invoice
-            ], Response::HTTP_OK);
+            return $query;
+
         } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
-    public function store(Request $request)
-    {
-        try {
-            $invoice = Invoice::create($request->all());
-            return response()->json([
-                'message' => 'Invoice created successfully',
-                'data' => $invoice
-            ], Response::HTTP_CREATED);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Invoice creation failed');
-        }
-    }
-
-    public function update(Request $request, $id)
-    {
-        try {
-            $invoice = Invoice::find($id);
-
-            if (!$invoice) {
-                return $this->handleNotFound('Invoice not found');
-            }
-
-            $invoice->update($request->all());
-            return response()->json([
-                'message' => 'Invoice updated successfully',
-                'data' => $invoice
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Invoice update failed');
-        }
-    }
-
-    public function destroy($id)
-    {
-        try {
-            $invoice = Invoice::find($id);
-
-            if (!$invoice) {
-                return $this->handleNotFound('Invoice not found');
-            }
-
-            $invoice->delete();
-            return response()->json([
-                'message' => 'Invoice deleted successfully',
-                'data' => null
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Invoice deletion failed');
+            // Return empty query builder
+            return Invoice::whereNull('id');
         }
     }
 

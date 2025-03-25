@@ -11,117 +11,76 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ProformaInvoiceController extends Controller
 {
-    public function index()
+    public function getAll(Request $request)
     {
         try {
-            $proformaInvoices = ProformaInvoice::with('purchaseOrder', 'employee')->get();
-            return response()->json([
-                'message' => 'Proforma invoices retrieved successfully',
-                'data' => $proformaInvoices
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
+            $query = $this->getAccessedProformaInvoice($request)
+                ->with(['purchaseOrder.quotation.customer', 'employee']);
 
-    public function show($id)
-    {
-        try {
-            $proformaInvoice = ProformaInvoice::with('purchaseOrder', 'employee')->find($id);
+            // Get query parameters
+            $q = $request->query('q');
+            $month = $request->query('month');
+            $year = $request->query('year');
 
-            if (!$proformaInvoice) {
-                return $this->handleNotFound('Proforma invoice not found');
+            // Apply search term filter if 'q' is provided
+            if ($q) {
+                $query->where(function($query) use ($q) {
+                    $query->where('pi_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('purchaseOrder.quotation.customer', function($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
+                });
             }
 
-            return response()->json([
-                'message' => 'Proforma invoice retrieved successfully',
-                'data' => $proformaInvoice
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
+            // Apply month and year filter if both are provided
+            if ($month && $year) {
+                $monthNumber = date('m', strtotime($month));
+                $startDate = "{$year}-{$monthNumber}-01";
+                $endDate = date("Y-m-t", strtotime($startDate));
 
-    public function store(Request $request)
-    {
-        try {
-            $proformaInvoice = ProformaInvoice::create($request->all());
-            return response()->json([
-                'message' => 'Proforma invoice created successfully',
-                'data' => $proformaInvoice
-            ], Response::HTTP_CREATED);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Proforma invoice creation failed');
-        }
-    }
-
-    public function update(Request $request, $id)
-    {
-        try {
-            $proformaInvoice = ProformaInvoice::find($id);
-
-            if (!$proformaInvoice) {
-                return $this->handleNotFound('Proforma invoice not found');
+                $query->whereBetween('pi_date', [$startDate, $endDate]);
             }
 
-            $proformaInvoice->update($request->all());
-            return response()->json([
-                'message' => 'Proforma invoice updated successfully',
-                'data' => $proformaInvoice
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Proforma invoice update failed');
-        }
-    }
+            // Paginate the results
+            $proformaInvoices = $query->orderBy('pi_date', 'desc')
+                ->paginate(20);
 
-    public function destroy($id)
-    {
-        try {
-            $proformaInvoice = ProformaInvoice::find($id);
-
-            if (!$proformaInvoice) {
-                return $this->handleNotFound('Proforma invoice not found');
-            }
-
-            $proformaInvoice->delete();
-            return response()->json([
-                'message' => 'Proforma invoice deleted successfully',
-                'data' => null
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th, 'Proforma invoice deletion failed');
-        }
-    }
-
-    public function getAll()
-    {
-        try {
-            $proformaInvoices = ProformaInvoice::with('purchaseOrder', 'employee')->get();
-            $formattedInvoices = $proformaInvoices->map(function ($invoice) {
+            // Transform the results
+            $transformed = $proformaInvoices->map(function ($pi) {
                 return [
-                    'id' => (string) $invoice->id,
-                    'customer' => $invoice->purchaseOrder ? $invoice->purchaseOrder->customer_name : 'Unknown',
-                    'date' => $invoice->pi_date ? date('d M Y', strtotime($invoice->pi_date)) : '',
-                    'type' => 'Spareparts'
+                    'id' => (string) $pi->id,
+                    'pi_number' => $pi->pi_number,
+                    'customer' => $pi->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
+                    'date' => $pi->pi_date,
+                    'type' => $pi->purchaseOrder->quotation->type ?? 'Unknown',
                 ];
             });
 
             return response()->json([
-                'message' => 'List of all proforma invoices retrieved successfully',
-                'data' => $formattedInvoices
+                'message' => 'List of proforma invoices retrieved successfully',
+                'data' => $transformed,
+                'meta' => [
+                    'current_page' => $proformaInvoices->currentPage(),
+                    'per_page' => $proformaInvoices->perPage(),
+                    'total' => $proformaInvoices->total(),
+                    'last_page' => $proformaInvoices->lastPage(),
+                ]
             ], Response::HTTP_OK);
+
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
     }
 
-    public function getDetail($id)
+    public function getDetail(Request $request, $id)
     {
         try {
-            $proformaInvoice = ProformaInvoice::with([
-                'purchaseOrder.quotation.customer',
-                'purchaseOrder.quotation.detailQuotations.spareparts.detailBuys'
-            ])->find($id);
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)
+                ->with([
+                    'purchaseOrder.quotation.customer',
+                    'employee'
+                ])
+                ->find($id);
 
             if (!$proformaInvoice) {
                 return $this->handleNotFound('Proforma invoice not found');
@@ -169,7 +128,7 @@ class ProformaInvoiceController extends Controller
                     'advancePayment' => $proformaInvoice->advance_payment ?? 0,
                     'total' => $quotation->total ?? 0,
                     'vat' => $quotation->vat ?? 0,
-                    'totalAmount' => $quotation->total + ($quotation->total * $quotation->vat / 100), // Correct total calculation
+                    'totalAmount' => $quotation->total + ($quotation->total * $quotation->vat / 100),
                 ],
                 'downPayment' => $proformaInvoice->advance_payment ?? 0,
                 'notes' => $quotation->note ?? '',
@@ -185,18 +144,18 @@ class ProformaInvoiceController extends Controller
         }
     }
 
-    public function moveUp($id)
+    public function moveToInvoice(Request $request, $id)
     {
         DB::beginTransaction();
 
         try {
-            $proformaInvoice = ProformaInvoice::find($id);
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
 
             if (!$proformaInvoice) {
                 return $this->handleNotFound('Proforma invoice not found');
             }
 
-            if ($proformaInvoice->invoices) {
+            if ($proformaInvoice->invoices->isNotEmpty()) {
                 return response()->json([
                     'message' => 'Proforma invoice already has an invoice'
                 ], Response::HTTP_BAD_REQUEST);
@@ -206,7 +165,12 @@ class ProformaInvoiceController extends Controller
                 'id_pi' => $proformaInvoice->id,
                 'invoice_number' => 'INVOICE-' . now()->format('YmdHis'),
                 'invoice_date' => now(),
-                'employee_id' => $proformaInvoice->employee_id,
+                'employee_id' => $request->user()->id,
+            ]);
+
+            $quotation = $proformaInvoice->purchaseOrder->quotation;
+            $quotation->update([
+                'status'=>'INVOICE'
             ]);
 
             DB::commit();
@@ -218,6 +182,28 @@ class ProformaInvoiceController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to promote proforma invoice');
+        }
+    }
+
+    protected function getAccessedProformaInvoice($request)
+    {
+        try {
+            $user = $request->user();
+            $userId = $user->id;
+            $role = $user->role;
+
+            $query = ProformaInvoice::query();
+
+            // Only allow proforma invoices for authorized users
+            if ($role == 'Marketing') {
+                $query->where('employee_id', $userId);
+            }
+
+            return $query;
+
+        } catch (\Throwable $th) {
+            // Return empty query builder
+            return ProformaInvoice::whereNull('id');
         }
     }
 

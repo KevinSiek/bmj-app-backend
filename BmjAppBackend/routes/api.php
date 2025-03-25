@@ -55,27 +55,18 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::prefix('purchase-order')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'getAll']);
             Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
-            Route::post('/', [PurchaseOrderController::class, 'store']);
-            Route::put('/{id}', [PurchaseOrderController::class, 'update']);
-            Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
-            Route::get('/moveUp/{id}/{employeId}', [PurchaseOrderController::class, 'moveUp']);
+            Route::get('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
         });
 
         Route::prefix('proforma-invoice')->group(function () {
-            Route::get('/', [ProformaInvoiceController::class, 'index']);
+            Route::get('/', [ProformaInvoiceController::class, 'getAll']);
             Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
-            Route::post('/', [ProformaInvoiceController::class, 'store']);
-            Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
-            Route::delete('/{id}', [ProformaInvoiceController::class, 'destroy']);
-            Route::get('/moveUp/{id}', [ProformaInvoiceController::class, 'moveUp']);
+            Route::get('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
         });
 
         Route::prefix('invoice')->group(function () {
-            Route::get('/', [InvoiceController::class, 'index']);
-            Route::get('/{id}', [InvoiceController::class, 'show']);
-            Route::post('/', [InvoiceController::class, 'store']);
-            Route::put('/{id}', [InvoiceController::class, 'update']);
-            Route::delete('/{id}', [InvoiceController::class, 'destroy']);
+            Route::get('/', [InvoiceController::class, 'getAll']);
+            Route::get('/{id}', [InvoiceController::class, 'getDetail']);
         });
 
         Route::prefix('back-order')->group(function () {

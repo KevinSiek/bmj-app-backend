@@ -13,6 +13,7 @@ class BackOrderController extends Controller
 {
     // Status constants
     const READY = 'Ready';
+    const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
 
     public function show(Request $request, $id)
     {
@@ -83,6 +84,12 @@ class BackOrderController extends Controller
     public function process(Request $request, $id)
     {
         try {
+            // Check user role, only director and inventory that able process back order
+            $user = $request->user();
+            if (!in_array($user->role, self::ALLOWED_PROCESS_ROLES)) {
+                return $this->handleForbidden('You are not authorized to process back orders');
+            }
+
             DB::beginTransaction();
 
             // Get the back order with all necessary relations
