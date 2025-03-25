@@ -5,27 +5,21 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BackOrder;
+use App\Models\DetailQuotation;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\DB;
 
 class BackOrderController extends Controller
 {
-    public function index()
-    {
-        try {
-            $backOrders = BackOrder::with('purchaseOrder')->get();
-            return response()->json([
-                'message' => 'Back orders retrieved successfully',
-                'data' => $backOrders
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
+    // Status constants
+    const READY = 'Ready';
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
-            $backOrder = BackOrder::with('purchaseOrder')->find($id);
+            $backOrder = $this->getAccessedBackOrder($request)
+                ->with(['purchaseOrder', 'purchaseOrder.employee'])
+                ->find($id);
 
             if (!$backOrder) {
                 return $this->handleNotFound('Back order not found');
@@ -40,54 +34,143 @@ class BackOrderController extends Controller
         }
     }
 
-    public function store(Request $request)
+    public function getAll(Request $request)
     {
         try {
-            $backOrder = BackOrder::create($request->all());
+            // Get query parameters
+            $q = $request->query('q');
+            $month = $request->query('month');
+            $year = $request->query('year');
+
+            // Initialize the query builder
+            $backOrderQuery = $this->getAccessedBackOrder($request);
+
+            // Apply search term filter if 'q' is provided
+            if ($q) {
+                $backOrderQuery->where(function ($query) use ($q) {
+                    $query->where('no_bo', 'like', "%$q%")
+                        ->orWhere('status', 'like', "%$q%")
+                        ->orWhereHas('purchaseOrder', function($qry) use ($q) {
+                            $qry->where('po_number', 'like', "%$q%");
+                        });
+                });
+            }
+
+            // Apply date filter if 'month' and 'year' are provided
+            if ($month && $year) {
+                $monthNumber = date('m', strtotime($month));
+                $startDate = "{$year}-{$monthNumber}-01";
+                $endDate = date("Y-m-t", strtotime($startDate));
+
+                $backOrderQuery->whereBetween('created_at', [$startDate, $endDate]);
+            }
+
+            // Paginate the results
+            $backOrders = $backOrderQuery->with(['purchaseOrder', 'purchaseOrder.employee'])
+                ->orderBy('created_at', 'desc')
+                ->paginate(20);
+
             return response()->json([
-                'message' => 'Back order created successfully',
-                'data' => $backOrder
-            ], Response::HTTP_CREATED);
+                'message' => 'List of all back orders retrieved successfully',
+                'data' => $backOrders,
+            ], Response::HTTP_OK);
+
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Back order creation failed');
+            return $this->handleError($th);
         }
     }
 
-    public function update(Request $request, $id)
+    public function process(Request $request, $id)
     {
         try {
-            $backOrder = BackOrder::find($id);
+            DB::beginTransaction();
+
+            // Get the back order with all necessary relations
+            $backOrder = $this->getAccessedBackOrder($request)
+                ->with([
+                    'detailBackOrders.spareparts',
+                    'purchaseOrder.quotation.detailQuotations'
+                ])
+                ->find($id);
 
             if (!$backOrder) {
                 return $this->handleNotFound('Back order not found');
             }
 
-            $backOrder->update($request->all());
+            // Check if back order is already processed
+            if ($backOrder->status === self::READY) {
+                return response()->json([
+                    'message' => 'Back order already processed'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Process each detail back order
+            foreach ($backOrder->detailBackOrders as $detailBackOrder) {
+                // Skip if no back order quantity
+                if ($detailBackOrder->number_back_order <= 0) {
+                    continue;
+                }
+
+                $sparepart = $detailBackOrder->spareparts;
+                if (!$sparepart) {
+                    continue;
+                }
+
+                // Update sparepart stock
+                $sparepart->total_unit += $detailBackOrder->number_back_order;
+                $sparepart->save();
+
+                // Find corresponding detail quotation and update its status
+                $quotation = $backOrder->purchaseOrder->quotation;
+                if ($quotation) {
+                    $detailQuotation = DetailQuotation::where('id_quotation', $quotation->id)
+                        ->where('id_spareparts', $detailBackOrder->id_spareparts)
+                        ->first();
+
+                    if ($detailQuotation && $detailQuotation->is_indent) {
+                        $detailQuotation->is_indent = false;
+                        $detailQuotation->save();
+                    }
+                }
+            }
+
+            // Update back order status
+            $backOrder->status = self::READY;
+            $backOrder->save();
+
+            DB::commit();
+
             return response()->json([
-                'message' => 'Back order updated successfully',
+                'message' => 'Back order processed successfully',
                 'data' => $backOrder
             ], Response::HTTP_OK);
+
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Back order update failed');
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to process back order');
         }
     }
 
-    public function destroy($id)
+
+    protected function getAccessedBackOrder($request)
     {
         try {
-            $backOrder = BackOrder::find($id);
+            $user = $request->user();
+            $userId = $user->id;
+            $role = $user->role;
 
-            if (!$backOrder) {
-                return $this->handleNotFound('Back order not found');
+            $query = BackOrder::query();
+
+            // Only allow back orders for authorized users
+            if ($role == 'Marketing') {
+                $query->whereHas('purchaseOrder', function($q) use ($userId) {
+                    $q->where('employee_id', $userId);
+                });
             }
-
-            $backOrder->delete();
-            return response()->json([
-                'message' => 'Back order deleted successfully',
-                'data' => null
-            ], Response::HTTP_OK);
+            return $query;
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Back order deletion failed');
+            // Return empty query builder
+            return BackOrder::whereNull('id');
         }
     }
 
@@ -105,5 +188,12 @@ class BackOrderController extends Controller
         return response()->json([
             'message' => $message
         ], Response::HTTP_NOT_FOUND);
+    }
+
+    protected function handleForbidden($message = 'Forbidden')
+    {
+        return response()->json([
+            'message' => $message
+        ], Response::HTTP_FORBIDDEN);
     }
 }

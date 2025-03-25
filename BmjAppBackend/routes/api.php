@@ -79,11 +79,9 @@ Route::middleware("auth:sanctum")->group(function () {
         });
 
         Route::prefix('back-order')->group(function () {
-            Route::get('/', [BackOrderController::class, 'index']);
+            Route::get('/', [BackOrderController::class, 'getAll']);
             Route::get('/{id}', [BackOrderController::class, 'show']);
-            Route::post('/', [BackOrderController::class, 'store']);
-            Route::put('/{id}', [BackOrderController::class, 'update']);
-            Route::delete('/{id}', [BackOrderController::class, 'destroy']);
+            Route::get('/process/{id}', [BackOrderController::class, 'process']);
         });
     };
 
