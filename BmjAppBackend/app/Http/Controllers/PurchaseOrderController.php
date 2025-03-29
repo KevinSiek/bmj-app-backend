@@ -49,23 +49,20 @@ class PurchaseOrderController extends Controller
 
             // Paginate the results
             $purchaseOrders = $query->orderBy('po_date', 'desc')
-                ->paginate(20);
-
-            // Transform the results
-            $transformed = $purchaseOrders->map(function ($po) {
-                return [
-                    'id' => (string) $po->id,
-                    'po_number' => $po->po_number,
-                    'customer' => $po->quotation->customer->company_name ?? 'Unknown',
-                    'date' => $po->po_date,
-                    'type' => $po->quotation->type ?? 'Unknown',
-                    'status' => $po->quotation->status ?? 'Unknown',
-                ];
-            });
+                ->paginate(20)->through(function ($po) {
+                    return [
+                        'id' => (string) $po->id,
+                        'no_po' => $po->po_number,
+                        'customer' => $po->quotation->customer->company_name ?? 'Unknown',
+                        'date' => $po->po_date,
+                        'type' => $po->quotation->type ?? 'Unknown',
+                        'status' => $po->quotation->status ?? 'Unknown',
+                    ];
+                });;
 
             return response()->json([
                 'message' => 'List of purchase orders retrieved successfully',
-                'data' => $transformed,
+                'data' => $purchaseOrders,
                 'meta' => [
                     'current_page' => $purchaseOrders->currentPage(),
                     'per_page' => $purchaseOrders->perPage(),

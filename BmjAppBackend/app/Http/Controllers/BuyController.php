@@ -99,22 +99,17 @@ class BuyController extends Controller
     public function getAll()
     {
         try {
-            $buys = Buy::paginate(20);
-            $transformedBuys = $buys->getCollection()->map(function ($buy) {
+            $buys = Buy::paginate(20)->through(function ($buy) {
                 return [
-                    'name' => $buy->no_buy ?? '',
+                    'no_buy' => $buy->no_buy ?? '',
                     'date' => $buy->created_at ?? '',
-                    'status' => $buy->status ?? '',
+                    'status' => $buy->status ?? ''
                 ];
             });
-            $buysData = $buys->setCollection($transformedBuys);
 
             return response()->json([
                 'message' => 'List of all buys retrieved successfully',
-                'data' => [
-                    'items'=>$buysData
-                ]
-
+                'data' => $buys
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

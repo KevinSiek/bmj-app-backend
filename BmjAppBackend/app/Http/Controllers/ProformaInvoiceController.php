@@ -43,22 +43,19 @@ class ProformaInvoiceController extends Controller
 
             // Paginate the results
             $proformaInvoices = $query->orderBy('pi_date', 'desc')
-                ->paginate(20);
-
-            // Transform the results
-            $transformed = $proformaInvoices->map(function ($pi) {
-                return [
-                    'id' => (string) $pi->id,
-                    'pi_number' => $pi->pi_number,
-                    'customer' => $pi->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
-                    'date' => $pi->pi_date,
-                    'type' => $pi->purchaseOrder->quotation->type ?? 'Unknown',
-                ];
-            });
+                ->paginate(20)->through(function ($pi) {
+                    return [
+                        'id' => (string) $pi->id,
+                        'no_pi' => $pi->pi_number,
+                        'customer' => $pi->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
+                        'date' => $pi->pi_date,
+                        'type' => $pi->purchaseOrder->quotation->type ?? 'Unknown',
+                    ];
+                });;
 
             return response()->json([
                 'message' => 'List of proforma invoices retrieved successfully',
-                'data' => $transformed,
+                'data' => $proformaInvoices,
                 'meta' => [
                     'current_page' => $proformaInvoices->currentPage(),
                     'per_page' => $proformaInvoices->perPage(),

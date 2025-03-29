@@ -483,12 +483,10 @@ class QuotationController extends Controller
             }
 
             // Paginate the results
-            $quotations = $quotationsQuery->paginate(20);
-
-            // Transform the paginated results
-            $transformedQuotations = $quotations->getCollection()->map(function ($quotation) {
+            $quotations = $quotationsQuery->paginate(20)->through(function ($quotation) {
                 return [
                     'id' => (string) $quotation->id,
+                    'no_quotation' => $quotation->no,
                     'customer' => $quotation->customer->company_name ?? '',
                     'date' => $quotation->date,
                     'type' => $quotation->type,
@@ -496,15 +494,10 @@ class QuotationController extends Controller
                 ];
             });
 
-            // Replace the original collection with the transformed collection
-            $quotations = $quotations->setCollection($transformedQuotations);
-
             // Return the response with transformed data and pagination details
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
-                'data' => [
-                    'items' => $quotations,
-                ],
+                'data' => $quotations
             ], Response::HTTP_OK);
 
         } catch (\Throwable $th) {

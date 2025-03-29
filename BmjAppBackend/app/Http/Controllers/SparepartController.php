@@ -38,9 +38,7 @@ class SparepartController extends Controller
             // Return the response with transformed data and pagination details
             return response()->json([
                 'message' => 'List of all spareparts retrieved successfully',
-                'data' => [
-                    'items' => $paginatedSpareparts
-                ],
+                'data' => $paginatedSpareparts
             ], Response::HTTP_OK);
 
         } catch (\Throwable $th) {

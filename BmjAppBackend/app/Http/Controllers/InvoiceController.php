@@ -42,24 +42,21 @@ class InvoiceController extends Controller
 
             // Paginate the results
             $invoices = $query->orderBy('invoice_date', 'desc')
-                ->paginate(20);
-
-            // Transform the results
-            $transformed = $invoices->map(function ($invoice) {
-                return [
-                    'id' => (string) $invoice->id,
-                    'invoice_number' => $invoice->invoice_number,
-                    'customer' => $invoice->proformaInvoice->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
-                    'date' => $invoice->invoice_date,
-                    'type' => $invoice->proformaInvoice->purchaseOrder->quotation->type ?? 'Unknown',
-                    'status' => $invoice->proformaInvoice->purchaseOrder->quotation->status ?? 'Unknown',
-                    'employee' => $invoice->employee->name ?? 'Unknown'
-                ];
-            });
+                ->paginate(20)->through(function ($invoice) {
+                    return [
+                        'id' => (string) $invoice->id,
+                        'no_invoice' => $invoice->invoice_number,
+                        'customer' => $invoice->proformaInvoice->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
+                        'date' => $invoice->invoice_date,
+                        'type' => $invoice->proformaInvoice->purchaseOrder->quotation->type ?? 'Unknown',
+                        'status' => $invoice->proformaInvoice->purchaseOrder->quotation->status ?? 'Unknown',
+                        'employee' => $invoice->employee->name ?? 'Unknown'
+                    ];
+                });;
 
             return response()->json([
                 'message' => 'List of invoices retrieved successfully',
-                'data' => $transformed,
+                'data' => $invoices,
                 'meta' => [
                     'current_page' => $invoices->currentPage(),
                     'per_page' => $invoices->perPage(),

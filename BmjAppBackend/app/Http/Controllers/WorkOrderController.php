@@ -12,7 +12,7 @@ class WorkOrderController extends Controller
     public function index()
     {
         try {
-            $workOrders = WorkOrder::with('quotation', 'employee')->get();
+            $workOrders = WorkOrder::with('quotation', 'employee')->paginate(20);
             return response()->json([
                 'message' => 'Work orders retrieved successfully',
                 'data' => $workOrders
