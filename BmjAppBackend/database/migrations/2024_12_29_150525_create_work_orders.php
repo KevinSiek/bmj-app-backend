@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('work_orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_quotation')->constrained('quotations');
-            $table->string('wo_number');
+            $table->string('no_wo');
             $table->foreignId('received_by')->constrained('employees')->onDelete('cascade');
             $table->date('expexted_day');
             $table->date('expected_start_date');

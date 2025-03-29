@@ -22,7 +22,7 @@ class WorkOrderFactory extends Factory
     {
         return [
             'id_quotation' => Quotation::inRandomOrder()->first()->id,
-            'wo_number' => Str::random(10),
+            'no_wo' => Str::random(10),
             'received_by' => Employee::inRandomOrder()->first()->id,
             'expexted_day' => $this->faker->date(),
             'expected_start_date' => $this->faker->date(),
