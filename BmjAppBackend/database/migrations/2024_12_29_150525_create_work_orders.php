@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('id_quotation')->constrained('quotations');
             $table->string('no_wo');
             $table->foreignId('received_by')->constrained('employees')->onDelete('cascade');
-            $table->date('expexted_day');
+            $table->date('expected_day');
             $table->date('expected_start_date');
             $table->date('expected_end_date');
             $table->foreignId('compiled_by')->constrained('employees')->onDelete('cascade');
@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('job_descriptions');
             $table->foreignId('work_peformed_by')->constrained('employees')->onDelete('cascade');
             $table->foreignId('approved_by')->constrained('employees')->onDelete('cascade');
+            $table->boolean('is_done');
             $table->string('additional_components');
             $table->timestamps();
         });

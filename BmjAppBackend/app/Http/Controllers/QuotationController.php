@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\BackOrder;
 use App\Models\DetailBackOrder;
 use App\Models\PurchaseOrder;
+use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,6 +21,9 @@ class QuotationController extends Controller
     const APPROVE = "approve";
     const DECLINE = "decline";
     const NEED_CHANGE = "change";
+
+    const SERVICE = "Service";
+    const SPAREPARTS = "Spareparts";
 
     public function store(Request $request)
     {
@@ -538,7 +542,6 @@ class QuotationController extends Controller
                 ->where('id_quotation', $quotation->id)
                 ->get();
 
-
             $purchaseOrder = PurchaseOrder::create([
                 'id_quotation' => $quotation->id,
                 'po_number' => 'PO-' . now()->format('YmdHis'),
@@ -600,6 +603,28 @@ class QuotationController extends Controller
                     'number_back_order' => $numberBoInBo,
                 ]);
             }
+
+            // Check if this quotation is Service or not
+            $isService = $quotation->type == QuotationController::SERVICE;
+            if($isService && !$quotation->workOrder){
+                WorkOrder::create([
+                    'id_quotation' => $quotation->id,
+                    'wo_number' => 'WO-' . now()->format('YmdHis'),
+                    'received_by' => null,
+                    'expected_day' => null,
+                    'expected_start_date' => null,
+                    'expected_end_date' => null,
+                    'compiled_by' => null,
+                    'start_date' => null,
+                    'end_date' => null,
+                    'job_descriptions' => null,
+                    'work_peformed_by' => null,
+                    'approved_by' => null,
+                    'additional_components' => null,
+                    'is_done' => false,
+                ]);
+            }
+
             DB::commit();
 
             return response()->json([

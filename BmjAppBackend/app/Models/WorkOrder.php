@@ -11,7 +11,7 @@ class WorkOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'id_quotation', 'no_wo', 'received_by', 'expexted_day', 'expected_start_date', 'expected_end_date', 'compiled_by', 'start_date', 'end_date', 'job_descriptions', 'work_peformed_by', 'approved_by', 'additional_components'
+        'id_quotation', 'no_wo', 'received_by', 'expected_day', 'expected_start_date', 'expected_end_date', 'compiled_by', 'start_date', 'end_date', 'job_descriptions', 'work_peformed_by', 'approved_by', 'is_done', 'additional_components'
     ];
 
 

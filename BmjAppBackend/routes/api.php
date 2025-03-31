@@ -98,11 +98,10 @@ Route::middleware("auth:sanctum")->group(function () {
         // Service Middleware
         Route::middleware(['is_service'])->group(function () {
             Route::prefix('work-order')->group(function () {
-                Route::get('/', [WorkOrderController::class, 'index']);
-                Route::get('/{id}', [WorkOrderController::class, 'show']);
-                Route::post('/', [WorkOrderController::class, 'store']);
+                Route::get('/', [WorkOrderController::class, 'getAll']);
+                Route::get('/{id}', [WorkOrderController::class, 'getDetail']);
                 Route::put('/{id}', [WorkOrderController::class, 'update']);
-                Route::delete('/{id}', [WorkOrderController::class, 'destroy']);
+                Route::get('/process/{id}', [WorkOrderController::class, 'process']);
             });
         });
 
