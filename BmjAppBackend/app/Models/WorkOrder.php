@@ -12,7 +12,7 @@ class WorkOrder extends Model
     protected $fillable = [
         'quotation_id', 'work_order_number', 'received_by', 'expected_days', 'expected_start_date',
         'expected_end_date', 'compiled_by', 'start_date', 'end_date', 'job_descriptions',
-        'work_performed_by', 'approved_by', 'additional_components', 'is_done',
+        'work_peformed_by', 'approved_by', 'additional_components', 'is_done',
     ];
 
     public function quotation()

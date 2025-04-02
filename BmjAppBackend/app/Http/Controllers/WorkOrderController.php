@@ -14,7 +14,7 @@ class WorkOrderController extends Controller
     {
         try {
             $query = $this->getAccessedWorkOrder($request)
-                ->with(['quotation.customer', 'quotation']);
+                ->with(['quotation', 'quotation.customer']);
 
             // Get query parameters
             $q = $request->query('q');
@@ -24,7 +24,7 @@ class WorkOrderController extends Controller
             // Apply search term filter if 'q' is provided
             if ($q) {
                 $query->where(function($query) use ($q) {
-                    $query->where('wo_number', 'like', '%' . $q . '%')
+                    $query->where('work_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function($qry) use ($q) {
                             $qry->where('number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
@@ -54,7 +54,7 @@ class WorkOrderController extends Controller
             $workOrders->getCollection()->transform(function ($wo) {
                 return [
                     'id' => (string) $wo->id,
-                    'no_wo' => $wo->no_wo,
+                    'work_order_number' => $wo->work_order_number,
                     'customer' => $wo->quotation->customer->company_name ?? 'Unknown',
                     'project' => $wo->quotation->project ?? 'Unknown',
                     'type' => $wo->quotation->type ?? 'Unknown',
@@ -81,7 +81,7 @@ class WorkOrderController extends Controller
     {
         try {
             $workOrder = $this->getAccessedWorkOrder($request)
-                ->with(['quotation.customer', 'quotation.detailQuotations.spareparts'])
+                ->with(['quotation', 'quotation.customer'])
                 ->find($id);
 
             if (!$workOrder) {
@@ -104,7 +104,7 @@ class WorkOrderController extends Controller
 
             $response = [
                 'workOrder' => [
-                    'no' => $workOrder->wo_number,
+                    'no' => $workOrder->work_order_number,
                     'received_by' => $workOrder->received_by,
                     'expected_start_date' => $workOrder->expected_start_date,
                     'expected_end_date' => $workOrder->expected_end_date,
@@ -159,9 +159,16 @@ class WorkOrderController extends Controller
                 return $this->handleNotFound('Work order not found');
             }
 
+            $alreadyDone = $workOrder->is_done;
+            if($alreadyDone){
+                return response()->json([
+                    'message' => 'Work order already done'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             // Validation rules
             $validator = Validator::make($request->all(), [
-                'wo_number' => 'sometimes|required|string|max:255',
+                'work_order_number' => 'sometimes|required|string|max:255|unique:work_orders,work_order_number,'. $workOrder->id,
                 'received_by' => 'nullable|string|max:255',
                 'expected_start_date' => 'nullable|date',
                 'expected_end_date' => 'nullable|date|after_or_equal:expected_start_date',
@@ -209,6 +216,13 @@ class WorkOrderController extends Controller
 
             if (!$workOrder) {
                 return $this->handleNotFound('Work order not found');
+            }
+
+            $alreadyDone = $workOrder->is_done;
+            if($alreadyDone){
+                return response()->json([
+                    'message' => 'Work order already done'
+                ], Response::HTTP_BAD_REQUEST);
             }
 
             $workOrder->update([

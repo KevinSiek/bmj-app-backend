@@ -625,19 +625,22 @@ class QuotationController extends Controller
             // Check if this quotation is Service or not
             $isService = $quotation->type == QuotationController::SERVICE;
             if($isService && !$quotation->workOrder){
+                $user = $request->user();
+                $userId = $user->id;
+
                 WorkOrder::create([
-                    'id_quotation' => $quotation->id,
-                    'wo_number' => 'WO-' . now()->format('YmdHis'),
-                    'received_by' => null,
-                    'expected_day' => null,
+                    'quotation_id' => $quotation->id,
+                    'work_order_number' => 'WO-' . now()->format('YmdHis'),
+                    'received_by' => $userId,
+                    'expected_days' => null,
                     'expected_start_date' => null,
                     'expected_end_date' => null,
-                    'compiled_by' => null,
+                    'compiled_by' => $userId,
                     'start_date' => null,
                     'end_date' => null,
                     'job_descriptions' => null,
                     'work_peformed_by' => null,
-                    'approved_by' => null,
+                    'approved_by' => $userId,
                     'additional_components' => null,
                     'is_done' => false,
                 ]);

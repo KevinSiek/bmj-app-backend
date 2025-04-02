@@ -15,18 +15,18 @@ return new class extends Migration
             $table->id();
             $table->foreignId('quotation_id')->constrained('quotations');
             $table->string('work_order_number');
-            $table->foreignId('received_by')->constrained('employees')->onDelete('cascade');
-            $table->date('expected_day');
-            $table->date('expected_start_date');
-            $table->date('expected_end_date');
+            $table->foreignId('received_by')->constrained('employees')->onDelete('cascade')->nullable();
+            $table->date('expected_days')->nullable();
+            $table->date('expected_start_date')->nullable();
+            $table->date('expected_end_date')->nullable();
             $table->foreignId('compiled_by')->constrained('employees')->onDelete('cascade');
-            $table->date('start_date');
-            $table->date('end_date');
-            $table->string('job_descriptions');
-            $table->foreignId('work_peformed_by')->constrained('employees')->onDelete('cascade');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+            $table->string('job_descriptions')->nullable();
+            $table->string('work_peformed_by')->nullable();
             $table->foreignId('approved_by')->constrained('employees')->onDelete('cascade');
-            $table->boolean('is_done');
-            $table->string('additional_components');
+            $table->boolean('is_done')->nullable();
+            $table->string('additional_components')->nullable();
             $table->timestamps();
         });
 
