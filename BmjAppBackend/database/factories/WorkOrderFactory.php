@@ -21,8 +21,8 @@ class WorkOrderFactory extends Factory
     public function definition()
     {
         return [
-            'id_quotation' => Quotation::inRandomOrder()->first()->id,
-            'no_wo' => Str::random(10),
+            'quotation_id' => Quotation::inRandomOrder()->first()->id,
+            'work_order_number' => Str::random(10),
             'received_by' => Employee::inRandomOrder()->first()->id,
             'expected_day' => $this->faker->date(),
             'expected_start_date' => $this->faker->date(),

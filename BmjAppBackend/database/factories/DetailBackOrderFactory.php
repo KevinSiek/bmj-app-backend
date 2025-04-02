@@ -20,8 +20,8 @@ class DetailBackOrderFactory extends Factory
     public function definition()
     {
         return [
-            'id_bo' => BackOrder::factory(),
-            'id_spareparts' => Sparepart::factory(),
+            'back_order_id' => BackOrder::factory(),
+            'sparepart_id' => Sparepart::factory(),
             'number_delivery_order' => $this->faker->numberBetween(1, 10),
             'number_back_order'=>$this->faker->numberBetween(1, 10),
         ];

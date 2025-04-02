@@ -13,14 +13,14 @@ class QuotationSeeder extends Seeder
         Quotation::factory(30)
             ->has(DetailQuotation::factory()->count(5)->state(function (array $attributes, Quotation $quotation) {
                 return [
-                    'id_spareparts' => Sparepart::inRandomOrder()->first()->id,
+                    'sparepart_id' => Sparepart::inRandomOrder()->first()->id,
                     'quantity' => fake()->numberBetween(1, 5),
                     'is_indent' => fake()->numberBetween(0, 1),
                     'unit_price' => fake()->numberBetween(10000, 50000),
                 ];
             }), 'detailQuotations')
             ->create([
-                'no' => fn() => sprintf('%03d/QUOT/BMJ-MEGAH/P/%s/%d',
+                'number' => fn() => sprintf('%03d/QUOT/BMJ-MEGAH/P/%s/%d',
                     fake()->numberBetween(1, 999),
                     strtoupper(fake()->monthName()),
                     now()->year

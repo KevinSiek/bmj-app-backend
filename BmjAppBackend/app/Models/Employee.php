@@ -20,17 +20,17 @@ class Employee extends Authenticatable
         return $this->hasMany(Quotation::class);
     }
 
-    public function purchaseOrders()
+    public function purchaseOrder()
     {
         return $this->hasMany(PurchaseOrder::class);
     }
-    
+
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
     }
 
-    public function proformaInvoices()
+    public function proformaInvoice()
     {
         return $this->hasMany(ProformaInvoice::class);
     }

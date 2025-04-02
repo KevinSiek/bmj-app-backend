@@ -38,17 +38,17 @@ class ProformaInvoiceController extends Controller
                 $startDate = "{$year}-{$monthNumber}-01";
                 $endDate = date("Y-m-t", strtotime($startDate));
 
-                $query->whereBetween('pi_date', [$startDate, $endDate]);
+                $query->whereBetween('proforma_invoice_date', [$startDate, $endDate]);
             }
 
             // Paginate the results
-            $proformaInvoices = $query->orderBy('pi_date', 'desc')
+            $proformaInvoices = $query->orderBy('proforma_invoice_date', 'desc')
                 ->paginate(20)->through(function ($pi) {
                     return [
                         'id' => (string) $pi->id,
                         'no_pi' => $pi->pi_number,
                         'customer' => $pi->purchaseOrder->quotation->customer->company_name ?? 'Unknown',
-                        'date' => $pi->pi_date,
+                        'date' => $pi->proforma_invoice_date,
                         'type' => $pi->purchaseOrder->quotation->type ?? 'Unknown',
                     ];
                 });;
@@ -90,11 +90,11 @@ class ProformaInvoiceController extends Controller
 
             $spareparts = collect();
             foreach ($detailQuotations as $detailQuotation) {
-                $sparepart = $detailQuotation->spareparts;
+                $sparepart = $detailQuotation->sparepart;
                 foreach ($sparepart->detailBuys as $detailBuy) {
                     $spareparts->push([
                         'partName' => $sparepart->name ?? '',
-                        'partNumber' => $sparepart->no_sparepart ?? '',
+                        'partNumber' => $sparepart->part_number ?? '',
                         'quantity' => $detailBuy->quantity ?? 0,
                         'unit' => 'pcs',
                         'unitPrice' => $sparepart->unit_price_sell ?? 0,
@@ -159,10 +159,10 @@ class ProformaInvoiceController extends Controller
             }
 
             $invoice = Invoice::create([
-                'id_pi' => $proformaInvoice->id,
+                'proforma_invoice_id' => $proformaInvoice->id,
                 'invoice_number' => 'INVOICE-' . now()->format('YmdHis'),
                 'invoice_date' => now(),
-                'employee_id' => $request->user()->id,
+                'employee_id' => $proformaInvoice->employee_id,
             ]);
 
             $quotation = $proformaInvoice->purchaseOrder->quotation;

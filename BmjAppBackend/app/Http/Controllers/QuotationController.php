@@ -36,7 +36,7 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project' => 'required|string|max:255',
-                'no' => 'required|string|unique:quotations,no',
+                'number' => 'required|string|unique:quotations,number',
                 'type' => 'required|string',
                 'amount'=>'required|numeric',
                 'discount'=>'required|numeric',
@@ -55,7 +55,7 @@ class QuotationController extends Controller
                 'postal_code'=>'required|numeric',
                 // Sparepart validation
                 'spareparts' => 'required|array',
-                'spareparts.*.id_spareparts' => 'required|exists:spareparts,id',
+                'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
                 'spareparts.*.unit_price' => 'required|numeric|min:1',
             ]);
@@ -96,19 +96,19 @@ class QuotationController extends Controller
             $validatedData['date'] = now();
             $validatedData['review'] = true;
             $validatedData['status'] = QuotationController::APPROVE;
-            $validatedData['id_customer'] = $customer->id; // Assign the customer ID to the quotation
+            $validatedData['customer_id'] = $customer->id; // Assign the customer ID to the quotation
 
             // Create the quotation with the validated data and slug
             $quotation = Quotation::create($validatedData);
 
             // Create DetailQuotation from list of spareparts in this quotations
             foreach ($request->input('spareparts') as $spareparts) {
-                $sparepartsId = $spareparts['id_spareparts'];
+                $sparepartsId = $spareparts['sparepart_id'];
                 $sparepartsUnitPrice =$spareparts['unit_price'];
                 $quantityOrderSparepart = $spareparts['quantity'];
                 // Validate agans each spareparts data
                 $sparepartsValidator = Validator::make($spareparts, [
-                    'id_spareparts' => 'required|exists:spareparts,id',
+                    'sparepart_id' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
                     'unit_price' =>'required|numeric|min:1',
                 ]);
@@ -133,8 +133,8 @@ class QuotationController extends Controller
 
                 // Insert into the bridge table
                 DB::table('detail_quotations')->insert([
-                    'id_quotation' => $quotation->id,
-                    'id_spareparts' => $sparepartsId,
+                    'quotation_id' => $quotation->id,
+                    'sparepart_id' => $sparepartsId,
                     'quantity' => $quantityOrderSparepart,
                     'is_indent' => $spareparts['is_indent'],
                     'unit_price' => $sparepartsUnitPrice,
@@ -181,7 +181,7 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project' => 'required|string|max:255',
-                'no' => 'sometimes|string|unique:quotations,no,' . $quotation->id,
+                'number' => 'sometimes|string|unique:quotations,number,' . $quotation->id,
                 'type' => 'required|string',
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
@@ -200,7 +200,7 @@ class QuotationController extends Controller
                 'postal_code' => 'required|numeric',
                 // Sparepart validation
                 'spareparts' => 'required|array',
-                'spareparts.*.id_spareparts' => 'required|exists:spareparts,id',
+                'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
                 'spareparts.*.unit_price' => 'required|numeric|min:1',
             ]);
@@ -235,23 +235,23 @@ class QuotationController extends Controller
             }
 
             // Assign the customer ID to the quotation
-            $validatedData['id_customer'] = $customer->id;
+            $validatedData['customer_id'] = $customer->id;
 
             // Update the quotation with the validated data
             $quotation->update($validatedData);
 
             // Handle Spareparts
             // Delete existing spareparts for this quotation
-            DB::table('detail_quotations')->where('id_quotation', $quotation->id)->delete();
+            DB::table('detail_quotations')->where('quotation_id', $quotation->id)->delete();
 
             // Create DetailQuotation from list of spareparts in this quotations
             foreach ($request->input('spareparts') as $spareparts) {
-                $sparepartsId = $spareparts['id_spareparts'];
+                $sparepartsId = $spareparts['sparepart_id'];
                 $sparepartsUnitPrice = $spareparts['unit_price'];
 
                 // Validate against each spareparts data
                 $sparepartsValidator = Validator::make($spareparts, [
-                    'id_spareparts' => 'required|exists:spareparts,id',
+                    'sparepart_id' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
                     'unit_price' => 'required|numeric|min:1',
                 ]);
@@ -277,8 +277,8 @@ class QuotationController extends Controller
 
                 // Insert into the bridge table
                 DB::table('detail_quotations')->insert([
-                    'id_quotation' => $quotation->id,
-                    'id_spareparts' => $sparepartsId,
+                    'quotation_id' => $quotation->id,
+                    'sparepart_id' => $sparepartsId,
                     'quantity' => $spareparts['quantity'],
                     'is_indent' => $spareparts['is_indent'],
                     'unit_price' => $sparepartsUnitPrice,
@@ -353,6 +353,15 @@ class QuotationController extends Controller
                 return $this->handleNotFound('Quotation not found');
             }
 
+            // Only allow director approve quotation
+            $user = $request->user();
+            $role = $user->role;
+            if($role != 'Director'){
+                return response()->json([
+                    'message' => 'You are not authorized to approve this quotation'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             $quotation->review = true;
             $quotation->status = QuotationController::APPROVE;
             $quotation->save();
@@ -388,6 +397,15 @@ class QuotationController extends Controller
                 return $this->handleNotFound('Quotation not found');
             }
 
+            // Only allow director decline quotation
+            $user = $request->user();
+            $role = $user->role;
+            if($role != 'Director'){
+                return response()->json([
+                    'message' => 'You are not authorized to decline this quotation'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             $quotation->review = true;
             $quotation->status = QuotationController::DECLINE;
             $quotation->save();
@@ -421,8 +439,8 @@ class QuotationController extends Controller
             $customer = $quotation->customer;
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
-                    'partName' => $detail->spareparts->name ?? '',
-                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
+                    'partName' => $detail->sparepart->name ?? '',
+                    'partNumber' => $detail->sparepart->part_number ?? '',
                     'quantity' => $detail->quantity,
                     'unitPrice' => $detail->unit_price ?? 0,
                     'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
@@ -442,7 +460,7 @@ class QuotationController extends Controller
                     'postalCode' => $customer->postal_code ?? ''
                 ],
                 'project' => [
-                    'noQuotation' => $quotation->no,
+                    'number' => $quotation->number,
                     'type' => $quotation->type
                 ],
                 'price' => [
@@ -475,7 +493,7 @@ class QuotationController extends Controller
             // Build the query with search functionality
             $quotationsQuery = $quoatations->where(function ($query) use ($q) {
                     $query->where('project', 'like', "%$q%")
-                        ->orWhere('no', 'like', "%$q%")
+                        ->orWhere('number', 'like', "%$q%")
                         ->orWhere('type', 'like', "%$q%");
                 });
 
@@ -490,7 +508,7 @@ class QuotationController extends Controller
             $quotations = $quotationsQuery->paginate(20)->through(function ($quotation) {
                 return [
                     'id' => (string) $quotation->id,
-                    'no_quotation' => $quotation->no,
+                    'number' => $quotation->number,
                     'customer' => $quotation->customer->company_name ?? '',
                     'date' => $quotation->date,
                     'type' => $quotation->type,
@@ -539,25 +557,25 @@ class QuotationController extends Controller
 
             // Get the spareparts associated with the quotation
             $spareparts = DB::table('detail_quotations')
-                ->where('id_quotation', $quotation->id)
+                ->where('quotation_id', $quotation->id)
                 ->get();
 
             $purchaseOrder = PurchaseOrder::create([
-                'id_quotation' => $quotation->id,
-                'po_number' => 'PO-' . now()->format('YmdHis'),
-                'po_date' => now(),
+                'quotation_id' => $quotation->id,
+                'purchase_order_number' => 'PO-' . now()->format('YmdHis'),
+                'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
             ]);
 
             $backOrder = BackOrder::create([
-                'id_po' => $purchaseOrder->id,
-                'no_bo' => 'PT'.now(),
+                'purchase_order_id' => $purchaseOrder->id,
+                'back_order_number' => 'PT'.now(),
                 'status' => 'Pending',
             ]);
 
             // Decrease the total_unit for each sparepart after moveToPo
             foreach ($spareparts as $sparepart) {
-                $sparepartRecord = Sparepart::find($sparepart->id_spareparts);
+                $sparepartRecord = Sparepart::find($sparepart->sparepart_id);
                 $sparepartTotalUnit = $sparepartRecord->total_unit;
                 $sparepartQuantityOrderInPo = $sparepart->quantity;
                 $numberBoInBo = 0;
@@ -565,8 +583,8 @@ class QuotationController extends Controller
 
                 # When create BO, need to determine number of BO and DO for each sparepart in this PO
                 $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
-                $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit > 0;
-                $stockIsNotExistBeforePo =  $sparepartTotalUnit < 0;
+                $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
+                $stockIsNotExistBeforePo =  $sparepartTotalUnit <= 0;
                 if($stockIsExistButAfterPoBecomeIndent){
                     // If sparepart stock exist but become minus after PO then :
                     //      1. The number of BO is total order minus total stock (Need to buy)
@@ -589,7 +607,7 @@ class QuotationController extends Controller
 
                 // Create Detail back order for each sparepart
                 // TODO: This is maybe not efficient but we need to handle multiple sparepart statuse in single BO ID
-                $boStatus = 'ready';
+                $boStatus = BackOrderController::READY;
                 if($numberBoInBo){
                     $boStatus = 'pending';
                 }
@@ -597,8 +615,8 @@ class QuotationController extends Controller
                     'status'=>$boStatus
                 ]);
                 DetailBackOrder::create([
-                    'id_bo' => $backOrder->id,
-                    'id_spareparts' => $sparepart->id_spareparts,
+                    'back_order_id' => $backOrder->id,
+                    'sparepart_id' => $sparepart->sparepart_id,
                     'number_delivery_order' => $numberDoInBo,
                     'number_back_order' => $numberBoInBo,
                 ]);

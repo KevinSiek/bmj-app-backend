@@ -7,15 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Buy extends Model
 {
-    /** @use HasFactory<\Database\Factories\BuyFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'no_buy', 'total_amount', 'review', 'status', 'note'
+        'buy_number', 'total_amount', 'review', 'status', 'note'
     ];
 
     public function detailBuys()
     {
-        return $this->hasMany(DetailBuy::class, 'id_buy');
+        return $this->hasMany(DetailBuy::class);
     }
 }

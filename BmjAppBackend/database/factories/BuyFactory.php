@@ -22,7 +22,7 @@ class BuyFactory extends Factory
     public function definition()
     {
         return [
-            'no_buy' => Str::random(10),
+            'buy_number' => Str::random(10),
             'total_amount' => $this->faker->randomFloat(2, 1000, 10000),
             'review' => $this->faker->boolean,
             'status' => $this->faker->randomElement([

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_pi')->constrained('proforma_invoices');
+            $table->foreignId('proforma_invoice_id')->constrained('proforma_invoices');
             $table->string('invoice_number');
             $table->date('invoice_date');
             $table->string('term_of_pay')->nullable();

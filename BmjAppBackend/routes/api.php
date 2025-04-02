@@ -28,6 +28,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/', [LoginController::class, 'getCurrentUser']);
     });
     Route::post('logout', [LoginController::class, 'logout']);
+    Route::post('changePassword', [LoginController::class, 'changePassword']);
 
     // Employee Access
     Route::prefix('access')->group(function () {
@@ -38,91 +39,81 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::delete('/{id}', [AccessesController::class, 'destroy']);
     });
 
-    // Common Routes for Multiple Roles
-    $commonRoutes = function () {
-        Route::prefix('quotation')->group(function () {
-            Route::get('/', [QuotationController::class, 'getAll']);
-            Route::get('/{slug}', [QuotationController::class, 'getDetail']);
-            Route::post('/', [QuotationController::class, 'store']);
-            Route::put('/{slug}', [QuotationController::class, 'update']);
-            Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
-            Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
-            Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
-            Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
-            Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
-        });
+    Route::prefix('quotation')->group(function () {
+        Route::get('/', [QuotationController::class, 'getAll']);
+        Route::get('/{slug}', [QuotationController::class, 'getDetail']);
+        Route::post('/', [QuotationController::class, 'store']);
+        Route::put('/{slug}', [QuotationController::class, 'update']);
+        Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+        Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+        Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
+        Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
+        Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
+    });
 
-        Route::prefix('purchase-order')->group(function () {
-            Route::get('/', [PurchaseOrderController::class, 'getAll']);
-            Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
-            Route::get('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
-        });
+    Route::prefix('purchase-order')->group(function () {
+        Route::get('/', [PurchaseOrderController::class, 'getAll']);
+        Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
+        Route::get('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
+    });
 
-        Route::prefix('proforma-invoice')->group(function () {
-            Route::get('/', [ProformaInvoiceController::class, 'getAll']);
-            Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
-            Route::get('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
-        });
+    Route::prefix('proforma-invoice')->group(function () {
+        Route::get('/', [ProformaInvoiceController::class, 'getAll']);
+        Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
+        Route::get('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
+    });
 
-        Route::prefix('invoice')->group(function () {
-            Route::get('/', [InvoiceController::class, 'getAll']);
-            Route::get('/{id}', [InvoiceController::class, 'getDetail']);
-        });
+    Route::prefix('invoice')->group(function () {
+        Route::get('/', [InvoiceController::class, 'getAll']);
+        Route::get('/{id}', [InvoiceController::class, 'getDetail']);
+    });
 
-        Route::prefix('back-order')->group(function () {
-            Route::get('/', [BackOrderController::class, 'getAll']);
-            Route::get('/{id}', [BackOrderController::class, 'show']);
-            Route::get('/process/{id}', [BackOrderController::class, 'process']);
+    Route::prefix('back-order')->group(function () {
+        Route::get('/', [BackOrderController::class, 'getAll']);
+        Route::get('/{id}', [BackOrderController::class, 'show']);
+        Route::get('/process/{id}', [BackOrderController::class, 'process']);
+    });
+
+    // Director
+    Route::middleware(['is_director'])->group(function () {
+        // Employee Routes
+        Route::prefix('employee')->group(function () {
+            Route::get('/', [EmployeeController::class, 'getAll']);
+            Route::get('/{slug}', [EmployeeController::class, 'show']);
+            Route::post('/', [EmployeeController::class, 'store']);
+            Route::put('/{slug}', [EmployeeController::class, 'update']);
+            Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
+            Route::get('/access/{slug}', [EmployeeController::class, 'getEmployeeAccess']);
+            Route::get('/resetPassword/{slug}', [EmployeeController::class, 'resetPassword']);
         });
-    };
+    });
+
+    // Service Middleware
+    Route::middleware(['is_service'])->group(function () {
+        Route::prefix('work-order')->group(function () {
+            Route::get('/', [WorkOrderController::class, 'getAll']);
+            Route::get('/{id}', [WorkOrderController::class, 'getDetail']);
+            Route::put('/{id}', [WorkOrderController::class, 'update']);
+            Route::get('/process/{id}', [WorkOrderController::class, 'process']);
+        });
+    });
 
     // Inventory Middleware
-    Route::middleware(['is_common_route'])->group(function () use ($commonRoutes) {
-        $commonRoutes();
-
-        // Director has all access
-        Route::middleware(['is_director'])->group(function () {
-            // Employee Routes
-            Route::prefix('employee')->group(function () {
-                Route::get('/', [EmployeeController::class, 'getAll']);
-                Route::get('/{slug}', [EmployeeController::class, 'show']);
-                Route::post('/', [EmployeeController::class, 'store']);
-                Route::put('/{slug}', [EmployeeController::class, 'update']);
-                Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
-                Route::get('/access/{slug}', [EmployeeController::class, 'getEmployeeAccess']);
-                Route::get('/resetPassword/{slug}', [EmployeeController::class, 'resetPassword']);
-                Route::post('/changePassword/{slug}', [EmployeeController::class, 'changePassword']);
-            });
+    Route::middleware(['is_inventory'])->group(function (){
+        // Buy Routes
+        Route::prefix('buy')->group(function () {
+            Route::get('/', [BuyController::class, 'getAll']);
+            Route::get('/{id}', [BuyController::class, 'getDetail']);
+            Route::post('/', [BuyController::class, 'store']);
+            Route::put('/{id}', [BuyController::class, 'update']);
+            Route::delete('/{id}', [BuyController::class, 'destroy']);
         });
 
-        // Service Middleware
-        Route::middleware(['is_service'])->group(function () {
-            Route::prefix('work-order')->group(function () {
-                Route::get('/', [WorkOrderController::class, 'getAll']);
-                Route::get('/{id}', [WorkOrderController::class, 'getDetail']);
-                Route::put('/{id}', [WorkOrderController::class, 'update']);
-                Route::get('/process/{id}', [WorkOrderController::class, 'process']);
-            });
+        // Sparepart Routes
+        Route::prefix('sparepart')->group(function () {
+            Route::get('/', [SparepartController::class, 'getAll']);
+            Route::get('/{slug}', [SparepartController::class, 'getDetail']);
+            Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
         });
-
-        // Inventory Middleware
-        Route::middleware(['is_inventory'])->group(function () use ($commonRoutes) {
-            // Buy Routes
-            Route::prefix('buy')->group(function () {
-                Route::get('/', [BuyController::class, 'getAll']);
-                Route::get('/{id}', [BuyController::class, 'getDetail']);
-                Route::post('/', [BuyController::class, 'store']);
-                Route::put('/{id}', [BuyController::class, 'update']);
-                Route::delete('/{id}', [BuyController::class, 'destroy']);
-            });
-
-            // Sparepart Routes
-            Route::prefix('sparepart')->group(function () {
-                Route::get('/', [SparepartController::class, 'getAll']);
-                Route::get('/{slug}', [SparepartController::class, 'getDetail']);
-                Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
-            });
-        });
-
     });
 });

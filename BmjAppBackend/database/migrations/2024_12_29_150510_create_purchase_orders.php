@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('purchase_orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_quotation')->constrained('quotations');
-            $table->string('po_number');
-            $table->date('po_date');
+            $table->foreignId('quotation_id')->constrained('quotations');
+            $table->string('purchase_order_number');
+            $table->date('purchase_order_date');
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->timestamps();
         });

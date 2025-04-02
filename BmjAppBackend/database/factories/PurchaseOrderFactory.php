@@ -21,9 +21,9 @@ class PurchaseOrderFactory extends Factory
     public function definition()
     {
         return [
-            'id_quotation' => Quotation::inRandomOrder()->first()->id,
-            'po_number' => Str::random(10),
-            'po_date' => $this->faker->date(),
+            'quotation_id' => Quotation::inRandomOrder()->first()->id,
+            'purchase_order_number' => Str::random(10),
+            'purchase_order_date' => $this->faker->date(),
             'employee_id' => Employee::inRandomOrder()->first()->id,
         ];
     }

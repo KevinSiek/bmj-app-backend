@@ -7,18 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class DetailBackOrder extends Model
 {
-    /** @use HasFactory<\Database\Factories\BackOrderFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_bo', 'id_spareparts', 'number_delivery_order', 'number_back_order',
+        'back_order_id', 'sparepart_id', 'number_delivery_order', 'number_back_order'
     ];
-    public function backOrders()
+
+    public function backOrder()
     {
-        return $this->belongsTo(BackOrder::class, 'id_bo');
+        return $this->belongsTo(BackOrder::class);
     }
-    public function spareparts()
+
+    public function sparepart()
     {
-        return $this->belongsTo(Sparepart::class, 'id_spareparts');
+        return $this->belongsTo(Sparepart::class);
     }
 }

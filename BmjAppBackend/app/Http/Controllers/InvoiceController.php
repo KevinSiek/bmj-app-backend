@@ -91,12 +91,12 @@ class InvoiceController extends Controller
 
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
-                    'partName' => $detail->spareparts->name ?? '',
-                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
+                    'partName' => $detail->sparepart->name ?? '',
+                    'partNumber' => $detail->sparepart->part_number ?? '',
                     'quantity' => $detail->quantity,
                     'unit' => 'pcs',
-                    'unitPrice' => $detail->spareparts->unit_price_sell ?? 0,
-                    'amount' => ($detail->quantity * ($detail->spareparts->unit_price_sell ?? 0))
+                    'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
+                    'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
                 ];
             });
 
@@ -108,11 +108,11 @@ class InvoiceController extends Controller
                 ],
                 'proformaInvoice' => [
                     'no' => $proformaInvoice->pi_number ?? '',
-                    'date' => $proformaInvoice->pi_date ?? ''
+                    'date' => $proformaInvoice->proforma_invoice_date ?? ''
                 ],
                 'purchaseOrder' => [
-                    'no' => $purchaseOrder->po_number ?? '',
-                    'date' => $purchaseOrder->po_date ?? ''
+                    'no' => $purchaseOrder->purchase_order_number ?? '',
+                    'date' => $purchaseOrder->purchase_order_date ?? ''
                 ],
                 'customer' => [
                     'companyName' => $customer->company_name ?? '',

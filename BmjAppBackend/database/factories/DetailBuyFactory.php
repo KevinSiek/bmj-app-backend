@@ -20,8 +20,8 @@ class DetailBuyFactory extends Factory
     public function definition()
     {
         return [
-            'id_buy' => Buy::factory(),
-            'id_spareparts' => Sparepart::factory(),
+            'buy_id' => Buy::factory(),
+            'sparepart_id' => Sparepart::factory(),
             'quantity' => $this->faker->numberBetween(1, 100),
         ];
     }

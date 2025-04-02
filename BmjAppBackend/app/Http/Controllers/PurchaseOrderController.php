@@ -25,9 +25,9 @@ class PurchaseOrderController extends Controller
             // Apply search term filter if 'q' is provided
             if ($q) {
                 $query->where(function($query) use ($q) {
-                    $query->where('po_number', 'like', '%' . $q . '%')
+                    $query->where('purchase_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function($qry) use ($q) {
-                            $qry->where('no', 'like', '%' . $q . '%')
+                            $qry->where('number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('status', 'like', '%' . $q . '%');
@@ -44,17 +44,17 @@ class PurchaseOrderController extends Controller
                 $startDate = "{$year}-{$monthNumber}-01";
                 $endDate = date("Y-m-t", strtotime($startDate));
 
-                $query->whereBetween('po_date', [$startDate, $endDate]);
+                $query->whereBetween('purchase_order_date', [$startDate, $endDate]);
             }
 
             // Paginate the results
-            $purchaseOrders = $query->orderBy('po_date', 'desc')
+            $purchaseOrders = $query->orderBy('purchase_order_date', 'desc')
                 ->paginate(20)->through(function ($po) {
                     return [
                         'id' => (string) $po->id,
-                        'no_po' => $po->po_number,
+                        'no_po' => $po->purchase_order_number,
                         'customer' => $po->quotation->customer->company_name ?? 'Unknown',
-                        'date' => $po->po_date,
+                        'date' => $po->purchase_order_date,
                         'type' => $po->quotation->type ?? 'Unknown',
                         'status' => $po->quotation->status ?? 'Unknown',
                     ];
@@ -89,28 +89,28 @@ class PurchaseOrderController extends Controller
 
             $quotation = $purchaseOrder->quotation;
             $customer = $quotation->customer ?? null;
-            $proformaInvoice = $purchaseOrder->proformaInvoices->first();
+            $proformaInvoice = $purchaseOrder->proformaInvoice->first();
 
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
-                    'partName' => $detail->spareparts->name ?? '',
-                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
+                    'partName' => $detail->sparepart->name ?? '',
+                    'partNumber' => $detail->sparepart->part_number ?? '',
                     'quantity' => $detail->quantity,
                     'unit' => 'pcs',
-                    'unitPrice' => $detail->spareparts->unit_price_sell ?? 0,
-                    'amount' => ($detail->quantity * ($detail->spareparts->unit_price_sell ?? 0))
+                    'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
+                    'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
                 ];
             });
 
             $response = [
                 'purchaseOrder' => [
-                    'no' => $purchaseOrder->po_number,
-                    'date' => $purchaseOrder->po_date,
+                    'no' => $purchaseOrder->purchase_order_number,
+                    'date' => $purchaseOrder->purchase_order_date,
                     'type' => $quotation->type ?? ''
                 ],
                 'proformaInvoice' => [
                     'no' => $proformaInvoice->pi_number ?? '',
-                    'date' => $proformaInvoice->pi_date ?? ''
+                    'date' => $proformaInvoice->proforma_invoice_date ?? ''
                 ],
                 'customer' => [
                     'companyName' => $customer->company_name ?? '',
@@ -156,17 +156,17 @@ class PurchaseOrderController extends Controller
                 return $this->handleNotFound('Purchase order not found');
             }
 
-            if ($purchaseOrder->proformaInvoices->isNotEmpty()) {
+            if ($purchaseOrder->proformaInvoice->isNotEmpty()) {
                 return response()->json([
                     'message' => 'Purchase order already has a proforma invoice'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
             $proformaInvoice = ProformaInvoice::create([
-                'id_po' => $purchaseOrder->id,
+                'purchase_order_id' => $purchaseOrder->id,
                 'pi_number' => 'PI-' . now()->format('YmdHis'),
-                'pi_date' => now(),
-                'employee_id' => $request->user()->id,
+                'proforma_invoice_date' => now(),
+                'employee_id' => $purchaseOrder->employee_id,
             ]);
 
             $quotation = $purchaseOrder->quotation;

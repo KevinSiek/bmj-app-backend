@@ -7,16 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
-    /** @use HasFactory<\Database\Factories\InvoiceFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_pi', 'invoice_number', 'invoice_date', 'term_of_pay', 'employee_id'
+        'proforma_invoice_id', 'invoice_number', 'invoice_date', 'term_of_pay', 'employee_id'
     ];
 
     public function proformaInvoice()
     {
-        return $this->belongsTo(ProformaInvoice::class, 'id_pi');
+        return $this->belongsTo(ProformaInvoice::class);
     }
 
     public function employee()

@@ -21,9 +21,9 @@ class ProformaInvoiceFactory extends Factory
     public function definition()
     {
         return [
-            'id_po' => PurchaseOrder::inRandomOrder()->first()->id,
+            'purchase_order_id' => PurchaseOrder::inRandomOrder()->first()->id,
             'pi_number' => Str::random(10),
-            'pi_date' => $this->faker->date(),
+            'proforma_invoice_date' => $this->faker->date(),
             'advance_payment' => $this->faker->randomFloat(2, 1000, 5000),
             'total' => $this->faker->randomFloat(2, 1000, 10000),
             'total_amount' => $this->faker->randomFloat(2, 5000, 15000),

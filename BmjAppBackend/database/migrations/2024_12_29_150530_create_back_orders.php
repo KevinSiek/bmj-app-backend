@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('back_orders', function (Blueprint $table) {
             $table->id();
-            $table->string('no_bo');
-            $table->foreignId('id_po')->constrained('purchase_orders');
+            $table->string('back_order_number');
+            $table->foreignId('purchase_order_id')->constrained('purchase_orders');
             $table->string('status')->nullable();
             $table->timestamps();
         });

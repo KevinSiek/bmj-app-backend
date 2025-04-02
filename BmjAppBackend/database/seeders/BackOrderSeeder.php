@@ -14,10 +14,10 @@ class BackOrderSeeder extends Seeder
         BackOrder::factory(15)
         ->has(DetailBackOrder::factory()->count(5), 'detailBackOrders')
         ->state([
-            'no_bo' => fn() => 'PT-' . fake()->unique()->bothify('####-##'),
+            'back_order_number' => fn() => 'PT-' . fake()->unique()->bothify('####-##'),
         ])
         ->create([
-            'id_po' => PurchaseOrder::inRandomOrder()->first()->id,
+            'purchase_order_id' => PurchaseOrder::inRandomOrder()->first()->id,
         ]);
 
 

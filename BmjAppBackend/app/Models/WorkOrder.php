@@ -7,26 +7,21 @@ use Illuminate\Database\Eloquent\Model;
 
 class WorkOrder extends Model
 {
-    /** @use HasFactory<\Database\Factories\QuotationFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_quotation', 'no_wo', 'received_by', 'expected_day', 'expected_start_date', 'expected_end_date', 'compiled_by', 'start_date', 'end_date', 'job_descriptions', 'work_peformed_by', 'approved_by', 'is_done', 'additional_components'
+        'quotation_id', 'work_order_number', 'received_by', 'expected_days', 'expected_start_date',
+        'expected_end_date', 'compiled_by', 'start_date', 'end_date', 'job_descriptions',
+        'work_performed_by', 'approved_by', 'additional_components', 'is_done',
     ];
-
 
     public function quotation()
     {
-        return $this->belongsTo(Quotation::class, 'id_quotation');
+        return $this->belongsTo(Quotation::class);
     }
 
     public function employee()
     {
         return $this->belongsTo(Employee::class);
     }
-
-
-
-
-
 }

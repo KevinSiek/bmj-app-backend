@@ -7,16 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProformaInvoice extends Model
 {
-    /** @use HasFactory<\Database\Factories\ProformaInvoiceFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_po', 'pi_number', 'pi_date', 'advance_payment', 'total', 'total_amount', 'total_amount_text', 'employee_id'
+        'purchase_order_id', 'pi_number', 'proforma_invoice_date',
+        'advance_payment', 'total', 'total_amount', 'total_amount_text', 'employee_id'
     ];
 
     public function purchaseOrder()
     {
-        return $this->belongsTo(PurchaseOrder::class, 'id_po');
+        return $this->belongsTo(PurchaseOrder::class);
     }
 
     public function employee()
@@ -26,6 +26,6 @@ class ProformaInvoice extends Model
 
     public function invoices()
     {
-        return $this->hasMany(Invoice::class, 'id_pi');
+        return $this->hasMany(Invoice::class);
     }
 }

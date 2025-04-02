@@ -102,4 +102,35 @@ class LoginController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
+    public function changePassword(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $userId = $user->id;
+            $employee = Employee::find($userId);
+
+            if (!$employee) {
+                return response()->json([
+                    'message' => 'Employee not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            // Validate the request data
+            $validatedData = $request->validate([
+                'password' => 'required|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
+            ]);
+            $validatedData['password'] = bcrypt($request->password);
+            $employee->update($validatedData);
+
+            return response()->json([
+                'message' => 'Change password success',
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Fail to change password',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
 }

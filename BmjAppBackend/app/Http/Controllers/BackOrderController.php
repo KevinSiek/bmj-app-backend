@@ -49,10 +49,10 @@ class BackOrderController extends Controller
             // Apply search term filter if 'q' is provided
             if ($q) {
                 $backOrderQuery->where(function ($query) use ($q) {
-                    $query->where('no_bo', 'like', "%$q%")
+                    $query->where('back_order_number', 'like', "%$q%")
                         ->orWhere('status', 'like', "%$q%")
                         ->orWhereHas('purchaseOrder', function($qry) use ($q) {
-                            $qry->where('po_number', 'like', "%$q%");
+                            $qry->where('purchase_order_number', 'like', "%$q%");
                         });
                 });
             }
@@ -69,7 +69,14 @@ class BackOrderController extends Controller
             // Paginate the results
             $backOrders = $backOrderQuery->with(['purchaseOrder', 'purchaseOrder.employee'])
                 ->orderBy('created_at', 'desc')
-                ->paginate(20);
+                ->paginate(20)->through(function ($backOrder) {
+                    return [
+                        'purchase_order_id' => (string) $backOrder->purchase_order_id,
+                        'back_order_number' => $backOrder->back_order_number,
+                        'status' => $backOrder->status ?? '',
+                        'date' => $backOrder->created_at
+                    ];
+                });
 
             return response()->json([
                 'message' => 'List of all back orders retrieved successfully',
@@ -95,7 +102,7 @@ class BackOrderController extends Controller
             // Get the back order with all necessary relations
             $backOrder = $this->getAccessedBackOrder($request)
                 ->with([
-                    'detailBackOrders.spareparts',
+                    'detailBackOrders.sparepart',
                     'purchaseOrder.quotation.detailQuotations'
                 ])
                 ->find($id);
@@ -118,7 +125,7 @@ class BackOrderController extends Controller
                     continue;
                 }
 
-                $sparepart = $detailBackOrder->spareparts;
+                $sparepart = $detailBackOrder->sparepart;
                 if (!$sparepart) {
                     continue;
                 }
@@ -130,8 +137,8 @@ class BackOrderController extends Controller
                 // Find corresponding detail quotation and update its status
                 $quotation = $backOrder->purchaseOrder->quotation;
                 if ($quotation) {
-                    $detailQuotation = DetailQuotation::where('id_quotation', $quotation->id)
-                        ->where('id_spareparts', $detailBackOrder->id_spareparts)
+                    $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
+                        ->where('sparepart_id', $detailBackOrder->sparepart_id)
                         ->first();
 
                     if ($detailQuotation && $detailQuotation->is_indent) {

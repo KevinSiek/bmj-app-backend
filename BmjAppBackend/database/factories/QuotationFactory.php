@@ -23,9 +23,9 @@ class QuotationFactory extends Factory
         $project = $this->faker->sentence;
 
         return [
-            'no' => Str::random(10),
+            'number' => Str::random(10),
             'slug' => Str::slug($project) . '-' . Str::random(6), // Generate a unique slug
-            'id_customer' => Customer::factory(),
+            'customer_id' => Customer::factory(),
             'project' =>$project,
             'type' =>$this->faker->sentence,
             'date' => $this->faker->date(),

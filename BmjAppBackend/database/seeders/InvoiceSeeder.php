@@ -11,7 +11,7 @@ class InvoiceSeeder extends Seeder
     public function run(): void
     {
         Invoice::factory(15)->create([
-            'id_pi' => ProformaInvoice::inRandomOrder()->first()->id,
+            'proforma_invoice_id' => ProformaInvoice::inRandomOrder()->first()->id,
             'invoice_number' => fn() => 'INV-' . fake()->unique()->bothify('####-##-####'),
             'term_of_pay' => fake()->randomElement(['CASH', '30 DAYS', '60 DAYS', 'DP 50%'])
         ]);

@@ -7,20 +7,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class DetailBuy extends Model
 {
-    /** @use HasFactory<\Database\Factories\DetailBuyFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_buy', 'id_spareparts', 'quantity'
+        'buy_id', 'sparepart_id', 'quantity'
     ];
 
     public function buy()
     {
-        return $this->belongsTo(Buy::class, 'id_buy');
+        return $this->belongsTo(Buy::class);
     }
 
-    public function spareparts()
+    public function sparepart()
     {
-        return $this->belongsTo(Sparepart::class, 'id_spareparts');
+        return $this->belongsTo(Sparepart::class);
     }
 }

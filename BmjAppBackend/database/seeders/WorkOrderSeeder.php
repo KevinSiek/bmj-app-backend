@@ -11,7 +11,7 @@ class WorkOrderSeeder extends Seeder
     public function run(): void
     {
         WorkOrder::factory(15)->create([
-            'id_quotation' => Quotation::inRandomOrder()->first()->id,
+            'quotation_id' => Quotation::inRandomOrder()->first()->id,
             'job_descriptions' => fake()->randomElement([
                 'Overhaul generator 2000KVA',
                 'Ganti bearing utama generator',

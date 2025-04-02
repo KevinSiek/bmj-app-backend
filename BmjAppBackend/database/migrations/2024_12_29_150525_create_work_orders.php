@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('work_orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_quotation')->constrained('quotations');
-            $table->string('no_wo');
+            $table->foreignId('quotation_id')->constrained('quotations');
+            $table->string('work_order_number');
             $table->foreignId('received_by')->constrained('employees')->onDelete('cascade');
             $table->date('expected_day');
             $table->date('expected_start_date');

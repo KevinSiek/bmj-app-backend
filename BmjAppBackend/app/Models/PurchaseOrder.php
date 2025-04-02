@@ -7,16 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrder extends Model
 {
-    /** @use HasFactory<\Database\Factories\PurchaseOrderFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'id_quotation', 'po_number', 'po_date', 'employee_id'
+        'quotation_id', 'purchase_order_number', 'purchase_order_date', 'employee_id'
     ];
 
     public function quotation()
     {
-        return $this->belongsTo(Quotation::class, 'id_quotation');
+        return $this->belongsTo(Quotation::class);
     }
 
     public function employee()
@@ -24,13 +23,13 @@ class PurchaseOrder extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function proformaInvoices()
+    public function proformaInvoice()
     {
-        return $this->hasMany(ProformaInvoice::class, 'id_po');
+        return $this->hasMany(ProformaInvoice::class);
     }
 
     public function backOrders()
     {
-        return $this->hasMany(BackOrder::class, 'id_po');
+        return $this->hasMany(BackOrder::class);
     }
 }

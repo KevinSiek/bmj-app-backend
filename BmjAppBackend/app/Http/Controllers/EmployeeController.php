@@ -158,42 +158,6 @@ class EmployeeController extends Controller
         }
     }
 
-    public function changePassword(Request $request, $slug)
-    {
-        try {
-            $employee = Employee::where('slug', $slug)->first();
-            $user = $request->user();
-
-            if (!$employee) {
-                return response()->json([
-                    'message' => 'Employee not found'
-                ], Response::HTTP_NOT_FOUND);
-            }
-            // Make sure only user that login that change his own password only
-            $employeeIsCurrentUser = $employee->id == $user->id;
-            if(!$employeeIsCurrentUser){
-                return response()->json([
-                    'message' => 'You don\'t have permission to change password of this user.'
-                ], Response::HTTP_BAD_REQUEST);
-            }
-            // Validate the request data
-            $validatedData = $request->validate([
-                'password' => 'required|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
-            ]);
-            $validatedData['password'] = bcrypt($request->password);
-            $employee->update($validatedData);
-
-            return response()->json([
-                'message' => 'Change password success',
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Fail to change password',
-                'error' => $th->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
-
     public function destroy($slug)
     {
         try {
@@ -244,7 +208,7 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-    
+
     public function getEmployeeAccess($slug)
     {
         try {

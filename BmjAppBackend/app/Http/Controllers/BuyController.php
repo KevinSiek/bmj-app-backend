@@ -101,7 +101,7 @@ class BuyController extends Controller
         try {
             $buys = Buy::paginate(20)->through(function ($buy) {
                 return [
-                    'no_buy' => $buy->no_buy ?? '',
+                    'buy_number' => $buy->buy_number ?? '',
                     'date' => $buy->created_at ?? '',
                     'status' => $buy->status ?? ''
                 ];
@@ -127,17 +127,17 @@ class BuyController extends Controller
 
             // Calculate total purchase amount
             $totalPurchase = $buy->detailBuys->sum(function ($detail) {
-                return $detail->quantity * $detail->spareparts->unit_price_buy;
+                return $detail->quantity * $detail->sparepart->unit_price_buy;
             });
 
             // Get spare parts details
             $spareParts = $buy->detailBuys->map(function ($detail) {
                 return [
-                    'partName'   => $detail->spareparts->name,
-                    'partNumber' => $detail->spareparts->no_sparepart,
+                    'partName'   => $detail->sparepart->name,
+                    'partNumber' => $detail->sparepart->part_number,
                     'quantity'   => $detail->quantity,
-                    'unitPrice'  => $detail->spareparts->unit_price_buy,
-                    'totalPrice' => $detail->quantity * $detail->spareparts->unit_price_buy
+                    'unitPrice'  => $detail->sparepart->unit_price_buy,
+                    'totalPrice' => $detail->quantity * $detail->sparepart->unit_price_buy
                 ];
             });
 

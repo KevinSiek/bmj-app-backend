@@ -21,8 +21,8 @@ class BackOrderFactory extends Factory
     public function definition()
     {
         return [
-            'id_po' => PurchaseOrder::inRandomOrder()->first()->id,
-            'no_bo' => Str::random(10),
+            'purchase_order_id' => PurchaseOrder::inRandomOrder()->first()->id,
+            'back_order_number' => Str::random(10),
             'status' => fake()->randomElement([
                 'Ready',
                 'Not ready',

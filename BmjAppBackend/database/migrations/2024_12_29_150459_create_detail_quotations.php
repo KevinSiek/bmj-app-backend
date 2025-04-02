@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('detail_quotations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_quotation')->constrained('quotations');
-            $table->foreignId('id_spareparts')->constrained('spareparts');
+            $table->foreignId('quotation_id')->constrained('quotations');
+            $table->foreignId('sparepart_id')->constrained('spareparts');
             $table->integer('quantity');
             $table->boolean('is_indent');
             $table->integer('unit_price');

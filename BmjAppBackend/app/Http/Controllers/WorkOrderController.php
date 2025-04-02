@@ -24,9 +24,9 @@ class WorkOrderController extends Controller
             // Apply search term filter if 'q' is provided
             if ($q) {
                 $query->where(function($query) use ($q) {
-                    $query->where('no_wo', 'like', '%' . $q . '%')
+                    $query->where('wo_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function($qry) use ($q) {
-                            $qry->where('no', 'like', '%' . $q . '%')
+                            $qry->where('number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('status', 'like', '%' . $q . '%');
@@ -46,11 +46,11 @@ class WorkOrderController extends Controller
                 $query->whereBetween('created_at', [$startDate, $endDate]);
             }
 
-            // Paginate the results with dynamic per_page value
+            // Paginate the results
             $workOrders = $query->orderBy('created_at', 'desc')
                 ->paginate(20);
 
-            // Transform the results directly in the paginated collection
+            // Transform the results
             $workOrders->getCollection()->transform(function ($wo) {
                 return [
                     'id' => (string) $wo->id,
@@ -65,6 +65,7 @@ class WorkOrderController extends Controller
                     'end_date' => $wo->end_date
                 ];
             });
+
 
             return response()->json([
                 'message' => 'List of work orders retrieved successfully',
@@ -92,18 +93,18 @@ class WorkOrderController extends Controller
 
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
-                    'partName' => $detail->spareparts->name ?? '',
-                    'partNumber' => $detail->spareparts->no_sparepart ?? '',
+                    'partName' => $detail->sparepart->name ?? '',
+                    'partNumber' => $detail->sparepart->part_number ?? '',
                     'quantity' => $detail->quantity,
                     'unit' => 'pcs',
-                    'unitPrice' => $detail->spareparts->unit_price_sell ?? 0,
-                    'amount' => ($detail->quantity * ($detail->spareparts->unit_price_sell ?? 0))
+                    'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
+                    'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
                 ];
             });
 
             $response = [
                 'workOrder' => [
-                    'no' => $workOrder->no_wo,
+                    'no' => $workOrder->wo_number,
                     'received_by' => $workOrder->received_by,
                     'expected_start_date' => $workOrder->expected_start_date,
                     'expected_end_date' => $workOrder->expected_end_date,
@@ -115,7 +116,7 @@ class WorkOrderController extends Controller
                     'additional_components' => $workOrder->additional_components
                 ],
                 'quotation' => [
-                    'no' => $quotation->no ?? '',
+                    'number' => $quotation->number ?? '',
                     'project' => $quotation->project ?? '',
                     'type' => $quotation->type ?? ''
                 ],
@@ -160,7 +161,7 @@ class WorkOrderController extends Controller
 
             // Validation rules
             $validator = Validator::make($request->all(), [
-                'no_wo' => 'sometimes|required|string|max:255',
+                'wo_number' => 'sometimes|required|string|max:255',
                 'received_by' => 'nullable|string|max:255',
                 'expected_start_date' => 'nullable|date',
                 'expected_end_date' => 'nullable|date|after_or_equal:expected_start_date',
@@ -185,7 +186,7 @@ class WorkOrderController extends Controller
             $user = $request->user();
             if ($user->role == 'Marketing') {
                 // Remove fields that Marketing shouldn't be able to update
-                unset($validatedData['no_wo']);
+                unset($validatedData['wo_number']);
                 unset($validatedData['approved_by']);
                 // Add other restricted fields as needed
             }
@@ -208,16 +209,6 @@ class WorkOrderController extends Controller
 
             if (!$workOrder) {
                 return $this->handleNotFound('Work order not found');
-            }
-
-
-            // For Marketing users, prevent changing certain fields
-            $user = $request->user();
-            if ($user->role == 'Service') {
-                // Remove fields that Marketing shouldn't be able to update
-                unset($validatedData['no_wo']);
-                unset($validatedData['approved_by']);
-                // Add other restricted fields as needed
             }
 
             $workOrder->update([
@@ -243,7 +234,7 @@ class WorkOrderController extends Controller
             $query = WorkOrder::query();
 
             // Only allow work orders for authorized users
-            if ($role == 'Marketing') {
+            if ($role == 'Service') {
                 $query->whereHas('quotation', function($q) use ($userId) {
                     $q->where('employee_id', $userId);
                 });
