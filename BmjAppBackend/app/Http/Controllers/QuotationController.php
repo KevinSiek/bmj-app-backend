@@ -48,7 +48,7 @@ class QuotationController extends Controller
                 'company_name'=>'required|string',
                 'office'=>'required|string',
                 'address'=>'required|string',
-                'urban_area'=>'required|string',
+                'urban'=>'required|string',
                 'subdistrict'=>'required|string',
                 'city'=>'required|string',
                 'province'=>'required|string',
@@ -66,7 +66,7 @@ class QuotationController extends Controller
                 'company_name' => $validatedData['company_name'],
                 'office' => $validatedData['office'],
                 'address' => $validatedData['address'],
-                'urban_area' => $validatedData['urban_area'],
+                'urban' => $validatedData['urban'],
                 'subdistrict' => $validatedData['subdistrict'],
                 'city' => $validatedData['city'],
                 'province' => $validatedData['province'],
@@ -77,7 +77,7 @@ class QuotationController extends Controller
             $customer = Customer::where('company_name', $customerData['company_name'])
                 ->where('office', $customerData['office'])
                 ->where('address', $customerData['address'])
-                ->where('urban_area', $customerData['urban_area'])
+                ->where('urban', $customerData['urban'])
                 ->where('subdistrict', $customerData['subdistrict'])
                 ->where('city', $customerData['city'])
                 ->where('province', $customerData['province'])
@@ -193,7 +193,7 @@ class QuotationController extends Controller
                 'company_name' => 'required|string',
                 'office' => 'required|string',
                 'address' => 'required|string',
-                'urban_area' => 'required|string',
+                'urban' => 'required|string',
                 'subdistrict' => 'required|string',
                 'city' => 'required|string',
                 'province' => 'required|string',
@@ -211,7 +211,7 @@ class QuotationController extends Controller
                 'company_name' => $validatedData['company_name'],
                 'office' => $validatedData['office'],
                 'address' => $validatedData['address'],
-                'urban_area' => $validatedData['urban_area'],
+                'urban' => $validatedData['urban'],
                 'subdistrict' => $validatedData['subdistrict'],
                 'city' => $validatedData['city'],
                 'province' => $validatedData['province'],
@@ -222,7 +222,7 @@ class QuotationController extends Controller
             $customer = Customer::where('company_name', $customerData['company_name'])
                 ->where('office', $customerData['office'])
                 ->where('address', $customerData['address'])
-                ->where('urban_area', $customerData['urban_area'])
+                ->where('urban', $customerData['urban'])
                 ->where('subdistrict', $customerData['subdistrict'])
                 ->where('city', $customerData['city'])
                 ->where('province', $customerData['province'])
@@ -455,7 +455,7 @@ class QuotationController extends Controller
                     'city' => $customer->city ?? '',
                     'province' => $customer->province ?? '',
                     'office' => $customer->office ?? '',
-                    'urban' => $customer->urban_area ?? '',
+                    'urban' => $customer->urban ?? '',
                     'subdistrict' => $customer->subdistrict ?? '',
                     'postalCode' => $customer->postal_code ?? ''
                 ],

@@ -114,7 +114,7 @@ class ProformaInvoiceController extends Controller
                     'city' => $customer->city ?? '',
                     'province' => $customer->province ?? '',
                     'office' => $customer->office ?? '',
-                    'urban' => $customer->urban_area ?? '',
+                    'urban' => $customer->urban ?? '',
                     'subdistrict' => $customer->subdistrict ?? '',
                     'postalCode' => $customer->postal_code ?? '',
                 ],

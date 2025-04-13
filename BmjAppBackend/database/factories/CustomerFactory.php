@@ -26,7 +26,7 @@ class CustomerFactory extends Factory
             'company_name' =>  $companyName,
             'office' => $this->faker->word,
             'address' => $this->faker->address,
-            'urban_area' => $this->faker->city,
+            'urban' => $this->faker->city,
             'subdistrict' => $this->faker->streetName,
             'city' => $this->faker->city,
             'province' => $this->faker->state,

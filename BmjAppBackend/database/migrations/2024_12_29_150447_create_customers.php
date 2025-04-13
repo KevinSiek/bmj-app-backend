@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('company_name');
             $table->string('office');
             $table->string('address');
-            $table->string('urban_area');
+            $table->string('urban');
             $table->string('subdistrict');
             $table->string('city');
             $table->string('province');
