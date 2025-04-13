@@ -24,7 +24,7 @@ class SparepartFactory extends Factory
         return [
             'part_number'  => $this->faker->word,
             'name' => $name,
-            'slug' => Str::slug($name). '-' . Str::random(6),
+            'slug' => Str::slug($name) . '-' . Str::random(6),
             'unit_price_buy' => $this->faker->randomFloat(2, 100, 1000),
             'unit_price_sell' => $this->faker->randomFloat(2, 200, 2000),
             'total_unit' => $this->faker->numberBetween(10, 1000),

@@ -448,7 +448,7 @@ class QuotationController extends Controller
                     return [
                         'sparepartName' => $detail->sparepart->name ?? '',
                         'sparepartNumber' => $detail->sparepart->part_number ?? '',
-                        'quantity' => $detail->quantity,
+                        'quantity' => $detail->quantity ?? 0,
                         'unitPriceSell' => $detail->unit_price ?? 0,
                         'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
                         'stock' => $detail->is_indent

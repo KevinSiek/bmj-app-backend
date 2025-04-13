@@ -51,7 +51,7 @@ class BackOrderController extends Controller
                 $backOrderQuery->where(function ($query) use ($q) {
                     $query->where('back_order_number', 'like', "%$q%")
                         ->orWhere('status', 'like', "%$q%")
-                        ->orWhereHas('purchaseOrder', function($qry) use ($q) {
+                        ->orWhereHas('purchaseOrder', function ($qry) use ($q) {
                             $qry->where('purchase_order_number', 'like', "%$q%");
                         });
                 });
@@ -82,7 +82,6 @@ class BackOrderController extends Controller
                 'message' => 'List of all back orders retrieved successfully',
                 'data' => $backOrders,
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
@@ -158,7 +157,6 @@ class BackOrderController extends Controller
                 'message' => 'Back order processed successfully',
                 'data' => $backOrder
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to process back order');
@@ -177,7 +175,7 @@ class BackOrderController extends Controller
 
             // Only allow back orders for authorized users
             if ($role == 'Marketing') {
-                $query->whereHas('purchaseOrder', function($q) use ($userId) {
+                $query->whereHas('purchaseOrder', function ($q) use ($userId) {
                     $q->where('employee_id', $userId);
                 });
             }

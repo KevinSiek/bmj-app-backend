@@ -10,7 +10,12 @@ class Sparepart extends Model
     use HasFactory;
 
     protected $fillable = [
-        'slug', 'part_number', 'name', 'unit_price_buy', 'unit_price_sell', 'total_unit'
+        'slug',
+        'part_number',
+        'name',
+        'unit_price_buy',
+        'unit_price_sell',
+        'total_unit'
     ];
 
     public function detailQuotations()

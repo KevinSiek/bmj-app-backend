@@ -10,7 +10,12 @@ class DetailQuotation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'quotation_id', 'sparepart_id', 'quantity', 'total_unit', 'unit_price', 'is_indent'
+        'quotation_id',
+        'sparepart_id',
+        'quantity',
+        'total_unit',
+        'unit_price',
+        'stock'
     ];
 
     public function quotation()
