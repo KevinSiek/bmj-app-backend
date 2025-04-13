@@ -41,7 +41,6 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::prefix('quotation')->group(function () {
         Route::get('/', [QuotationController::class, 'getAll']);
-        Route::get('/{slug}', [QuotationController::class, 'getDetail']);
         Route::post('/', [QuotationController::class, 'store']);
         Route::put('/{slug}', [QuotationController::class, 'update']);
         Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
@@ -99,7 +98,7 @@ Route::middleware("auth:sanctum")->group(function () {
     });
 
     // Inventory Middleware
-    Route::middleware(['is_inventory'])->group(function (){
+    Route::middleware(['is_inventory'])->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);

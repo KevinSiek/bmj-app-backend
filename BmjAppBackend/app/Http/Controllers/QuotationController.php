@@ -38,21 +38,21 @@ class QuotationController extends Controller
                 'project' => 'required|string|max:255',
                 'number' => 'required|string|unique:quotations,number',
                 'type' => 'required|string',
-                'amount'=>'required|numeric',
-                'discount'=>'required|numeric',
-                'subtotal'=>'required|numeric',
-                'vat'=>'required|numeric',
-                'total'=>'required|numeric',
-                'note'=>'sometimes|string',
+                'amount' => 'required|numeric',
+                'discount' => 'required|numeric',
+                'subtotal' => 'required|numeric',
+                'vat' => 'required|numeric',
+                'total' => 'required|numeric',
+                'note' => 'sometimes|string',
                 // Customer validation
-                'company_name'=>'required|string',
-                'office'=>'required|string',
-                'address'=>'required|string',
-                'urban'=>'required|string',
-                'subdistrict'=>'required|string',
-                'city'=>'required|string',
-                'province'=>'required|string',
-                'postal_code'=>'required|numeric',
+                'company_name' => 'required|string',
+                'office' => 'required|string',
+                'address' => 'required|string',
+                'urban' => 'required|string',
+                'subdistrict' => 'required|string',
+                'city' => 'required|string',
+                'province' => 'required|string',
+                'postal_code' => 'required|numeric',
                 // Sparepart validation
                 'spareparts' => 'required|array',
                 'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
@@ -62,7 +62,7 @@ class QuotationController extends Controller
 
             // Handle Customer Data
             $customerData = [
-                'slug' => Str::slug($validatedData['company_name']). '-' . Str::random(6),
+                'slug' => Str::slug($validatedData['company_name']) . '-' . Str::random(6),
                 'company_name' => $validatedData['company_name'],
                 'office' => $validatedData['office'],
                 'address' => $validatedData['address'],
@@ -104,26 +104,26 @@ class QuotationController extends Controller
             // Create DetailQuotation from list of spareparts in this quotations
             foreach ($request->input('spareparts') as $spareparts) {
                 $sparepartsId = $spareparts['sparepart_id'];
-                $sparepartsUnitPrice =$spareparts['unit_price'];
+                $sparepartsUnitPrice = $spareparts['unit_price'];
                 $quantityOrderSparepart = $spareparts['quantity'];
                 // Validate agans each spareparts data
                 $sparepartsValidator = Validator::make($spareparts, [
                     'sparepart_id' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
-                    'unit_price' =>'required|numeric|min:1',
+                    'unit_price' => 'required|numeric|min:1',
                 ]);
 
                 // If unit price that employee give different with official unit price, then this quotation need review
                 $sparepartsDbData = Sparepart::find($sparepartsId);
                 $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
-                if($sparepartsUnitPrice != $sparepartsDbUnitPriceSell){
+                if ($sparepartsUnitPrice != $sparepartsDbUnitPriceSell) {
                     $validatedData['review'] = false;
                     $validatedData['status'] = '';
                     $quotation->update($validatedData);
                 }
                 // Determine if current sparepart quantity is exist or not.
                 $spareparts['is_indent'] = false;
-                if($quantityOrderSparepart > $sparepartsDbData->total_unit){
+                if ($quantityOrderSparepart > $sparepartsDbData->total_unit) {
                     $spareparts['is_indent'] = true;
                 }
 
@@ -138,8 +138,8 @@ class QuotationController extends Controller
                     'quantity' => $quantityOrderSparepart,
                     'is_indent' => $spareparts['is_indent'],
                     'unit_price' => $sparepartsUnitPrice,
-                    'created_at'=>now(),
-                    'updated_at'=>now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
@@ -151,7 +151,6 @@ class QuotationController extends Controller
                 'message' => 'Quotation created successfully',
                 'data' => $quotation
             ], Response::HTTP_CREATED);
-
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
@@ -172,7 +171,7 @@ class QuotationController extends Controller
             $quotation = $quoatations->where('slug', $slug)->firstOrFail();
             $po = $quotation->purchaseOrder;
 
-            if($po){
+            if ($po) {
                 return response()->json([
                     'message' => 'Quotation already in purchase order.'
                 ], Response::HTTP_BAD_REQUEST);
@@ -294,7 +293,6 @@ class QuotationController extends Controller
                 'message' => 'Quotation updated successfully',
                 'data' => $quotation
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
@@ -329,7 +327,6 @@ class QuotationController extends Controller
                 'message' => 'Quotation status updated successfully',
                 'data' => $quotation
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
@@ -356,7 +353,7 @@ class QuotationController extends Controller
             // Only allow director approve quotation
             $user = $request->user();
             $role = $user->role;
-            if($role != 'Director'){
+            if ($role != 'Director') {
                 return response()->json([
                     'message' => 'You are not authorized to approve this quotation'
                 ], Response::HTTP_BAD_REQUEST);
@@ -373,7 +370,6 @@ class QuotationController extends Controller
                 'message' => 'Quotation status updated successfully',
                 'data' => $quotation
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
@@ -400,7 +396,7 @@ class QuotationController extends Controller
             // Only allow director decline quotation
             $user = $request->user();
             $role = $user->role;
-            if($role != 'Director'){
+            if ($role != 'Director') {
                 return response()->json([
                     'message' => 'You are not authorized to decline this quotation'
                 ], Response::HTTP_BAD_REQUEST);
@@ -417,7 +413,6 @@ class QuotationController extends Controller
                 'message' => 'Quotation status updated successfully',
                 'data' => $quotation
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
@@ -427,101 +422,73 @@ class QuotationController extends Controller
         }
     }
 
-    public function getDetail(Request $request, $slug)
-    {
-        try {
-            $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->first();
-
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
-            }
-            $customer = $quotation->customer;
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'partName' => $detail->sparepart->name ?? '',
-                    'partNumber' => $detail->sparepart->part_number ?? '',
-                    'quantity' => $detail->quantity,
-                    'unitPrice' => $detail->unit_price ?? 0,
-                    'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent
-                ];
-            });
-
-            $response = [
-                'customer' => [
-                    'companyName' => $customer->company_name ?? '',
-                    'address' => $customer->address ?? '',
-                    'city' => $customer->city ?? '',
-                    'province' => $customer->province ?? '',
-                    'office' => $customer->office ?? '',
-                    'urban' => $customer->urban ?? '',
-                    'subdistrict' => $customer->subdistrict ?? '',
-                    'postalCode' => $customer->postal_code ?? ''
-                ],
-                'project' => [
-                    'number' => $quotation->number,
-                    'type' => $quotation->type
-                ],
-                'price' => [
-                    'subtotal' => $quotation->subtotal,
-                    'ppn' => $quotation->vat,
-                    'grandTotal' => $quotation->total
-                ],
-                'status' => $quotation->status,
-                'notes' => $quotation->note,
-                'spareparts' => $spareParts
-            ];
-
-            return response()->json([
-                'message' => 'Quotation details retrieved successfully',
-                'data' => $response
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
     public function getAll(Request $request)
     {
         try {
             $q = $request->query('q');
-            $month = $request->query('month'); // Month in English (e.g., "January")
-            $year = $request->query('year'); // Year (e.g., 2024)
+            $month = $request->query('month');
+            $year = $request->query('year');
 
             $quoatations = $this->getAccessedQuotation($request);
-            // Build the query with search functionality
             $quotationsQuery = $quoatations->where(function ($query) use ($q) {
-                    $query->where('project', 'like', "%$q%")
-                        ->orWhere('number', 'like', "%$q%")
-                        ->orWhere('type', 'like', "%$q%");
-                });
+                $query->where('project', 'like', "%$q%")
+                    ->orWhere('number', 'like', "%$q%")
+                    ->orWhere('type', 'like', "%$q%");
+            });
 
-            // Filter by month and year if provided
             if ($month && $year) {
                 $monthNumber = date('m', strtotime($month));
                 $startDate = "{$year}-{$monthNumber}-01";
                 $quotationsQuery->where('date', '>=', $startDate);
             }
 
-            // Paginate the results
             $quotations = $quotationsQuery->paginate(20)->through(function ($quotation) {
+                $customer = $quotation->customer;
+                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                    return [
+                        'sparepartName' => $detail->sparepart->name ?? '',
+                        'sparepartNumber' => $detail->sparepart->part_number ?? '',
+                        'quantity' => $detail->quantity,
+                        'unitPriceSell' => $detail->unit_price ?? 0,
+                        'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
+                        'stock' => $detail->is_indent
+                    ];
+                });
+
                 return [
                     'id' => (string) $quotation->id,
+                    'slug' => $quotation->slug,
                     'number' => $quotation->number,
-                    'customer' => $quotation->customer->company_name ?? '',
-                    'date' => $quotation->date,
-                    'type' => $quotation->type,
-                    'status' => $quotation->status
+                    'customer' => [
+                        'companyName' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postalCode' => $customer->postal_code ?? ''
+                    ],
+                    'project' => [
+                        'quotationNumber' => $quotation->number,
+                        'type' => $quotation->type
+                    ],
+                    'price' => [
+                        'subtotal' => $quotation->subtotal,
+                        'ppn' => $quotation->vat,
+                        'grandTotal' => $quotation->total
+                    ],
+                    'status' => $quotation->status,
+                    'notes' => $quotation->note,
+                    'spareparts' => $spareParts,
+                    'date' => $quotation->date
                 ];
             });
 
-            // Return the response with transformed data and pagination details
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
                 'data' => $quotations
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
@@ -547,7 +514,7 @@ class QuotationController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            if(!$isNeedReview || !$isApproved){
+            if (!$isNeedReview || !$isApproved) {
                 return response()->json([
                     'message' => 'Quotation need to reviewed or approved first before move to purchase order'
                 ], Response::HTTP_BAD_REQUEST);
@@ -569,7 +536,7 @@ class QuotationController extends Controller
 
             $backOrder = BackOrder::create([
                 'purchase_order_id' => $purchaseOrder->id,
-                'back_order_number' => 'PT'.now(),
+                'back_order_number' => 'PT' . now(),
                 'status' => 'Pending',
             ]);
 
@@ -585,13 +552,13 @@ class QuotationController extends Controller
                 $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
                 $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
                 $stockIsNotExistBeforePo =  $sparepartTotalUnit <= 0;
-                if($stockIsExistButAfterPoBecomeIndent){
+                if ($stockIsExistButAfterPoBecomeIndent) {
                     // If sparepart stock exist but become minus after PO then :
                     //      1. The number of BO is total order minus total stock (Need to buy)
                     //      2. The number of DO is total existing stock (Ready)
                     $numberBoInBo = ($sparepartQuantityOrderInPo - $sparepartTotalUnit);
                     $numberDoInBo = $sparepartTotalUnit;
-                }elseif($stockIsNotExistBeforePo){
+                } elseif ($stockIsNotExistBeforePo) {
                     // If sparepart stock is not exist then :
                     //      1. The number of BO is total order in this PO only (Need to buy)
                     //      2. The number of DO is 0  (Nothing is ready)
@@ -608,11 +575,11 @@ class QuotationController extends Controller
                 // Create Detail back order for each sparepart
                 // TODO: This is maybe not efficient but we need to handle multiple sparepart statuse in single BO ID
                 $boStatus = BackOrderController::READY;
-                if($numberBoInBo){
+                if ($numberBoInBo) {
                     $boStatus = 'pending';
                 }
                 $backOrder->update([
-                    'status'=>$boStatus
+                    'status' => $boStatus
                 ]);
                 DetailBackOrder::create([
                     'back_order_id' => $backOrder->id,
@@ -624,7 +591,7 @@ class QuotationController extends Controller
 
             // Check if this quotation is Service or not
             $isService = $quotation->type == QuotationController::SERVICE;
-            if($isService && !$quotation->workOrder){
+            if ($isService && !$quotation->workOrder) {
                 $user = $request->user();
                 $userId = $user->id;
 
@@ -661,7 +628,7 @@ class QuotationController extends Controller
     {
         try {
             $quoatations = $this->getAccessedQuotation($request);
-            $quotationNeedReview= $quoatations->where('review', !$isNeedReview);
+            $quotationNeedReview = $quoatations->where('review', !$isNeedReview);
 
             // Paginate the results
             $quotationNeedReview = $quotationNeedReview->paginate(20);
@@ -671,7 +638,6 @@ class QuotationController extends Controller
                 'message' => 'List of all quotations that need to be review',
                 'data' => $quotationNeedReview,
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
@@ -684,19 +650,18 @@ class QuotationController extends Controller
             $user = $request->user();
             $userId = $user->id;
             $role = $user->role;
-            $quotation= Quotation::with('customer')
+            $quotation = Quotation::with('customer')
                 ->where('employee_id', $userId);
 
             // Allow director to see all quotation
-            if($role == 'Director'){
-                $quotation= Quotation::with('customer');
+            if ($role == 'Director') {
+                $quotation = Quotation::with('customer');
             }
 
             // Return the response with transformed data and pagination details
             return $quotation;
-
         } catch (\Throwable $th) {
-            echo('Error at getAccessedQuotation: '.$th->getMessage());
+            echo ('Error at getAccessedQuotation: ' . $th->getMessage());
             return [];
         }
     }
