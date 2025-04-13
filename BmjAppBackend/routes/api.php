@@ -52,24 +52,20 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::prefix('purchase-order')->group(function () {
         Route::get('/', [PurchaseOrderController::class, 'getAll']);
-        Route::get('/{id}', [PurchaseOrderController::class, 'getDetail']);
         Route::get('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
     });
 
     Route::prefix('proforma-invoice')->group(function () {
         Route::get('/', [ProformaInvoiceController::class, 'getAll']);
-        Route::get('/{id}', [ProformaInvoiceController::class, 'getDetail']);
         Route::get('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
     });
 
     Route::prefix('invoice')->group(function () {
         Route::get('/', [InvoiceController::class, 'getAll']);
-        Route::get('/{id}', [InvoiceController::class, 'getDetail']);
     });
 
     Route::prefix('back-order')->group(function () {
         Route::get('/', [BackOrderController::class, 'getAll']);
-        Route::get('/{id}', [BackOrderController::class, 'show']);
         Route::get('/process/{id}', [BackOrderController::class, 'process']);
     });
 
@@ -78,7 +74,6 @@ Route::middleware("auth:sanctum")->group(function () {
         // Employee Routes
         Route::prefix('employee')->group(function () {
             Route::get('/', [EmployeeController::class, 'getAll']);
-            Route::get('/{slug}', [EmployeeController::class, 'show']);
             Route::post('/', [EmployeeController::class, 'store']);
             Route::put('/{slug}', [EmployeeController::class, 'update']);
             Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
@@ -91,7 +86,6 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::middleware(['is_service'])->group(function () {
         Route::prefix('work-order')->group(function () {
             Route::get('/', [WorkOrderController::class, 'getAll']);
-            Route::get('/{id}', [WorkOrderController::class, 'getDetail']);
             Route::put('/{id}', [WorkOrderController::class, 'update']);
             Route::get('/process/{id}', [WorkOrderController::class, 'process']);
         });
@@ -102,7 +96,6 @@ Route::middleware("auth:sanctum")->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);
-            Route::get('/{id}', [BuyController::class, 'getDetail']);
             Route::post('/', [BuyController::class, 'store']);
             Route::put('/{id}', [BuyController::class, 'update']);
             Route::delete('/{id}', [BuyController::class, 'destroy']);
@@ -111,7 +104,6 @@ Route::middleware("auth:sanctum")->group(function () {
         // Sparepart Routes
         Route::prefix('sparepart')->group(function () {
             Route::get('/', [SparepartController::class, 'getAll']);
-            Route::get('/{slug}', [SparepartController::class, 'getDetail']);
             Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
         });
     });

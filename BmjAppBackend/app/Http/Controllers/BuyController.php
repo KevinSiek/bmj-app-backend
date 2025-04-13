@@ -99,61 +99,39 @@ class BuyController extends Controller
     public function getAll()
     {
         try {
-            $buys = Buy::paginate(20)->through(function ($buy) {
-                return [
-                    'buy_number' => $buy->buy_number ?? '',
-                    'date' => $buy->created_at ?? '',
-                    'status' => $buy->status ?? ''
-                ];
-            });
+            $buys = Buy::with('detailBuys.sparepart')
+                ->paginate(20)
+                ->through(function ($buy) {
+                    // Calculate total purchase amount
+                    $totalPurchase = $buy->detailBuys->sum(function ($detail) {
+                        return $detail->quantity * $detail->sparepart->unit_price_buy;
+                    });
+
+                    // Get spare parts details
+                    $spareParts = $buy->detailBuys->map(function ($detail) {
+                        return [
+                            'partName'   => $detail->sparepart->name,
+                            'partNumber' => $detail->sparepart->part_number,
+                            'quantity'   => $detail->quantity,
+                            'unitPrice'  => $detail->sparepart->unit_price_buy,
+                            'totalPrice' => $detail->quantity * $detail->sparepart->unit_price_buy
+                        ];
+                    });
+
+                    // Format response
+                    return [
+                        'buy_number'    => $buy->buy_number ?? '',
+                        'date'          => $buy->created_at ?? '',
+                        'notes'         => 'PURCHASE ITEM FROM SELLER KM',
+                        'status'        => $buy->status,
+                        'totalPurchase' => $totalPurchase,
+                        'spareparts'    => $spareParts
+                    ];
+                });
 
             return response()->json([
                 'message' => 'List of all buys retrieved successfully',
                 'data' => $buys
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
-    public function getDetail($id)
-    {
-        try {
-            $buy = Buy::with('detailBuys.spareparts')->find($id);
-
-            if (!$buy) {
-                return $this->handleNotFound('Buy record not found');
-            }
-
-            // Calculate total purchase amount
-            $totalPurchase = $buy->detailBuys->sum(function ($detail) {
-                return $detail->quantity * $detail->sparepart->unit_price_buy;
-            });
-
-            // Get spare parts details
-            $spareParts = $buy->detailBuys->map(function ($detail) {
-                return [
-                    'partName'   => $detail->sparepart->name,
-                    'partNumber' => $detail->sparepart->part_number,
-                    'quantity'   => $detail->quantity,
-                    'unitPrice'  => $detail->sparepart->unit_price_buy,
-                    'totalPrice' => $detail->quantity * $detail->sparepart->unit_price_buy
-                ];
-            });
-
-            $backOrder = $buy->backOrder;
-
-            // Format response
-            $purchase = [
-                'notes'         => 'PURCHASE ITEM FROM SELLER KM',
-                'status'        => $backOrder->status,
-                'totalPurchase' => $totalPurchase,
-                'spareparts'    => $spareParts
-            ];
-
-            return response()->json([
-                'message' => 'Buy details retrieved successfully',
-                'data' => $purchase
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

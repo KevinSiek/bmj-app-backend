@@ -15,7 +15,7 @@ class PurchaseOrderController extends Controller
     {
         try {
             $query = $this->getAccessedPurchaseOrder($request)
-                ->with(['quotation.customer', 'quotation']);
+                ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee']);
 
             // Get query parameters
             $q = $request->query('q');
@@ -24,15 +24,15 @@ class PurchaseOrderController extends Controller
 
             // Apply search term filter if 'q' is provided
             if ($q) {
-                $query->where(function($query) use ($q) {
+                $query->where(function ($query) use ($q) {
                     $query->where('purchase_order_number', 'like', '%' . $q . '%')
-                        ->orWhereHas('quotation', function($qry) use ($q) {
+                        ->orWhereHas('quotation', function ($qry) use ($q) {
                             $qry->where('number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('status', 'like', '%' . $q . '%');
                         })
-                        ->orWhereHas('quotation.customer', function($qry) use ($q) {
+                        ->orWhereHas('quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
                 });
@@ -50,95 +50,60 @@ class PurchaseOrderController extends Controller
             // Paginate the results
             $purchaseOrders = $query->orderBy('purchase_order_date', 'desc')
                 ->paginate(20)->through(function ($po) {
+                    $quotation = $po->quotation;
+                    $customer = $quotation->customer ?? null;
+                    $proformaInvoice = $po->proformaInvoice->first();
+
+                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                        return [
+                            'partName' => $detail->sparepart->name ?? '',
+                            'partNumber' => $detail->sparepart->part_number ?? '',
+                            'quantity' => $detail->quantity,
+                            'unit' => 'pcs',
+                            'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
+                            'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
+                        ];
+                    });
+
                     return [
                         'id' => (string) $po->id,
-                        'no_po' => $po->purchase_order_number,
-                        'customer' => $po->quotation->customer->company_name ?? 'Unknown',
-                        'date' => $po->purchase_order_date,
-                        'type' => $po->quotation->type ?? 'Unknown',
-                        'status' => $po->quotation->status ?? 'Unknown',
+                        'purchaseOrder' => [
+                            'no' => $po->purchase_order_number,
+                            'date' => $po->purchase_order_date,
+                            'type' => $quotation->type ?? ''
+                        ],
+                        'proformaInvoice' => [
+                            'no' => $proformaInvoice->pi_number ?? '',
+                            'date' => $proformaInvoice->proforma_invoice_date ?? ''
+                        ],
+                        'customer' => [
+                            'companyName' => $customer->company_name ?? '',
+                            'address' => $customer->address ?? '',
+                            'city' => $customer->city ?? '',
+                            'province' => $customer->province ?? '',
+                            'office' => $customer->office ?? '',
+                            'urban' => $customer->urban ?? '',
+                            'subdistrict' => $customer->subdistrict ?? '',
+                            'postalCode' => $customer->postal_code ?? ''
+                        ],
+                        'price' => [
+                            'amount' => $quotation->amount ?? 0,
+                            'discount' => $quotation->discount ?? 0,
+                            'subtotal' => $quotation->subtotal ?? 0,
+                            'advancePayment' => $proformaInvoice->advance_payment ?? 0,
+                            'total' => $proformaInvoice->total ?? 0,
+                            'vat' => $quotation->vat ?? 0,
+                            'totalAmount' => $proformaInvoice->total_amount ?? 0
+                        ],
+                        'notes' => $quotation->note ?? '',
+                        'downPayment' => $proformaInvoice->advance_payment ?? 0,
+                        'spareparts' => $spareParts
                     ];
-                });;
+                });
 
             return response()->json([
                 'message' => 'List of purchase orders retrieved successfully',
                 'data' => $purchaseOrders,
-                'meta' => [
-                    'current_page' => $purchaseOrders->currentPage(),
-                    'per_page' => $purchaseOrders->perPage(),
-                    'total' => $purchaseOrders->total(),
-                    'last_page' => $purchaseOrders->lastPage(),
-                ]
-            ], Response::HTTP_OK);
-
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
-    public function getDetail(Request $request, $id)
-    {
-        try {
-            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
-                ->with(['quotation.customer', 'employee'])
-                ->find($id);
-
-            if (!$purchaseOrder) {
-                return $this->handleNotFound('Purchase order not found');
-            }
-
-            $quotation = $purchaseOrder->quotation;
-            $customer = $quotation->customer ?? null;
-            $proformaInvoice = $purchaseOrder->proformaInvoice->first();
-
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'partName' => $detail->sparepart->name ?? '',
-                    'partNumber' => $detail->sparepart->part_number ?? '',
-                    'quantity' => $detail->quantity,
-                    'unit' => 'pcs',
-                    'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
-                    'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
-                ];
-            });
-
-            $response = [
-                'purchaseOrder' => [
-                    'no' => $purchaseOrder->purchase_order_number,
-                    'date' => $purchaseOrder->purchase_order_date,
-                    'type' => $quotation->type ?? ''
-                ],
-                'proformaInvoice' => [
-                    'no' => $proformaInvoice->pi_number ?? '',
-                    'date' => $proformaInvoice->proforma_invoice_date ?? ''
-                ],
-                'customer' => [
-                    'companyName' => $customer->company_name ?? '',
-                    'address' => $customer->address ?? '',
-                    'city' => $customer->city ?? '',
-                    'province' => $customer->province ?? '',
-                    'office' => $customer->office ?? '',
-                    'urban' => $customer->urban ?? '',
-                    'subdistrict' => $customer->subdistrict ?? '',
-                    'postalCode' => $customer->postal_code ?? ''
-                ],
-                'price' => [
-                    'amount' => $quotation->amount ?? 0,
-                    'discount' => $quotation->discount ?? 0,
-                    'subtotal' => $quotation->subtotal ?? 0,
-                    'advancePayment' => $proformaInvoice->advance_payment ?? 0,
-                    'total' => $proformaInvoice->total ?? 0,
-                    'vat' => $quotation->vat ?? 0,
-                    'totalAmount' => $proformaInvoice->total_amount ?? 0
-                ],
-                'notes' => $quotation->note ?? '',
-                'downPayment' => $proformaInvoice->advance_payment ?? 0,
-                'spareparts' => $spareParts
-            ];
-
-            return response()->json([
-                'message' => 'Purchase order details retrieved successfully',
-                'data' => $response
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -171,7 +136,7 @@ class PurchaseOrderController extends Controller
 
             $quotation = $purchaseOrder->quotation;
             $quotation->update([
-                'status'=>'PI'
+                'status' => 'PI'
             ]);
 
             DB::commit();
@@ -201,7 +166,6 @@ class PurchaseOrderController extends Controller
             }
 
             return $query;
-
         } catch (\Throwable $th) {
             // Return empty query builder
             return PurchaseOrder::whereNull('id');

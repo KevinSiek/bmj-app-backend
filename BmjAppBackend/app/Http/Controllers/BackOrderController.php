@@ -15,26 +15,6 @@ class BackOrderController extends Controller
     const READY = 'Ready';
     const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
 
-    public function show(Request $request, $id)
-    {
-        try {
-            $backOrder = $this->getAccessedBackOrder($request)
-                ->with(['purchaseOrder', 'purchaseOrder.employee'])
-                ->find($id);
-
-            if (!$backOrder) {
-                return $this->handleNotFound('Back order not found');
-            }
-
-            return response()->json([
-                'message' => 'Back order retrieved successfully',
-                'data' => $backOrder
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
     public function getAll(Request $request)
     {
         try {
@@ -69,14 +49,7 @@ class BackOrderController extends Controller
             // Paginate the results
             $backOrders = $backOrderQuery->with(['purchaseOrder', 'purchaseOrder.employee'])
                 ->orderBy('created_at', 'desc')
-                ->paginate(20)->through(function ($backOrder) {
-                    return [
-                        'purchase_order_id' => (string) $backOrder->purchase_order_id,
-                        'back_order_number' => $backOrder->back_order_number,
-                        'status' => $backOrder->status ?? '',
-                        'date' => $backOrder->created_at
-                    ];
-                });
+                ->paginate(20);
 
             return response()->json([
                 'message' => 'List of all back orders retrieved successfully',

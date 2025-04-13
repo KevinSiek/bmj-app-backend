@@ -16,9 +16,7 @@ class SparepartController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function updateAllData(Request $request)
-    {
-    }
+    public function updateAllData(Request $request) {}
 
     // Extra function
     public function getAll(Request $request)
@@ -26,45 +24,24 @@ class SparepartController extends Controller
         try {
             $q = $request->query('q');
             $spareparts = $this->getAccessedSparepart($request);
+
             // Build the query with search functionality
             $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
-                    $query->where('name', 'like', "%$q%")
-                        ->orWhere('part_number', 'like', "%$q%");
-                });
+                $query->where('name', 'like', "%$q%")
+                    ->orWhere('part_number', 'like', "%$q%");
+            });
 
             // Paginate the results
             $paginatedSpareparts = $sparepartsQuery->paginate(20);
 
-            // Return the response with transformed data and pagination details
             return response()->json([
                 'message' => 'List of all spareparts retrieved successfully',
                 'data' => $paginatedSpareparts
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
     }
-
-    public function getDetail(Request $request, $slug)
-    {
-        try {
-            $spareparts = $this->getAccessedSparepart($request);
-            $sparepart = $spareparts->where('slug', $slug)->first();
-
-            if (!$sparepart) {
-                return $this->handleNotFound('Sparepart not found');
-            }
-
-            return response()->json([
-                'message' => 'Sparepart details retrieved successfully',
-                'data' => $sparepart
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
     // Function to get spareparts by access role level
     protected function getAccessedSparepart($request)
     {
@@ -84,9 +61,8 @@ class SparepartController extends Controller
 
             // Return the response with transformed data and pagination details
             return $spareparts;
-
         } catch (\Throwable $th) {
-            echo('Error at getAccessedSparepart: ' . $th->getMessage());
+            echo ('Error at getAccessedSparepart: ' . $th->getMessage());
             return [];
         }
     }

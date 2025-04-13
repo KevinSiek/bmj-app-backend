@@ -14,7 +14,7 @@ class WorkOrderController extends Controller
     {
         try {
             $query = $this->getAccessedWorkOrder($request)
-                ->with(['quotation', 'quotation.customer']);
+                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart']);
 
             // Get query parameters
             $q = $request->query('q');
@@ -52,99 +52,66 @@ class WorkOrderController extends Controller
 
             // Transform the results
             $workOrders->getCollection()->transform(function ($wo) {
+                $quotation = $wo->quotation;
+                $customer = $quotation->customer ?? null;
+
+                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                    return [
+                        'partName' => $detail->sparepart->name ?? '',
+                        'partNumber' => $detail->sparepart->part_number ?? '',
+                        'quantity' => $detail->quantity,
+                        'unit' => 'pcs',
+                        'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
+                        'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
+                    ];
+                });
+
                 return [
                     'id' => (string) $wo->id,
-                    'work_order_number' => $wo->work_order_number,
-                    'customer' => $wo->quotation->customer->company_name ?? 'Unknown',
-                    'project' => $wo->quotation->project ?? 'Unknown',
-                    'type' => $wo->quotation->type ?? 'Unknown',
-                    'status' => $wo->quotation->status ?? 'Unknown',
-                    'expected_start_date' => $wo->expected_start_date,
-                    'expected_end_date' => $wo->expected_end_date,
-                    'start_date' => $wo->start_date,
-                    'end_date' => $wo->end_date
+                    'workOrder' => [
+                        'no' => $wo->work_order_number,
+                        'received_by' => $wo->received_by,
+                        'expected_start_date' => $wo->expected_start_date,
+                        'expected_end_date' => $wo->expected_end_date,
+                        'start_date' => $wo->start_date,
+                        'end_date' => $wo->end_date,
+                        'job_descriptions' => $wo->job_descriptions,
+                        'work_performed_by' => $wo->work_peformed_by,
+                        'approved_by' => $wo->approved_by,
+                        'additional_components' => $wo->additional_components
+                    ],
+                    'quotation' => [
+                        'number' => $quotation->number ?? '',
+                        'project' => $quotation->project ?? '',
+                        'type' => $quotation->type ?? ''
+                    ],
+                    'customer' => [
+                        'companyName' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postalCode' => $customer->postal_code ?? ''
+                    ],
+                    'price' => [
+                        'amount' => $quotation->amount ?? 0,
+                        'discount' => $quotation->discount ?? 0,
+                        'subtotal' => $quotation->subtotal ?? 0,
+                        'vat' => $quotation->vat ?? 0,
+                        'total' => $quotation->total ?? 0
+                    ],
+                    'notes' => $quotation->note ?? '',
+                    'spareparts' => $spareParts
                 ];
             });
-
 
             return response()->json([
                 'message' => 'List of work orders retrieved successfully',
                 'data' => $workOrders,
             ], Response::HTTP_OK);
 
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
-    public function getDetail(Request $request, $id)
-    {
-        try {
-            $workOrder = $this->getAccessedWorkOrder($request)
-                ->with(['quotation', 'quotation.customer'])
-                ->find($id);
-
-            if (!$workOrder) {
-                return $this->handleNotFound('Work order not found');
-            }
-
-            $quotation = $workOrder->quotation;
-            $customer = $quotation->customer ?? null;
-
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'partName' => $detail->sparepart->name ?? '',
-                    'partNumber' => $detail->sparepart->part_number ?? '',
-                    'quantity' => $detail->quantity,
-                    'unit' => 'pcs',
-                    'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
-                    'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
-                ];
-            });
-
-            $response = [
-                'workOrder' => [
-                    'no' => $workOrder->work_order_number,
-                    'received_by' => $workOrder->received_by,
-                    'expected_start_date' => $workOrder->expected_start_date,
-                    'expected_end_date' => $workOrder->expected_end_date,
-                    'start_date' => $workOrder->start_date,
-                    'end_date' => $workOrder->end_date,
-                    'job_descriptions' => $workOrder->job_descriptions,
-                    'work_performed_by' => $workOrder->work_peformed_by,
-                    'approved_by' => $workOrder->approved_by,
-                    'additional_components' => $workOrder->additional_components
-                ],
-                'quotation' => [
-                    'number' => $quotation->number ?? '',
-                    'project' => $quotation->project ?? '',
-                    'type' => $quotation->type ?? ''
-                ],
-                'customer' => [
-                    'companyName' => $customer->company_name ?? '',
-                    'address' => $customer->address ?? '',
-                    'city' => $customer->city ?? '',
-                    'province' => $customer->province ?? '',
-                    'office' => $customer->office ?? '',
-                    'urban' => $customer->urban ?? '',
-                    'subdistrict' => $customer->subdistrict ?? '',
-                    'postalCode' => $customer->postal_code ?? ''
-                ],
-                'price' => [
-                    'amount' => $quotation->amount ?? 0,
-                    'discount' => $quotation->discount ?? 0,
-                    'subtotal' => $quotation->subtotal ?? 0,
-                    'vat' => $quotation->vat ?? 0,
-                    'total' => $quotation->total ?? 0
-                ],
-                'notes' => $quotation->note ?? '',
-                'spareparts' => $spareParts
-            ];
-
-            return response()->json([
-                'message' => 'Work order details retrieved successfully',
-                'data' => $response
-            ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }

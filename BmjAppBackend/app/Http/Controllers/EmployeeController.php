@@ -27,29 +27,6 @@ class EmployeeController extends Controller
         }
     }
 
-    public function show($slug)
-    {
-        try {
-            $employee = Employee::where('slug', '=', $slug)->first();
-
-            if (!$employee) {
-                return response()->json([
-                    'message' => 'Employee not found'
-                ], Response::HTTP_NOT_FOUND);
-            }
-
-            return response()->json([
-                'message' => 'Employee data',
-                'data' => $employee
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Internal server error',
-                'error' => $th->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
-
     public function store(Request $request)
     {
         try {
@@ -81,7 +58,6 @@ class EmployeeController extends Controller
                     'temp_password' => $tempPassword,
                 ],
             ], Response::HTTP_CREATED);
-
         } catch (\Throwable $th) {
             return response()->json([
                 'message' => 'Employee creation failed',
@@ -106,8 +82,8 @@ class EmployeeController extends Controller
             $validatedData = $request->validate([
                 'fullname' => 'required|string|max:255',
                 'role' => 'required|string',
-                'email' => 'required|email|unique:employees,email,'. $slug . ',slug',
-                'username' => 'required|string|unique:employees,username,'. $slug . ',slug',
+                'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
+                'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
             ]);
 
             // Update only the provided fields
@@ -138,11 +114,11 @@ class EmployeeController extends Controller
             }
 
             $tempPassword = Str::random(12);
-            $encryptPassword= bcrypt($tempPassword);
+            $encryptPassword = bcrypt($tempPassword);
             // Update only the provided fields
             $employee->update([
-                'temp_password'=> $tempPassword,
-                'password'=>$encryptPassword,
+                'temp_password' => $tempPassword,
+                'password' => $encryptPassword,
                 'temp_pass_already_use' => false,
             ]);
 
@@ -161,7 +137,7 @@ class EmployeeController extends Controller
     public function destroy($slug)
     {
         try {
-            $employee = Employee::where('slug','=',$slug)->first();
+            $employee = Employee::where('slug', '=', $slug)->first();
             if (!$employee) {
                 return response()->json([
                     'message' => 'Employee not found'
@@ -191,12 +167,15 @@ class EmployeeController extends Controller
     {
         try {
             $q = $request->query('q');
-            $employees = Employee::paginate(20);
-            if($q){
+            $query = Employee::query();
+
+            if ($q) {
                 $searchTerm = $q;
-                $employeeData = Employee::where('fullname', 'like', "%$searchTerm%");
-                $employees = $employeeData->paginate(20);
+                $query->where('fullname', 'like', "%$searchTerm%");
             }
+
+            $employees = $query->paginate(20);
+
             return response()->json([
                 'message' => 'List all employees',
                 'data' => $employees
@@ -212,7 +191,7 @@ class EmployeeController extends Controller
     public function getEmployeeAccess($slug)
     {
         try {
-            $employee = Employee::where('slug','=',$slug)->first();
+            $employee = Employee::where('slug', '=', $slug)->first();
 
             if (!$employee) {
                 return response()->json([
