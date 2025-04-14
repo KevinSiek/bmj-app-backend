@@ -500,7 +500,7 @@ class QuotationController extends Controller
 
         try {
             $quoatations = $this->getAccessedQuotation($request);
-            $quotation =  $quoatations->where('slug', $slug)->first();
+            $quotation = $quoatations->where('slug', $slug)->first();
             $isNeedReview = $quotation->review;
             $isApproved = $quotation->status == QuotationController::APPROVE;
 
@@ -532,6 +532,7 @@ class QuotationController extends Controller
                 'purchase_order_number' => 'PO-' . now()->format('YmdHis'),
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
+                'notes' => $request->input('notes', '') // Use request notes or default to empty string
             ]);
 
             $backOrder = BackOrder::create([
@@ -551,7 +552,7 @@ class QuotationController extends Controller
                 # When create BO, need to determine number of BO and DO for each sparepart in this PO
                 $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
                 $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
-                $stockIsNotExistBeforePo =  $sparepartTotalUnit <= 0;
+                $stockIsNotExistBeforePo = $sparepartTotalUnit <= 0;
                 if ($stockIsExistButAfterPoBecomeIndent) {
                     // If sparepart stock exist but become minus after PO then :
                     //      1. The number of BO is total order minus total stock (Need to buy)
@@ -616,7 +617,7 @@ class QuotationController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Quotation move to purchase order successfully',
+                'message' => 'Quotation moved to purchase order successfully',
                 'data' => $purchaseOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -624,6 +625,7 @@ class QuotationController extends Controller
             return $this->handleError($th, 'Failed to move quotation to purchase order');
         }
     }
+
     public function isNeedReview(Request $request, $isNeedReview)
     {
         try {

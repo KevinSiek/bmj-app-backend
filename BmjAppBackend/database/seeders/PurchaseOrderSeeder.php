@@ -11,6 +11,7 @@ class PurchaseOrderSeeder extends Seeder
     {
         PurchaseOrder::factory(25)->create([
             'purchase_order_number' => fn() => 'PO-' . fake()->unique()->bothify('??/##/####'),
+            'notes' => fn() => fake()->sentence()
         ]);
     }
 }

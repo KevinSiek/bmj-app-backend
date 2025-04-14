@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
-use App\Models\{Quotation,PurchaseOrder,Employee};
+use App\Models\{Quotation, PurchaseOrder, Employee};
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PurchaseOrder>
@@ -25,6 +25,7 @@ class PurchaseOrderFactory extends Factory
             'purchase_order_number' => Str::random(10),
             'purchase_order_date' => $this->faker->date(),
             'employee_id' => Employee::inRandomOrder()->first()->id,
+            'notes' => $this->faker->sentence()
         ];
     }
 }

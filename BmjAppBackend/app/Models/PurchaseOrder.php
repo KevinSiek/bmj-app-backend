@@ -10,7 +10,11 @@ class PurchaseOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'quotation_id', 'purchase_order_number', 'purchase_order_date', 'employee_id'
+        'quotation_id',
+        'purchase_order_number',
+        'purchase_order_date',
+        'employee_id',
+        'notes'
     ];
 
     public function quotation()
