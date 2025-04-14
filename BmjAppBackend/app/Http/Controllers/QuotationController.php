@@ -36,13 +36,13 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project' => 'required|string|max:255',
-                'quotation_number' => 'required|string|unique:quotations,number',
+                'quotation_number' => 'required|string|unique:quotations,quotation_number',
                 'type' => 'required|string',
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
                 'subtotal' => 'required|numeric',
                 'vat' => 'required|numeric',
-                'grandTotal' => 'required|numeric',
+                'grand_total' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
                 'company_name' => 'required|string',
@@ -180,7 +180,7 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project' => 'required|string|max:255',
-                'quotation_number' => 'sometimes|string|unique:quotations,number,' . $quotation->id,
+                'quotation_number' => 'sometimes|string|unique:quotations,quotation_number,' . $quotation->id,
                 'type' => 'required|string',
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
