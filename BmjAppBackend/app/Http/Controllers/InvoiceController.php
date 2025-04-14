@@ -96,7 +96,7 @@ class InvoiceController extends Controller
                             'vat' => $quotation->vat ?? 0,
                             'totalAmount' => $quotation->grand_total + ($quotation->grand_total * $quotation->vat / 100)
                         ],
-                        'notes' => $quotation->note ?? '',
+                        'notes' => $quotation->notes ?? '',
                         'downPayment' => $proformaInvoice->advance_payment ?? 0,
                         'spareparts' => $spareParts,
                         'employee' => $invoice->employee->sparepart_name ?? 'Unknown'

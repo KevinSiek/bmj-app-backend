@@ -24,7 +24,7 @@ class BuySeeder extends Seeder
                 ]),
             ])
             ->create([
-                'note' => fake()->randomElement([
+                'notes' => fake()->randomElement([
                     'Order for customer x1',
                     'Order for customer x2',
                     'Order for customer x3',

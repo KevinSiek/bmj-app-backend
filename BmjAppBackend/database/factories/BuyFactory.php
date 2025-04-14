@@ -31,7 +31,7 @@ class BuyFactory extends Factory
                 BuyController::DECLINE,
                 BuyController::DONE,
             ]),
-            'note' => $this->faker->sentence,
+            'notes' => $this->faker->sentence,
         ];
     }
 }

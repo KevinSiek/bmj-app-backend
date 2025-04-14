@@ -27,7 +27,7 @@ class QuotationSeeder extends Seeder
                     strtoupper(fake()->monthName()),
                     now()->year
                 ),
-                'note' => fn() => fake()->randomElement([
+                'notes' => fn() => fake()->randomElement([
                     'Pemasangan generator di lokasi pelanggan',
                     'Perbaikan sistem kelistrikan generator',
                     'Penggantian sparepart utama',

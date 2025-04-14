@@ -102,7 +102,7 @@ class WorkOrderController extends Controller
                         'vat' => $quotation->vat ?? 0,
                         'grandTotal' => $quotation->grand_total ?? 0
                     ],
-                    'notes' => $quotation->note ?? '',
+                    'notes' => $quotation->notes ?? '',
                     'spareparts' => $spareParts
                 ];
             });

@@ -43,7 +43,7 @@ class QuotationController extends Controller
                 'subtotal' => 'required|numeric',
                 'vat' => 'required|numeric',
                 'grandTotal' => 'required|numeric',
-                'note' => 'sometimes|string',
+                'notes' => 'sometimes|string',
                 // Customer validation
                 'company_name' => 'required|string',
                 'office' => 'required|string',
@@ -187,7 +187,7 @@ class QuotationController extends Controller
                 'subtotal' => 'required|numeric',
                 'vat' => 'required|numeric',
                 'grand_total' => 'required|numeric',
-                'note' => 'sometimes|string',
+                'notes' => 'sometimes|string',
                 // Customer validation
                 'company_name' => 'required|string',
                 'office' => 'required|string',
@@ -479,7 +479,7 @@ class QuotationController extends Controller
                         'grandTotal' => $quotation->grand_total
                     ],
                     'status' => $quotation->status,
-                    'notes' => $quotation->note,
+                    'notes' => $quotation->notes,
                     'spareparts' => $spareParts,
                     'date' => $quotation->date
                 ];

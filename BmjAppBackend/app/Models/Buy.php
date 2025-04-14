@@ -14,7 +14,7 @@ class Buy extends Model
         'total_amount',
         'review',
         'status',
-        'note',
+        'notes',
     ];
 
     public function detailBuys()

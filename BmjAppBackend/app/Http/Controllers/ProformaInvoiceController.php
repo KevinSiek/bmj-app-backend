@@ -92,7 +92,7 @@ class ProformaInvoiceController extends Controller
                             'totalAmount' => $quotation->totalAmount,
                         ],
                         'downPayment' => $pi->advance_payment ?? 0,
-                        'notes' => $quotation->note ?? '',
+                        'notes' => $quotation->notes ?? '',
                         'spareparts' => $spareparts,
                     ];
                 });

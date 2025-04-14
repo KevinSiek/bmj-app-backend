@@ -95,7 +95,7 @@ class PurchaseOrderController extends Controller
                             'vat' => $quotation->vat ?? 0,
                             'totalAmount' => $proformaInvoice->total_amount ?? 0
                         ],
-                        'notes' => $quotation->note ?? '',
+                        'notes' => $quotation->notes ?? '',
                         'downPayment' => $proformaInvoice->advance_payment ?? 0,
                         'spareparts' => $spareParts
                     ];

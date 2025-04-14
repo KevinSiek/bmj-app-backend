@@ -21,7 +21,7 @@ class Quotation extends Model
         'subtotal',
         'vat',
         'grand_total',
-        'note',
+        'notes',
         'employee_id',
         'status',
         'review'

@@ -24,7 +24,7 @@ return new class extends Migration
             $table->decimal('subtotal', 15, 2);
             $table->decimal('vat', 15, 2);
             $table->decimal('grand_total', 15, 2);
-            $table->text('note')->nullable();
+            $table->text('notes')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->text('status')->nullable();
             $table->boolean('review');
