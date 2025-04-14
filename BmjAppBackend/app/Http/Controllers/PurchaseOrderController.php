@@ -51,52 +51,53 @@ class PurchaseOrderController extends Controller
             $purchaseOrders = $query->orderBy('purchase_order_date', 'desc')
                 ->paginate(20)->through(function ($po) {
                     $quotation = $po->quotation;
-                    $customer = $quotation->customer ?? null;
+                    $customer = $quotation ? $quotation->customer : null;
                     $proformaInvoice = $po->proformaInvoice->first();
 
-                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                    $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
+                        $sparepart = $detail->sparepart;
                         return [
-                            'sparepartName' => $detail->sparepart->sparepart_name ?? '',
-                            'sparepartNumber' => $detail->sparepart->part_number ?? '',
-                            'quantity' => $detail->quantity,
-                            'unit' => 'pcs',
-                            'unitPrice' => $detail->unit_price ?? 0,
-                            'amount' => ($detail->quantity * ($detail->unit_price ?? 0))
+                            'sparepartName' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepartNumber' => $sparepart ? $sparepart->sparepart_number : '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unitPriceSell' => $detail->unit_price ?? 0,
+                            'totalPrice' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
                         ];
-                    });
+                    })->toArray() : [];
 
                     return [
-                        'id' => (string) $po->id,
+                        'id' => (string) ($po->id ?? ''),
                         'purchaseOrder' => [
-                            'no' => $po->purchase_order_number,
-                            'date' => $po->purchase_order_date,
-                            'type' => $quotation->type ?? ''
+                            'purchaseOrderNumber' => $po->purchase_order_number ?? '',
+                            'purchaseOrderDate' => $po->purchase_order_date ?? '',
+                            'type' => $quotation ? $quotation->type : ''
                         ],
                         'proformaInvoice' => [
-                            'no' => $proformaInvoice->pi_number ?? '',
-                            'date' => $proformaInvoice->proforma_invoice_date ?? ''
+                            'proformaInvoiceNumber' => $proformaInvoice ? $proformaInvoice->pi_number : '',
+                            'proformaInvoiceDate' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
                         ],
                         'customer' => [
-                            'companyName' => $customer->company_name ?? '',
-                            'address' => $customer->address ?? '',
-                            'city' => $customer->city ?? '',
-                            'province' => $customer->province ?? '',
-                            'office' => $customer->office ?? '',
-                            'urban' => $customer->urban ?? '',
-                            'subdistrict' => $customer->subdistrict ?? '',
-                            'postalCode' => $customer->postal_code ?? ''
+                            'companyName' => $customer ? $customer->company_name : '',
+                            'address' => $customer ? $customer->address : '',
+                            'city' => $customer ? $customer->city : '',
+                            'province' => $customer ? $customer->province : '',
+                            'office' => $customer ? $customer->office : '',
+                            'urban' => $customer ? $customer->urban : '',
+                            'subdistrict' => $customer ? $customer->subdistrict : '',
+                            'postalCode' => $customer ? $customer->postal_code : ''
                         ],
                         'price' => [
-                            'amount' => $quotation->amount ?? 0,
-                            'discount' => $quotation->discount ?? 0,
-                            'subtotal' => $quotation->subtotal ?? 0,
-                            'advancePayment' => $proformaInvoice->advance_payment ?? 0,
-                            'grandTotal' => $proformaInvoice->grand_total ?? 0,
-                            'vat' => $quotation->vat ?? 0,
-                            'totalAmount' => $proformaInvoice->total_amount ?? 0
+                            'amount' => $quotation ? $quotation->amount : 0,
+                            'discount' => $quotation ? $quotation->discount : 0,
+                            'subtotal' => $quotation ? $quotation->subtotal : 0,
+                            'advancePayment' => $proformaInvoice ? $proformaInvoice->advance_payment : 0,
+                            'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
+                            'vat' => $quotation ? $quotation->vat : 0,
+                            'totalAmount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
                         ],
-                        'notes' => $quotation->notes ?? '',
-                        'downPayment' => $proformaInvoice->advance_payment ?? 0,
+                        'notes' => $po->notes ?? '',
+                        'downPayment' => $proformaInvoice ? $proformaInvoice->advance_payment : 0,
                         'spareparts' => $spareParts
                     ];
                 });
