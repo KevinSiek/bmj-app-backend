@@ -27,8 +27,8 @@ class SparepartController extends Controller
 
             // Build the query with search functionality
             $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
-                $query->where('name', 'like', "%$q%")
-                    ->orWhere('part_number', 'like', "%$q%");
+                $query->where('sparepart_name', 'like', "%$q%")
+                    ->orWhere('sparepart_number', 'like', "%$q%");
             });
 
             // Paginate the results

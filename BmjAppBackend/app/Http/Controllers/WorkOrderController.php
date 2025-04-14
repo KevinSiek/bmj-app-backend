@@ -23,15 +23,15 @@ class WorkOrderController extends Controller
 
             // Apply search term filter if 'q' is provided
             if ($q) {
-                $query->where(function($query) use ($q) {
+                $query->where(function ($query) use ($q) {
                     $query->where('work_order_number', 'like', '%' . $q . '%')
-                        ->orWhereHas('quotation', function($qry) use ($q) {
+                        ->orWhereHas('quotation', function ($qry) use ($q) {
                             $qry->where('number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('status', 'like', '%' . $q . '%');
                         })
-                        ->orWhereHas('quotation.customer', function($qry) use ($q) {
+                        ->orWhereHas('quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
                 });
@@ -57,8 +57,8 @@ class WorkOrderController extends Controller
 
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
-                        'partName' => $detail->sparepart->name ?? '',
-                        'partNumber' => $detail->sparepart->part_number ?? '',
+                        'sparepartName' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity,
                         'unit' => 'pcs',
                         'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
@@ -111,7 +111,6 @@ class WorkOrderController extends Controller
                 'message' => 'List of work orders retrieved successfully',
                 'data' => $workOrders,
             ], Response::HTTP_OK);
-
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
@@ -127,7 +126,7 @@ class WorkOrderController extends Controller
             }
 
             $alreadyDone = $workOrder->is_done;
-            if($alreadyDone){
+            if ($alreadyDone) {
                 return response()->json([
                     'message' => 'Work order already done'
                 ], Response::HTTP_BAD_REQUEST);
@@ -135,7 +134,7 @@ class WorkOrderController extends Controller
 
             // Validation rules
             $validator = Validator::make($request->all(), [
-                'work_order_number' => 'sometimes|required|string|max:255|unique:work_orders,work_order_number,'. $workOrder->id,
+                'work_order_number' => 'sometimes|required|string|max:255|unique:work_orders,work_order_number,' . $workOrder->id,
                 'received_by' => 'nullable|string|max:255',
                 'expected_start_date' => 'nullable|date',
                 'expected_end_date' => 'nullable|date|after_or_equal:expected_start_date',
@@ -186,14 +185,14 @@ class WorkOrderController extends Controller
             }
 
             $alreadyDone = $workOrder->is_done;
-            if($alreadyDone){
+            if ($alreadyDone) {
                 return response()->json([
                     'message' => 'Work order already done'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
             $workOrder->update([
-                'is_done'=> true,
+                'is_done' => true,
             ]);
 
             return response()->json([
@@ -216,13 +215,12 @@ class WorkOrderController extends Controller
 
             // Only allow work orders for authorized users
             if ($role == 'Service') {
-                $query->whereHas('quotation', function($q) use ($userId) {
+                $query->whereHas('quotation', function ($q) use ($userId) {
                     $q->where('employee_id', $userId);
                 });
             }
 
             return $query;
-
         } catch (\Throwable $th) {
             // Return empty query builder
             return WorkOrder::whereNull('id');

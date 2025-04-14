@@ -53,8 +53,8 @@ class InvoiceController extends Controller
 
                     $spareParts = $quotation->detailQuotations->map(function ($detail) {
                         return [
-                            'partName' => $detail->sparepart->name ?? '',
-                            'partNumber' => $detail->sparepart->part_number ?? '',
+                            'sparepartName' => $detail->sparepart->sparepart_name ?? '',
+                            'sparepartNumber' => $detail->sparepart->part_number ?? '',
                             'quantity' => $detail->quantity,
                             'unit' => 'pcs',
                             'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
@@ -99,7 +99,7 @@ class InvoiceController extends Controller
                         'notes' => $quotation->note ?? '',
                         'downPayment' => $proformaInvoice->advance_payment ?? 0,
                         'spareparts' => $spareParts,
-                        'employee' => $invoice->employee->name ?? 'Unknown'
+                        'employee' => $invoice->employee->sparepart_name ?? 'Unknown'
                     ];
                 });
 

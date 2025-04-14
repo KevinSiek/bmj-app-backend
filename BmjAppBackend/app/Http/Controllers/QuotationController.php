@@ -446,8 +446,8 @@ class QuotationController extends Controller
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
-                        'sparepartName' => $detail->sparepart->name ?? '',
-                        'sparepartNumber' => $detail->sparepart->part_number ?? '',
+                        'sparepartName' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity ?? 0,
                         'unitPriceSell' => $detail->unit_price ?? 0,
                         'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
