@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('quotations', function (Blueprint $table) {
             $table->id();
-            $table->string('number');
+            $table->string('quotation_number');
             $table->string('slug');
             $table->foreignId('customer_id')->constrained('customers');
             $table->string('project');
@@ -23,7 +23,7 @@ return new class extends Migration
             $table->decimal('discount', 15, 2);
             $table->decimal('subtotal', 15, 2);
             $table->decimal('vat', 15, 2);
-            $table->decimal('total', 15, 2);
+            $table->decimal('grand_total', 15, 2);
             $table->text('note')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->text('status')->nullable();

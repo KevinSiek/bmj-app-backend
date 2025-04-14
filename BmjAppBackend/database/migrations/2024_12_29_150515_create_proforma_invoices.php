@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('pi_number');
             $table->date('proforma_invoice_date');
             $table->decimal('advance_payment', 15, 2)->nullable();
-            $table->decimal('total', 15, 2)->nullable();
+            $table->decimal('grand_total', 15, 2)->nullable();
             $table->decimal('total_amount', 15, 2)->nullable();
             $table->string('total_amount_text')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');

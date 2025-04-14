@@ -27,7 +27,7 @@ class PurchaseOrderController extends Controller
                 $query->where(function ($query) use ($q) {
                     $query->where('purchase_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function ($qry) use ($q) {
-                            $qry->where('number', 'like', '%' . $q . '%')
+                            $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('status', 'like', '%' . $q . '%');
@@ -91,7 +91,7 @@ class PurchaseOrderController extends Controller
                             'discount' => $quotation->discount ?? 0,
                             'subtotal' => $quotation->subtotal ?? 0,
                             'advancePayment' => $proformaInvoice->advance_payment ?? 0,
-                            'total' => $proformaInvoice->total ?? 0,
+                            'grandTotal' => $proformaInvoice->grand_total ?? 0,
                             'vat' => $quotation->vat ?? 0,
                             'totalAmount' => $proformaInvoice->total_amount ?? 0
                         ],

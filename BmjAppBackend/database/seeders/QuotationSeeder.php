@@ -1,4 +1,5 @@
 <?php
+
 namespace Database\Seeders;
 
 use App\Models\Quotation;
@@ -20,7 +21,8 @@ class QuotationSeeder extends Seeder
                 ];
             }), 'detailQuotations')
             ->create([
-                'number' => fn() => sprintf('%03d/QUOT/BMJ-MEGAH/P/%s/%d',
+                'quotation_number' => fn() => sprintf(
+                    '%03d/QUOT/BMJ-MEGAH/P/%s/%d',
                     fake()->numberBetween(1, 999),
                     strtoupper(fake()->monthName()),
                     now()->year
@@ -31,17 +33,17 @@ class QuotationSeeder extends Seeder
                     'Penggantian sparepart utama',
                     'Maintenance rutin generator'
                 ]),
-                'project'=> fn() =>fake()->randomElement([
+                'project' => fn() => fake()->randomElement([
                     'Pemasangan Generator',
                     'Maintenance Generator',
                     'Pengadaan Sparepart',
                     'Overhaul Generator'
                 ]),
-                'type'=> fn() =>fake()->randomElement([
+                'type' => fn() => fake()->randomElement([
                     'Spareparts',
                     'Service',
                 ]),
-                'status'=> fn() =>fake()->randomElement([
+                'status' => fn() => fake()->randomElement([
                     'Ready',
                     'Not ready',
                 ])

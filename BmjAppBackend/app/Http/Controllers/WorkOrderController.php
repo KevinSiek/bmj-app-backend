@@ -26,7 +26,7 @@ class WorkOrderController extends Controller
                 $query->where(function ($query) use ($q) {
                     $query->where('work_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function ($qry) use ($q) {
-                            $qry->where('number', 'like', '%' . $q . '%')
+                            $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('status', 'like', '%' . $q . '%');
@@ -81,7 +81,7 @@ class WorkOrderController extends Controller
                         'additional_components' => $wo->additional_components
                     ],
                     'quotation' => [
-                        'number' => $quotation->number ?? '',
+                        'quotationNumber' => $quotation->quotation_number ?? '',
                         'project' => $quotation->project ?? '',
                         'type' => $quotation->type ?? ''
                     ],
@@ -100,7 +100,7 @@ class WorkOrderController extends Controller
                         'discount' => $quotation->discount ?? 0,
                         'subtotal' => $quotation->subtotal ?? 0,
                         'vat' => $quotation->vat ?? 0,
-                        'total' => $quotation->total ?? 0
+                        'grandTotal' => $quotation->grand_total ?? 0
                     ],
                     'notes' => $quotation->note ?? '',
                     'spareparts' => $spareParts

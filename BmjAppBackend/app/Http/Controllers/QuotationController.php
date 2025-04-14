@@ -36,13 +36,13 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project' => 'required|string|max:255',
-                'number' => 'required|string|unique:quotations,number',
+                'quotation_number' => 'required|string|unique:quotations,number',
                 'type' => 'required|string',
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
                 'subtotal' => 'required|numeric',
                 'vat' => 'required|numeric',
-                'total' => 'required|numeric',
+                'grandTotal' => 'required|numeric',
                 'note' => 'sometimes|string',
                 // Customer validation
                 'company_name' => 'required|string',
@@ -180,13 +180,13 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project' => 'required|string|max:255',
-                'number' => 'sometimes|string|unique:quotations,number,' . $quotation->id,
+                'quotation_number' => 'sometimes|string|unique:quotations,number,' . $quotation->id,
                 'type' => 'required|string',
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
                 'subtotal' => 'required|numeric',
                 'vat' => 'required|numeric',
-                'total' => 'required|numeric',
+                'grand_total' => 'required|numeric',
                 'note' => 'sometimes|string',
                 // Customer validation
                 'company_name' => 'required|string',
@@ -432,7 +432,7 @@ class QuotationController extends Controller
             $quoatations = $this->getAccessedQuotation($request);
             $quotationsQuery = $quoatations->where(function ($query) use ($q) {
                 $query->where('project', 'like', "%$q%")
-                    ->orWhere('number', 'like', "%$q%")
+                    ->orWhere('quotation_number', 'like', "%$q%")
                     ->orWhere('type', 'like', "%$q%");
             });
 
@@ -458,7 +458,7 @@ class QuotationController extends Controller
                 return [
                     'id' => (string) $quotation->id,
                     'slug' => $quotation->slug,
-                    'number' => $quotation->number,
+                    'quotationNumber' => $quotation->quotation_number,
                     'customer' => [
                         'companyName' => $customer->company_name ?? '',
                         'address' => $customer->address ?? '',
@@ -470,13 +470,13 @@ class QuotationController extends Controller
                         'postalCode' => $customer->postal_code ?? ''
                     ],
                     'project' => [
-                        'quotationNumber' => $quotation->number,
+                        'quotationNumber' => $quotation->quotation_number,
                         'type' => $quotation->type
                     ],
                     'price' => [
                         'subtotal' => $quotation->subtotal,
                         'ppn' => $quotation->vat,
-                        'grandTotal' => $quotation->total
+                        'grandTotal' => $quotation->grand_total
                     ],
                     'status' => $quotation->status,
                     'notes' => $quotation->note,

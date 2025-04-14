@@ -92,9 +92,9 @@ class InvoiceController extends Controller
                             'discount' => $quotation->discount ?? 0,
                             'subtotal' => $quotation->subtotal ?? 0,
                             'advancePayment' => $proformaInvoice->advance_payment ?? 0,
-                            'total' => $quotation->total ?? 0,
+                            'grandTotal' => $quotation->grand_total ?? 0,
                             'vat' => $quotation->vat ?? 0,
-                            'totalAmount' => $quotation->total + ($quotation->total * $quotation->vat / 100)
+                            'totalAmount' => $quotation->grand_total + ($quotation->grand_total * $quotation->vat / 100)
                         ],
                         'notes' => $quotation->note ?? '',
                         'downPayment' => $proformaInvoice->advance_payment ?? 0,
