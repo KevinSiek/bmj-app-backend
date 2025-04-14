@@ -61,8 +61,8 @@ class WorkOrderController extends Controller
                         'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity,
                         'unit' => 'pcs',
-                        'unitPrice' => $detail->sparepart->unit_price_sell ?? 0,
-                        'amount' => ($detail->quantity * ($detail->sparepart->unit_price_sell ?? 0))
+                        'unitPrice' => $detail->unit_price ?? 0,
+                        'amount' => ($detail->quantity * ($detail->unit_price ?? 0))
                     ];
                 });
 

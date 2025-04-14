@@ -56,16 +56,14 @@ class ProformaInvoiceController extends Controller
                     $spareparts = collect();
                     foreach ($detailQuotations as $detailQuotation) {
                         $sparepart = $detailQuotation->sparepart;
-                        foreach ($sparepart->detailBuys as $detailBuy) {
-                            $spareparts->push([
-                                'sparepartName' => $sparepart->sparepart_name ?? '',
-                                'sparepartNumber' => $sparepart->part_number ?? '',
-                                'quantity' => $detailBuy->quantity ?? 0,
-                                'unit' => 'pcs',
-                                'unitPrice' => $sparepart->unit_price_sell ?? 0,
-                                'amount' => ($detailBuy->quantity ?? 0) * ($sparepart->unit_price_sell ?? 0),
-                            ]);
-                        }
+                        $spareparts->push([
+                            'sparepartName' => $sparepart->sparepart_name ?? '',
+                            'sparepartNumber' => $sparepart->part_number ?? '',
+                            'quantity' => $detailQuotation->quantity ?? 0,
+                            'unit' => 'pcs',
+                            'unitPrice' => $detailQuotation->unit_price ?? 0,
+                            'amount' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
+                        ]);
                     }
 
                     return [

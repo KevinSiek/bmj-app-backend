@@ -1,10 +1,9 @@
 <?php
-// database/seeders/BuySeeder.php
+
 namespace Database\Seeders;
 
 use App\Http\Controllers\BuyController;
 use App\Models\Buy;
-use App\Models\BackOrder;
 use App\Models\DetailBuy;
 use Illuminate\Database\Seeder;
 

@@ -10,7 +10,11 @@ class DetailBuy extends Model
     use HasFactory;
 
     protected $fillable = [
-        'buy_id', 'sparepart_id', 'quantity'
+        'buy_id',
+        'sparepart_id',
+        'quantity',
+        'seller',
+        'unit_price',
     ];
 
     public function buy()

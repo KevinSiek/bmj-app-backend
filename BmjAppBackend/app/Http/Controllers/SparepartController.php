@@ -29,19 +29,35 @@ class SparepartController extends Controller
             $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
                 $query->where('sparepart_name', 'like', "%$q%")
                     ->orWhere('sparepart_number', 'like', "%$q%");
-            });
+            })->with('detailBuys'); // Eager load detailBuys for unitPriceBuy
 
-            // Paginate the results
-            $paginatedSpareparts = $sparepartsQuery->paginate(20);
+            // Paginate the results and transform to match API contract
+            $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) {
+                return [
+                    'id' => $data->id ?? '',
+                    'slug' => $data->slug ?? '',
+                    'sparepartNumber' => $data->sparepart_number ?? '',
+                    'sparepartName' => $data->sparepart_name ?? '',
+                    'totalUnit' => $data->total_unit,
+                    'unitPriceSell' => $data->unit_price_sell,
+                    'unitPriceBuy' => $data->detailBuys->map(function ($buy) {
+                        return [
+                            'seller' => $buy->seller ?? '',
+                            'price' => $buy->unit_price ?? 0,
+                        ];
+                    })->toArray(),
+                ];
+            });
 
             return response()->json([
                 'message' => 'List of all spareparts retrieved successfully',
-                'data' => $paginatedSpareparts
+                'data' => $paginatedSpareparts,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
     }
+
     // Function to get spareparts by access role level
     protected function getAccessedSparepart($request)
     {
@@ -59,11 +75,10 @@ class SparepartController extends Controller
                 $spareparts = Sparepart::query();
             }
 
-            // Return the response with transformed data and pagination details
+            // Return the query builder instance
             return $spareparts;
         } catch (\Throwable $th) {
-            echo ('Error at getAccessedSparepart: ' . $th->getMessage());
-            return [];
+            return Sparepart::query(); // Fallback to prevent breaking the flow
         }
     }
 
@@ -72,14 +87,14 @@ class SparepartController extends Controller
     {
         return response()->json([
             'message' => $message,
-            'error' => $th->getMessage()
+            'error' => $th->getMessage(),
         ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 
     protected function handleNotFound($message = 'Resource not found')
     {
         return response()->json([
-            'message' => $message
+            'message' => $message,
         ], Response::HTTP_NOT_FOUND);
     }
 }

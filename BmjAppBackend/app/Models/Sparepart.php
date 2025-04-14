@@ -13,9 +13,8 @@ class Sparepart extends Model
         'slug',
         'sparepart_number',
         'sparepart_name',
-        'unit_price_buy',
         'unit_price_sell',
-        'total_unit'
+        'total_unit',
     ];
 
     public function detailQuotations()

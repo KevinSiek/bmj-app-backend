@@ -22,10 +22,9 @@ class SparepartFactory extends Factory
     {
         $name = $this->faker->word;
         return [
-            'sparepart_number'  => $this->faker->word,
+            'sparepart_number' => $this->faker->word,
             'sparepart_name' => $name,
             'slug' => Str::slug($name) . '-' . Str::random(6),
-            'unit_price_buy' => $this->faker->randomFloat(2, 100, 1000),
             'unit_price_sell' => $this->faker->randomFloat(2, 200, 2000),
             'total_unit' => $this->faker->numberBetween(10, 1000),
         ];

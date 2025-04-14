@@ -10,7 +10,11 @@ class Buy extends Model
     use HasFactory;
 
     protected $fillable = [
-        'buy_number', 'total_amount', 'review', 'status', 'note'
+        'buy_number',
+        'total_amount',
+        'review',
+        'status',
+        'note',
     ];
 
     public function detailBuys()

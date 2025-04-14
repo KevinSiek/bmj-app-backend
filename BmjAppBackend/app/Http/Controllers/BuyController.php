@@ -20,7 +20,7 @@ class BuyController extends Controller
             $buys = Buy::paginate(20);
             return response()->json([
                 'message' => 'Buys retrieved successfully',
-                'data' => $buys
+                'data' => $buys,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -30,7 +30,7 @@ class BuyController extends Controller
     public function show($slug)
     {
         try {
-            $buy = Buy::paginate(20)->where('slug', $slug)->first();
+            $buy = Buy::where('slug', $slug)->first();
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -38,7 +38,7 @@ class BuyController extends Controller
 
             return response()->json([
                 'message' => 'Buy retrieved successfully',
-                'data' => $buy
+                'data' => $buy,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -51,7 +51,7 @@ class BuyController extends Controller
             $buy = Buy::create($request->all());
             return response()->json([
                 'message' => 'Buy created successfully',
-                'data' => $buy
+                'data' => $buy,
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Buy creation failed');
@@ -70,7 +70,7 @@ class BuyController extends Controller
             $buy->update($request->all());
             return response()->json([
                 'message' => 'Buy updated successfully',
-                'data' => $buy
+                'data' => $buy,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Buy update failed');
@@ -89,7 +89,7 @@ class BuyController extends Controller
             $buy->delete();
             return response()->json([
                 'message' => 'Buy deleted successfully',
-                'data' => null
+                'data' => null,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Buy deletion failed');
@@ -104,34 +104,35 @@ class BuyController extends Controller
                 ->through(function ($buy) {
                     // Calculate total purchase amount
                     $totalPurchase = $buy->detailBuys->sum(function ($detail) {
-                        return $detail->quantity * $detail->sparepart->unit_price_buy;
+                        return $detail->quantity * $detail->unit_price;
                     });
 
                     // Get spare parts details
                     $spareParts = $buy->detailBuys->map(function ($detail) {
                         return [
-                            'sparepartName'   => $detail->sparepart->sparepart_name,
-                            'sparepartNumber' => $detail->sparepart->part_number,
-                            'quantity'   => $detail->quantity,
-                            'unitPrice'  => $detail->sparepart->unit_price_buy,
-                            'totalPrice' => $detail->quantity * $detail->sparepart->unit_price_buy
+                            'sparepartName' => $detail->sparepart->sparepart_name,
+                            'sparepartNumber' => $detail->sparepart->sparepart_number,
+                            'quantity' => $detail->quantity,
+                            'unitPrice' => $detail->unit_price,
+                            'seller' => $detail->seller,
+                            'totalPrice' => $detail->quantity * $detail->unit_price,
                         ];
                     });
 
                     // Format response
                     return [
-                        'buy_number'    => $buy->buy_number ?? '',
-                        'date'          => $buy->created_at ?? '',
-                        'notes'         => 'PURCHASE ITEM FROM SELLER KM',
-                        'status'        => $buy->status,
+                        'buy_number' => $buy->buy_number ?? '',
+                        'date' => $buy->created_at ?? '',
+                        'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                        'status' => $buy->status,
                         'totalPurchase' => $totalPurchase,
-                        'spareparts'    => $spareParts
+                        'spareparts' => $spareParts,
                     ];
                 });
 
             return response()->json([
                 'message' => 'List of all buys retrieved successfully',
-                'data' => $buys
+                'data' => $buys,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -143,14 +144,14 @@ class BuyController extends Controller
     {
         return response()->json([
             'message' => $message,
-            'error' => $th->getMessage()
+            'error' => $th->getMessage(),
         ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 
     protected function handleNotFound($message = 'Resource not found')
     {
         return response()->json([
-            'message' => $message
+            'message' => $message,
         ], Response::HTTP_NOT_FOUND);
     }
 }
