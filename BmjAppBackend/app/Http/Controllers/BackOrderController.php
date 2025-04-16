@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BackOrder;
+use App\Models\Buy;
+use App\Models\DetailBuy;
 use App\Models\DetailQuotation;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class BackOrderController extends Controller
 {
@@ -90,6 +93,17 @@ class BackOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            // Create a new Buy record
+            $totalAmount = 0;
+            $buy = Buy::create([
+                'buy_number' => 'BUY-' . Str::random(8),
+                'total_amount' => 0, // Will be updated after calculating
+                'review' => true, // Process means it already approved
+                'status' => BuyController::DONE, // Process means it already done
+                'notes' => 'Auto-generated from BackOrder #' . $backOrder->back_order_number,
+                'back_order_id' => $backOrder->id,
+            ]);
+
             // Process each detail back order
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
                 // Skip if no back order quantity
@@ -102,8 +116,35 @@ class BackOrderController extends Controller
                     continue;
                 }
 
+                // Find the DetailBuy with the lowest unit_price for this sparepart
+                $cheapestDetailBuy = DetailBuy::where('sparepart_id', $sparepart->id)
+                    ->orderBy('unit_price', 'asc')
+                    ->first();
+
+                if (!$cheapestDetailBuy) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'No purchase history found for sparepart #' . $sparepart->sparepart_number
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                // Create DetailBuy record
+                $quantity = $detailBackOrder->number_back_order;
+                $unitPrice = $cheapestDetailBuy->unit_price;
+                $subtotal = $quantity * $unitPrice;
+
+                DetailBuy::create([
+                    'buy_id' => $buy->id,
+                    'sparepart_id' => $sparepart->id,
+                    'quantity' => $quantity,
+                    'seller' => $cheapestDetailBuy->seller,
+                    'unit_price' => $unitPrice,
+                ]);
+
+                $totalAmount += $subtotal;
+
                 // Update sparepart stock
-                $sparepart->total_unit += $detailBackOrder->number_back_order;
+                $sparepart->total_unit += $quantity;
                 $sparepart->save();
 
                 // Find corresponding detail quotation and update its status
@@ -120,6 +161,10 @@ class BackOrderController extends Controller
                 }
             }
 
+            // Update Buy total_amount
+            $buy->total_amount = $totalAmount;
+            $buy->save();
+
             // Update back order status
             $backOrder->status = self::READY;
             $backOrder->save();
@@ -128,7 +173,7 @@ class BackOrderController extends Controller
 
             return response()->json([
                 'message' => 'Back order processed successfully',
-                'data' => $backOrder
+                'data' => $backOrder->load('buy.detailBuys')
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();

@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Buy;
+use App\Models\Sparepart;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class BuyController extends Controller
 {
@@ -48,7 +51,56 @@ class BuyController extends Controller
     public function store(Request $request)
     {
         try {
-            $buy = Buy::create($request->all());
+            // Validate the request data
+            $validatedData = $request->validate([
+                'buy_number' =>  'required|string|unique:buys,buy_number',
+                'total_amount' =>  'required|numeric',
+                'review' => 'sometimes|boolean',
+                'status' =>  'required|string',
+                'notes' => 'sometimes|string',
+                'back_order_id' => 'sometimes|exists:back_orders,id',
+                // Sparepart validation
+                'spareparts' => 'required|array',
+                "spareparts.*.seller" => 'required|string',
+                'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
+                'spareparts.*.quantity' => 'required|integer|min:1',
+                'spareparts.*.unit_price' => 'required|numeric|min:1',
+            ]);
+
+            // Create buy data
+            $buy = Buy::create($validatedData);
+
+            // Create DetailBuys from list of spareparts in this buy
+            foreach ($request->input('spareparts') as $spareparts) {
+                $sparepartsId = $spareparts['sparepart_id'];
+                $sparepartsUnitPrice = $spareparts['unit_price'];
+                $quantityOrderSparepart = $spareparts['quantity'];
+                $seller = $spareparts['seller'];
+                // Validate agans each spareparts data
+                $sparepartsValidator = Validator::make($spareparts, [
+                    'seller' => 'required|string',
+                    'sparepart_id' => 'required|exists:spareparts,id',
+                    'quantity' => 'required|integer|min:1',
+                    'unit_price' => 'required|numeric|min:1',
+                ]);
+
+
+                if ($sparepartsValidator->fails()) {
+                    throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
+                }
+
+                // Insert into the bridge table
+                DB::table('detail_buys')->insert([
+                    'buy_id' => $buy->id,
+                    'sparepart_id' => $sparepartsId,
+                    'quantity' => $quantityOrderSparepart,
+                    'unit_price' => $sparepartsUnitPrice,
+                    'seller' => $seller,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
             return response()->json([
                 'message' => 'Buy created successfully',
                 'data' => $buy,

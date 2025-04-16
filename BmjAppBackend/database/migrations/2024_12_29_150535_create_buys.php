@@ -18,6 +18,7 @@ return new class extends Migration
             $table->boolean('review')->default(false);
             $table->string('status');
             $table->string('notes');
+            $table->foreignId('back_order_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();
         });
     }

@@ -15,10 +15,16 @@ class Buy extends Model
         'review',
         'status',
         'notes',
+        'back_order_id',
     ];
 
     public function detailBuys()
     {
         return $this->hasMany(DetailBuy::class);
+    }
+
+    public function backOrder()
+    {
+        return $this->belongsTo(BackOrder::class);
     }
 }
