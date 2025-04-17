@@ -32,7 +32,7 @@ class QuotationFactory extends Factory
             'amount' => $this->faker->randomFloat(2, 1000, 10000),
             'discount' => $this->faker->randomFloat(2, 100, 500),
             'subtotal' => $this->faker->randomFloat(2, 5000, 9000),
-            'vat' => $this->faker->randomFloat(2, 500, 2000),
+            'ppn' => $this->faker->randomFloat(2, 500, 2000),
             'grand_total' => $this->faker->randomFloat(2, 6000, 12000),
             'notes' => $this->faker->sentence,
             'employee_id' => Employee::factory(),

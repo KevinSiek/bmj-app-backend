@@ -16,11 +16,10 @@ return new class extends Migration
             $table->foreignId('proforma_invoice_id')->constrained('proforma_invoices');
             $table->string('invoice_number');
             $table->date('invoice_date');
-            $table->string('term_of_pay')->nullable();
+            $table->string('term_of_payment')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->timestamps();
         });
-
     }
 
     /**

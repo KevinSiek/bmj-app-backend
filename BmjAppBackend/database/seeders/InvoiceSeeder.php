@@ -13,7 +13,7 @@ class InvoiceSeeder extends Seeder
         Invoice::factory(15)->create([
             'proforma_invoice_id' => ProformaInvoice::inRandomOrder()->first()->id,
             'invoice_number' => fn() => 'INV-' . fake()->unique()->bothify('####-##-####'),
-            'term_of_pay' => fake()->randomElement(['CASH', '30 DAYS', '60 DAYS', 'DP 50%'])
+            'term_of_payment' => fake()->randomElement(['CASH', '30 DAYS', '60 DAYS', 'DP 50%'])
         ]);
     }
 }

@@ -99,7 +99,7 @@ class WorkOrderController extends Controller
                         'amount' => $quotation->amount ?? 0,
                         'discount' => $quotation->discount ?? 0,
                         'subtotal' => $quotation->subtotal ?? 0,
-                        'vat' => $quotation->vat ?? 0,
+                        'ppn' => $quotation->ppn ?? 0,
                         'grandTotal' => $quotation->grand_total ?? 0
                     ],
                     'notes' => $quotation->notes ?? '',

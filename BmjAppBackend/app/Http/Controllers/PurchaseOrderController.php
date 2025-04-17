@@ -93,7 +93,7 @@ class PurchaseOrderController extends Controller
                             'subtotal' => $quotation ? $quotation->subtotal : 0,
                             'advancePayment' => $proformaInvoice ? $proformaInvoice->advance_payment : 0,
                             'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
-                            'vat' => $quotation ? $quotation->vat : 0,
+                            'ppn' => $quotation ? $quotation->ppn : 0,
                             'totalAmount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
                         ],
                         'notes' => $po->notes ?? '',

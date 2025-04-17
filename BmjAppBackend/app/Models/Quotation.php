@@ -19,7 +19,7 @@ class Quotation extends Model
         'amount',
         'discount',
         'subtotal',
-        'vat',
+        'ppn',
         'grand_total',
         'notes',
         'employee_id',

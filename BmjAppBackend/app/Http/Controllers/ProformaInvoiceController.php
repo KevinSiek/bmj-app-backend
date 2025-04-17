@@ -88,7 +88,7 @@ class ProformaInvoiceController extends Controller
                             'subtotal' => $quotation->subtotal ?? 0,
                             'advancePayment' => $pi->advance_payment ?? 0,
                             'total' => $quotation->grand_total ?? 0,
-                            'vat' => $quotation->vat ?? 0,
+                            'ppn' => $quotation->ppn ?? 0,
                             'totalAmount' => $quotation->totalAmount,
                         ],
                         'downPayment' => $pi->advance_payment ?? 0,

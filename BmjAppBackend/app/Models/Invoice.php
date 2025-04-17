@@ -10,7 +10,11 @@ class Invoice extends Model
     use HasFactory;
 
     protected $fillable = [
-        'proforma_invoice_id', 'invoice_number', 'invoice_date', 'term_of_pay', 'employee_id'
+        'proforma_invoice_id',
+        'invoice_number',
+        'invoice_date',
+        'term_of_payment',
+        'employee_id'
     ];
 
     public function proformaInvoice()

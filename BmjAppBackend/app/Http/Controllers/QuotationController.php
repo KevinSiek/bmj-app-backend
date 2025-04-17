@@ -41,7 +41,7 @@ class QuotationController extends Controller
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
                 'subtotal' => 'required|numeric',
-                'vat' => 'required|numeric',
+                'ppn' => 'required|numeric',
                 'grand_total' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
@@ -185,7 +185,7 @@ class QuotationController extends Controller
                 'amount' => 'required|numeric',
                 'discount' => 'required|numeric',
                 'subtotal' => 'required|numeric',
-                'vat' => 'required|numeric',
+                'ppn' => 'required|numeric',
                 'grand_total' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
@@ -475,7 +475,7 @@ class QuotationController extends Controller
                     ],
                     'price' => [
                         'subtotal' => $quotation->subtotal,
-                        'ppn' => $quotation->vat,
+                        'ppn' => $quotation->ppn,
                         'grandTotal' => $quotation->grand_total
                     ],
                     'status' => $quotation->status,

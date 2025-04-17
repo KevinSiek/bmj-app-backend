@@ -56,9 +56,8 @@ class InvoiceController extends Controller
                             'sparepartName' => $detail->sparepart->sparepart_name ?? '',
                             'sparepartNumber' => $detail->sparepart->part_number ?? '',
                             'quantity' => $detail->quantity,
-                            'unitPrice' => $detail->unit_price ?? 0,
-
-                            'amount' => ($detail->quantity * ($detail->unit_price ?? 0))
+                            'unitPriceSell' => $detail->unit_price ?? 0,
+                            'totalPrice' => ($detail->quantity * ($detail->unit_price ?? 0))
                         ];
                     });
 
@@ -67,15 +66,16 @@ class InvoiceController extends Controller
                         'invoice' => [
                             'invoiceNumber' => $invoice->invoice_number,
                             'date' => $invoice->invoice_date,
-                            'term_of_pay' => $invoice->term_of_pay ?? ''
-                        ],
-                        'proformaInvoice' => [
-                            'no' => $proformaInvoice->proforma_invoice_number ?? '',
-                            'date' => $proformaInvoice->proforma_invoice_date ?? ''
+                            'termOfPayment' => $invoice->term_of_payment ?? '',
+                            'subtotal' => $quotation->subtotal ?? 0,
+                            'grandTotal' => $quotation->grand_total ?? 0,
+
                         ],
                         'purchaseOrder' => [
-                            'no' => $purchaseOrder->purchase_order_number ?? '',
-                            'date' => $purchaseOrder->purchase_order_date ?? ''
+                            'purchaseOrderNumber' => $purchaseOrder->purchase_order_number ?? '',
+                            'purchaseOrderDate' => $purchaseOrder->purchase_order_date ?? '',
+                            'paymentDue' => '',
+                            'discount' => $quotation ? $quotation->discount : ''
                         ],
                         'customer' => [
                             'companyName' => $customer->company_name ?? '',
@@ -88,18 +88,12 @@ class InvoiceController extends Controller
                             'postalCode' => $customer->postal_code ?? ''
                         ],
                         'price' => [
-                            'amount' => $quotation->amount ?? 0,
-                            'discount' => $quotation->discount ?? 0,
                             'subtotal' => $quotation->subtotal ?? 0,
-                            'advancePayment' => $proformaInvoice->advance_payment ?? 0,
-                            'total' => $quotation->grand_total ?? 0,
-                            'vat' => $quotation->vat ?? 0,
-                            'totalAmount' => $quotation->grand_total + ($quotation->grand_total * $quotation->vat / 100)
+                            'ppn' => $quotation->ppn ?? 0,
+                            'grandTotal' => $quotation->grand_total ?? 0,
                         ],
                         'notes' => $quotation->notes ?? '',
-                        'downPayment' => $proformaInvoice->advance_payment ?? 0,
                         'spareparts' => $spareParts,
-                        'employee' => $invoice->employee->sparepart_name ?? 'Unknown'
                     ];
                 });
 
