@@ -11,7 +11,7 @@ class ProformaInvoiceSeeder extends Seeder
     public function run(): void
     {
         ProformaInvoice::factory(20)->create([
-            'pi_number' => fn() => sprintf(
+            'proforma_invoice_number' => fn() => sprintf(
                 '%03d/BMJ-PI/%s/%d',
                 fake()->numberBetween(1, 999),
                 strtoupper(fake()->monthName()),

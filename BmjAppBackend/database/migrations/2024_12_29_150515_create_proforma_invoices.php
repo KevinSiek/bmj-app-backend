@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('proforma_invoices', function (Blueprint $table) {
             $table->id();
             $table->foreignId('purchase_order_id')->constrained('purchase_orders');
-            $table->string('pi_number');
+            $table->string('proforma_invoice_number');
             $table->date('proforma_invoice_date');
             $table->decimal('advance_payment', 15, 2)->nullable();
             $table->decimal('grand_total', 15, 2)->nullable();

@@ -11,7 +11,7 @@ class ProformaInvoice extends Model
 
     protected $fillable = [
         'purchase_order_id',
-        'pi_number',
+        'proforma_invoice_number',
         'proforma_invoice_date',
         'advance_payment',
         'grandTotal',

@@ -56,8 +56,8 @@ class InvoiceController extends Controller
                             'sparepartName' => $detail->sparepart->sparepart_name ?? '',
                             'sparepartNumber' => $detail->sparepart->part_number ?? '',
                             'quantity' => $detail->quantity,
-                            'unit' => 'pcs',
                             'unitPrice' => $detail->unit_price ?? 0,
+
                             'amount' => ($detail->quantity * ($detail->unit_price ?? 0))
                         ];
                     });
@@ -65,12 +65,12 @@ class InvoiceController extends Controller
                     return [
                         'id' => (string) $invoice->id,
                         'invoice' => [
-                            'no' => $invoice->invoice_number,
+                            'invoiceNumber' => $invoice->invoice_number,
                             'date' => $invoice->invoice_date,
                             'term_of_pay' => $invoice->term_of_pay ?? ''
                         ],
                         'proformaInvoice' => [
-                            'no' => $proformaInvoice->pi_number ?? '',
+                            'no' => $proformaInvoice->proforma_invoice_number ?? '',
                             'date' => $proformaInvoice->proforma_invoice_date ?? ''
                         ],
                         'purchaseOrder' => [
@@ -92,7 +92,7 @@ class InvoiceController extends Controller
                             'discount' => $quotation->discount ?? 0,
                             'subtotal' => $quotation->subtotal ?? 0,
                             'advancePayment' => $proformaInvoice->advance_payment ?? 0,
-                            'grandTotal' => $quotation->grand_total ?? 0,
+                            'total' => $quotation->grand_total ?? 0,
                             'vat' => $quotation->vat ?? 0,
                             'totalAmount' => $quotation->grand_total + ($quotation->grand_total * $quotation->vat / 100)
                         ],

@@ -29,7 +29,7 @@ class ProformaInvoiceController extends Controller
             // Apply search term filter if 'q' is provided
             if ($q) {
                 $query->where(function ($query) use ($q) {
-                    $query->where('pi_number', 'like', '%' . $q . '%')
+                    $query->where('proforma_invoice_number', 'like', '%' . $q . '%')
                         ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
@@ -60,16 +60,16 @@ class ProformaInvoiceController extends Controller
                             'sparepartName' => $sparepart->sparepart_name ?? '',
                             'sparepartNumber' => $sparepart->part_number ?? '',
                             'quantity' => $detailQuotation->quantity ?? 0,
-                            'unit' => 'pcs',
-                            'unitPrice' => $detailQuotation->unit_price ?? 0,
-                            'amount' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
+                            'unitPriceSell' => $detailQuotation->unit_price ?? 0,
+                            'totalPrice' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
+                            'stock' => $detailQuotation->is_indent ? 'indent' : 'available'
                         ]);
                     }
 
                     return [
                         'id' => (string) $pi->id,
                         'project' => [
-                            'noProformaInvoice' => $pi->pi_number,
+                            'proformaInvoiceNumber' => $pi->proforma_invoice_number,
                             'type' => $quotation->type ?? '',
                         ],
                         'customer' => [
@@ -87,7 +87,7 @@ class ProformaInvoiceController extends Controller
                             'discount' => $quotation->discount ?? 0,
                             'subtotal' => $quotation->subtotal ?? 0,
                             'advancePayment' => $pi->advance_payment ?? 0,
-                            'grandTotal' => $quotation->grand_total ?? 0,
+                            'total' => $quotation->grand_total ?? 0,
                             'vat' => $quotation->vat ?? 0,
                             'totalAmount' => $quotation->totalAmount,
                         ],

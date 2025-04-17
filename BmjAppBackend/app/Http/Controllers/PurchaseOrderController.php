@@ -74,7 +74,7 @@ class PurchaseOrderController extends Controller
                             'type' => $quotation ? $quotation->type : ''
                         ],
                         'proformaInvoice' => [
-                            'proformaInvoiceNumber' => $proformaInvoice ? $proformaInvoice->pi_number : '',
+                            'proformaInvoiceNumber' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
                             'proformaInvoiceDate' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
                         ],
                         'customer' => [
@@ -130,7 +130,7 @@ class PurchaseOrderController extends Controller
 
             $proformaInvoice = ProformaInvoice::create([
                 'purchase_order_id' => $purchaseOrder->id,
-                'pi_number' => 'PI-' . now()->format('YmdHis'),
+                'proforma_invoice_number' => 'PI-' . now()->format('YmdHis'),
                 'proforma_invoice_date' => now(),
                 'employee_id' => $purchaseOrder->employee_id,
             ]);
