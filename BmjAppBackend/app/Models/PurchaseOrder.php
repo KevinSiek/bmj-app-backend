@@ -13,6 +13,7 @@ class PurchaseOrder extends Model
         'quotation_id',
         'purchase_order_number',
         'purchase_order_date',
+        'payment_due',
         'employee_id',
         'notes'
     ];

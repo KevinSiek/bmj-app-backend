@@ -74,7 +74,7 @@ class InvoiceController extends Controller
                         'purchaseOrder' => [
                             'purchaseOrderNumber' => $purchaseOrder->purchase_order_number ?? '',
                             'purchaseOrderDate' => $purchaseOrder->purchase_order_date ?? '',
-                            'paymentDue' => '',
+                            'paymentDue' => $purchaseOrder->payment_due,
                             'discount' => $quotation ? $quotation->discount : ''
                         ],
                         'customer' => [

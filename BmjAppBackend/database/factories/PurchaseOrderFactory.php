@@ -20,10 +20,12 @@ class PurchaseOrderFactory extends Factory
 
     public function definition()
     {
+        $purchaseOrderDate = $this->faker->date();
         return [
             'quotation_id' => Quotation::inRandomOrder()->first()->id,
             'purchase_order_number' => Str::random(10),
-            'purchase_order_date' => $this->faker->date(),
+            'purchase_order_date' => $purchaseOrderDate,
+            'payment_due' => $this->faker->dateTimeBetween($purchaseOrderDate, '+30 days')->format('Y-m-d'),
             'employee_id' => Employee::inRandomOrder()->first()->id,
             'notes' => $this->faker->sentence()
         ];
