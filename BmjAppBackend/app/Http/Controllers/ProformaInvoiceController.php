@@ -69,7 +69,7 @@ class ProformaInvoiceController extends Controller
                     return [
                         'id' => (string) $pi->id,
                         'project' => [
-                            'proformaInvoiceNumber' => $pi->proforma_invoice_number,
+                            'proforma_invoice_number' => $pi->proforma_invoice_number,
                             'type' => $quotation->type ?? '',
                         ],
                         'customer' => [
@@ -86,13 +86,14 @@ class ProformaInvoiceController extends Controller
                             'amount' => $quotation->amount ?? 0,
                             'discount' => $quotation->discount ?? 0,
                             'subtotal' => $quotation->subtotal ?? 0,
-                            'advancePayment' => $pi->advance_payment ?? 0,
+                            'down_payment' => $pi->down_payment ?? 0,
                             'total' => $quotation->grand_total ?? 0,
                             'ppn' => $quotation->ppn ?? 0,
-                            'totalAmount' => $quotation->totalAmount,
+                            'total_amount' => $quotation->total_amount,
                         ],
-                        'downPayment' => $pi->advance_payment ?? 0,
+                        'down_payment' => $pi->down_payment ?? 0,
                         'notes' => $quotation->notes ?? '',
+                        'date' => $pi->created_at,
                         'spareparts' => $spareparts,
                     ];
                 });
@@ -105,6 +106,76 @@ class ProformaInvoiceController extends Controller
             return $this->handleError($th);
         }
     }
+
+    public function get(Request $request, $id)
+    {
+        try {
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)
+                ->with([
+                    'purchaseOrder.quotation.customer',
+                    'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys',
+                    'employee'
+                ])
+                ->findOrFail($id);
+
+            $purchaseOrder = $proformaInvoice->purchaseOrder;
+            $quotation = $purchaseOrder->quotation;
+            $customer = $quotation->customer;
+            $detailQuotations = $quotation->detailQuotations;
+
+            $spareparts = collect();
+            foreach ($detailQuotations as $detailQuotation) {
+                $sparepart = $detailQuotation->sparepart;
+                $spareparts->push([
+                    'sparepart_name' => $sparepart->sparepart_name ?? '',
+                    'sparepart_number' => $sparepart->part_number ?? '',
+                    'quantity' => $detailQuotation->quantity ?? 0,
+                    'unit_price_sell' => $detailQuotation->unit_price ?? 0,
+                    'total_price' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
+                    'stock' => $detailQuotation->is_indent ? 'indent' : 'available'
+                ]);
+            }
+
+            $formattedProformaInvoice = [
+                'id' => (string) $proformaInvoice->id,
+                'project' => [
+                    'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number,
+                    'type' => $quotation->type ?? '',
+                ],
+                'customer' => [
+                    'company_name' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postal_code' => $customer->postal_code ?? '',
+                ],
+                'price' => [
+                    'amount' => $quotation->amount ?? 0,
+                    'discount' => $quotation->discount ?? 0,
+                    'subtotal' => $quotation->subtotal ?? 0,
+                    'down_payment' => $proformaInvoice->down_payment ?? 0,
+                    'total' => $quotation->grand_total ?? 0,
+                    'ppn' => $quotation->ppn ?? 0,
+                    'total_amount' => $quotation->total_amount,
+                ],
+                'down_payment' => $proformaInvoice->down_payment ?? 0,
+                'notes' => $quotation->notes ?? '',
+                'date' => $proformaInvoice->created_at,
+                'spareparts' => $spareparts,
+            ];
+
+            return response()->json([
+                'message' => 'Proforma invoice retrieved successfully',
+                'data' => $formattedProformaInvoice,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
     public function moveToInvoice(Request $request, $id)
     {
         DB::beginTransaction();

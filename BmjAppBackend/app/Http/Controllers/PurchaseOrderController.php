@@ -74,7 +74,7 @@ class PurchaseOrderController extends Controller
                             'type' => $quotation ? $quotation->type : ''
                         ],
                         'proformaInvoice' => [
-                            'proformaInvoiceNumber' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
+                            'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
                             'proformaInvoiceDate' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
                         ],
                         'customer' => [
@@ -91,13 +91,13 @@ class PurchaseOrderController extends Controller
                             'amount' => $quotation ? $quotation->amount : 0,
                             'discount' => $quotation ? $quotation->discount : 0,
                             'subtotal' => $quotation ? $quotation->subtotal : 0,
-                            'advancePayment' => $proformaInvoice ? $proformaInvoice->advance_payment : 0,
+                            'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                             'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
                             'ppn' => $quotation ? $quotation->ppn : 0,
-                            'totalAmount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
+                            'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
                         ],
                         'notes' => $po->notes ?? '',
-                        'downPayment' => $proformaInvoice ? $proformaInvoice->advance_payment : 0,
+                        'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                         'spareparts' => $spareParts
                     ];
                 });

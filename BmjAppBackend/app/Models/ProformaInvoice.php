@@ -13,7 +13,7 @@ class ProformaInvoice extends Model
         'purchase_order_id',
         'proforma_invoice_number',
         'proforma_invoice_date',
-        'advance_payment',
+        'down_payment',
         'grand_total',
         'total_amount',
         'total_amount_text',

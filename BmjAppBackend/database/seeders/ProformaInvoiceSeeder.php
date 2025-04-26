@@ -17,7 +17,7 @@ class ProformaInvoiceSeeder extends Seeder
                 strtoupper(fake()->monthName()),
                 now()->year
             ),
-            'advance_payment' => fn(array $attr) => $attr['grand_total'] * 0.3,
+            'down_payment' => fn(array $attr) => $attr['grand_total'] * 0.3,
             'total_amount_text' => 'Empat Belas Juta Delapan Ratus Delapan Puluh Tujuh Ribu Seratus Sembilan Puluh Delapan Rupiah' // Hardcoded value
         ]);
     }

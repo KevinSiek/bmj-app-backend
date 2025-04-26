@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('purchase_order_id')->constrained('purchase_orders');
             $table->string('proforma_invoice_number');
             $table->date('proforma_invoice_date');
-            $table->decimal('advance_payment', 15, 2)->nullable();
+            $table->decimal('down_payment', 15, 2)->nullable();
             $table->decimal('grand_total', 15, 2)->nullable();
             $table->decimal('total_amount', 15, 2)->nullable();
             $table->string('total_amount_text')->nullable();
