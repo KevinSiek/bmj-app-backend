@@ -57,11 +57,11 @@ class WorkOrderController extends Controller
 
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
-                        'sparepartName' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
+                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity,
                         'unit' => 'pcs',
-                        'unitPrice' => $detail->unit_price ?? 0,
+                        'unit_price' => $detail->unit_price ?? 0,
                         'amount' => ($detail->quantity * ($detail->unit_price ?? 0))
                     ];
                 });

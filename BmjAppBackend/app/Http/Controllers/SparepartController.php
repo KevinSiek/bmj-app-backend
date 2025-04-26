@@ -36,11 +36,11 @@ class SparepartController extends Controller
                 return [
                     'id' => $data->id ?? '',
                     'slug' => $data->slug ?? '',
-                    'sparepartNumber' => $data->sparepart_number ?? '',
-                    'sparepartName' => $data->sparepart_name ?? '',
+                    'sparepart_number' => $data->sparepart_number ?? '',
+                    'sparepart_name' => $data->sparepart_name ?? '',
                     'totalUnit' => $data->total_unit,
-                    'unitPriceSell' => $data->unit_price_sell,
-                    'unitPriceBuy' => $data->detailBuys->map(function ($buy) {
+                    'unit_price_sell' => $data->unit_price_sell,
+                    'unit_price_buy' => $data->detailBuys->map(function ($buy) {
                         return [
                             'seller' => $buy->seller ?? '',
                             'price' => $buy->unit_price ?? 0,

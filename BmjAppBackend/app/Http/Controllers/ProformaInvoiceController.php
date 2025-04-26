@@ -57,11 +57,11 @@ class ProformaInvoiceController extends Controller
                     foreach ($detailQuotations as $detailQuotation) {
                         $sparepart = $detailQuotation->sparepart;
                         $spareparts->push([
-                            'sparepartName' => $sparepart->sparepart_name ?? '',
-                            'sparepartNumber' => $sparepart->part_number ?? '',
+                            'sparepart_name' => $sparepart->sparepart_name ?? '',
+                            'sparepart_number' => $sparepart->part_number ?? '',
                             'quantity' => $detailQuotation->quantity ?? 0,
-                            'unitPriceSell' => $detailQuotation->unit_price ?? 0,
-                            'totalPrice' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
+                            'unit_price_sell' => $detailQuotation->unit_price ?? 0,
+                            'total_price' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
                             'stock' => $detailQuotation->is_indent ? 'indent' : 'available'
                         ]);
                     }

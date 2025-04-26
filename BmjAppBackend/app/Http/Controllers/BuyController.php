@@ -162,12 +162,12 @@ class BuyController extends Controller
                     // Get spare parts details
                     $spareParts = $buy->detailBuys->map(function ($detail) {
                         return [
-                            'sparepartName' => $detail->sparepart->sparepart_name,
-                            'sparepartNumber' => $detail->sparepart->sparepart_number,
+                            'sparepart_name' => $detail->sparepart->sparepart_name,
+                            'sparepart_number' => $detail->sparepart->sparepart_number,
                             'quantity' => $detail->quantity,
-                            'unitPrice' => $detail->unit_price,
+                            'unit_price' => $detail->unit_price,
                             'seller' => $detail->seller,
-                            'totalPrice' => $detail->quantity * $detail->unit_price,
+                            'total_price' => $detail->quantity * $detail->unit_price,
                         ];
                     });
 

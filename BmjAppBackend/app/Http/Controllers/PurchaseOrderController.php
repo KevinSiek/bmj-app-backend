@@ -57,11 +57,11 @@ class PurchaseOrderController extends Controller
                     $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
                         $sparepart = $detail->sparepart;
                         return [
-                            'sparepartName' => $sparepart ? $sparepart->sparepart_name : '',
-                            'sparepartNumber' => $sparepart ? $sparepart->sparepart_number : '',
+                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
                             'quantity' => $detail->quantity ?? 0,
-                            'unitPriceSell' => $detail->unit_price ?? 0,
-                            'totalPrice' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
                             'stock' => $detail->is_indent ? 'indent' : 'available'
                         ];
                     })->toArray() : [];
