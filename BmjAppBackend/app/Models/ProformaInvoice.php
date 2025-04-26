@@ -14,7 +14,7 @@ class ProformaInvoice extends Model
         'proforma_invoice_number',
         'proforma_invoice_date',
         'advance_payment',
-        'grandTotal',
+        'grand_total',
         'total_amount',
         'total_amount_text',
         'employee_id'

@@ -81,26 +81,26 @@ class WorkOrderController extends Controller
                         'additional_components' => $wo->additional_components
                     ],
                     'quotation' => [
-                        'quotationNumber' => $quotation->quotation_number ?? '',
+                        'quotation_number' => $quotation->quotation_number ?? '',
                         'project' => $quotation->project ?? '',
                         'type' => $quotation->type ?? ''
                     ],
                     'customer' => [
-                        'companyName' => $customer->company_name ?? '',
+                        'company_name' => $customer->company_name ?? '',
                         'address' => $customer->address ?? '',
                         'city' => $customer->city ?? '',
                         'province' => $customer->province ?? '',
                         'office' => $customer->office ?? '',
                         'urban' => $customer->urban ?? '',
                         'subdistrict' => $customer->subdistrict ?? '',
-                        'postalCode' => $customer->postal_code ?? ''
+                        'postal_code' => $customer->postal_code ?? ''
                     ],
                     'price' => [
                         'amount' => $quotation->amount ?? 0,
                         'discount' => $quotation->discount ?? 0,
                         'subtotal' => $quotation->subtotal ?? 0,
                         'ppn' => $quotation->ppn ?? 0,
-                        'grandTotal' => $quotation->grand_total ?? 0
+                        'grand_total' => $quotation->grand_total ?? 0
                     ],
                     'notes' => $quotation->notes ?? '',
                     'spareparts' => $spareParts

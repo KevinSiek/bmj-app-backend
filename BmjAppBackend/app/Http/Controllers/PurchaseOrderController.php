@@ -78,14 +78,14 @@ class PurchaseOrderController extends Controller
                             'proformaInvoiceDate' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
                         ],
                         'customer' => [
-                            'companyName' => $customer ? $customer->company_name : '',
+                            'company_name' => $customer ? $customer->company_name : '',
                             'address' => $customer ? $customer->address : '',
                             'city' => $customer ? $customer->city : '',
                             'province' => $customer ? $customer->province : '',
                             'office' => $customer ? $customer->office : '',
                             'urban' => $customer ? $customer->urban : '',
                             'subdistrict' => $customer ? $customer->subdistrict : '',
-                            'postalCode' => $customer ? $customer->postal_code : ''
+                            'postal_code' => $customer ? $customer->postal_code : ''
                         ],
                         'price' => [
                             'amount' => $quotation ? $quotation->amount : 0,

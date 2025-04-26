@@ -68,7 +68,7 @@ class InvoiceController extends Controller
                             'date' => $invoice->invoice_date,
                             'termOfPayment' => $invoice->term_of_payment ?? '',
                             'subtotal' => $quotation->subtotal ?? 0,
-                            'grandTotal' => $quotation->grand_total ?? 0,
+                            'grand_total' => $quotation->grand_total ?? 0,
 
                         ],
                         'purchaseOrder' => [
@@ -78,19 +78,19 @@ class InvoiceController extends Controller
                             'discount' => $quotation ? $quotation->discount : ''
                         ],
                         'customer' => [
-                            'companyName' => $customer->company_name ?? '',
+                            'company_name' => $customer->company_name ?? '',
                             'address' => $customer->address ?? '',
                             'city' => $customer->city ?? '',
                             'province' => $customer->province ?? '',
                             'office' => $customer->office ?? '',
                             'urban' => $customer->urban ?? '',
                             'subdistrict' => $customer->subdistrict ?? '',
-                            'postalCode' => $customer->postal_code ?? ''
+                            'postal_code' => $customer->postal_code ?? ''
                         ],
                         'price' => [
                             'subtotal' => $quotation->subtotal ?? 0,
                             'ppn' => $quotation->ppn ?? 0,
-                            'grandTotal' => $quotation->grand_total ?? 0,
+                            'grand_total' => $quotation->grand_total ?? 0,
                         ],
                         'notes' => $quotation->notes ?? '',
                         'spareparts' => $spareParts,

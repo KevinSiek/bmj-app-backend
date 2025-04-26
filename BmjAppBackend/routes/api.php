@@ -41,6 +41,7 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::prefix('quotation')->group(function () {
         Route::get('/', [QuotationController::class, 'getAll']);
+        Route::get('/{slug}', [QuotationController::class, 'get']);
         Route::post('/', [QuotationController::class, 'store']);
         Route::put('/{slug}', [QuotationController::class, 'update']);
         Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);

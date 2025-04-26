@@ -73,14 +73,14 @@ class ProformaInvoiceController extends Controller
                             'type' => $quotation->type ?? '',
                         ],
                         'customer' => [
-                            'companyName' => $customer->company_name ?? '',
+                            'company_name' => $customer->company_name ?? '',
                             'address' => $customer->address ?? '',
                             'city' => $customer->city ?? '',
                             'province' => $customer->province ?? '',
                             'office' => $customer->office ?? '',
                             'urban' => $customer->urban ?? '',
                             'subdistrict' => $customer->subdistrict ?? '',
-                            'postalCode' => $customer->postal_code ?? '',
+                            'postal_code' => $customer->postal_code ?? '',
                         ],
                         'price' => [
                             'amount' => $quotation->amount ?? 0,

@@ -20,10 +20,10 @@ class CustomerFactory extends Factory
 
     public function definition()
     {
-        $companyName =$this->faker->company;
+        $company_name = $this->faker->company;
         return [
-            'slug' =>  Str::slug($companyName). '-' . Str::random(6),
-            'company_name' =>  $companyName,
+            'slug' =>  Str::slug($company_name) . '-' . Str::random(6),
+            'company_name' =>  $company_name,
             'office' => $this->faker->word,
             'address' => $this->faker->address,
             'urban' => $this->faker->city,

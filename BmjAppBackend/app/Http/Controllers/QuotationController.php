@@ -422,6 +422,63 @@ class QuotationController extends Controller
         }
     }
 
+    public function get(Request $request, $slug)
+    {
+        try {
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotation = $quoatations->where('slug', $slug)->firstOrFail();
+
+            $customer = $quotation->customer;
+            $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                return [
+                    'sparepartName' => $detail->sparepart->sparepart_name ?? '',
+                    'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
+                    'quantity' => $detail->quantity ?? 0,
+                    'unitPriceSell' => $detail->unit_price ?? 0,
+                    'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
+                    'stock' => $detail->is_indent
+                ];
+            });
+
+            $formattedQuotation = [
+                'id' => (string) $quotation->id,
+                'slug' => $quotation->slug,
+                'quotation_number' => $quotation->quotation_number,
+                'customer' => [
+                    'company_name' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postal_code' => $customer->postal_code ?? ''
+                ],
+                'project' => [
+                    'quotation_number' => $quotation->quotation_number,
+                    'type' => $quotation->type,
+                    'date' => $quotation->date
+                ],
+                'price' => [
+                    'subtotal' => $quotation->subtotal,
+                    'ppn' => $quotation->ppn,
+                    'grand_total' => $quotation->grand_total
+                ],
+                'status' => $quotation->status,
+                'notes' => $quotation->notes,
+                'spareparts' => $spareParts,
+                'date' => $quotation->date
+            ];
+
+            return response()->json([
+                'message' => 'Quotation retrieved successfully',
+                'data' => $formattedQuotation
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
     public function getAll(Request $request)
     {
         try {
@@ -458,25 +515,26 @@ class QuotationController extends Controller
                 return [
                     'id' => (string) $quotation->id,
                     'slug' => $quotation->slug,
-                    'quotationNumber' => $quotation->quotation_number,
+                    'quotation_number' => $quotation->quotation_number,
                     'customer' => [
-                        'companyName' => $customer->company_name ?? '',
+                        'company_name' => $customer->company_name ?? '',
                         'address' => $customer->address ?? '',
                         'city' => $customer->city ?? '',
                         'province' => $customer->province ?? '',
                         'office' => $customer->office ?? '',
                         'urban' => $customer->urban ?? '',
                         'subdistrict' => $customer->subdistrict ?? '',
-                        'postalCode' => $customer->postal_code ?? ''
+                        'postal_code' => $customer->postal_code ?? ''
                     ],
                     'project' => [
-                        'quotationNumber' => $quotation->quotation_number,
-                        'type' => $quotation->type
+                        'quotation_number' => $quotation->quotation_number,
+                        'type' => $quotation->type,
+                        'date' => $quotation->date
                     ],
                     'price' => [
                         'subtotal' => $quotation->subtotal,
                         'ppn' => $quotation->ppn,
-                        'grandTotal' => $quotation->grand_total
+                        'grand_total' => $quotation->grand_total
                     ],
                     'status' => $quotation->status,
                     'notes' => $quotation->notes,
