@@ -19,6 +19,37 @@ class SparepartController extends Controller
     public function updateAllData(Request $request) {}
 
     // Extra function
+    public function get(Request $request, $id)
+    {
+        try {
+            $spareparts = $this->getAccessedSparepart($request);
+            $sparepart = $spareparts->with('detailBuys')->findOrFail($id);
+
+            $formattedSparepart = [
+                'id' => $sparepart->id ?? '',
+                'slug' => $sparepart->slug ?? '',
+                'sparepart_number' => $sparepart->sparepart_number ?? '',
+                'sparepart_name' => $sparepart->sparepart_name ?? '',
+                'totalUnit' => $sparepart->total_unit,
+                'unit_price_sell' => $sparepart->unit_price_sell,
+                'unit_price_buy' => $sparepart->detailBuys->map(function ($buy) {
+                    return [
+                        'seller' => $buy->seller ?? '',
+                        'price' => $buy->unit_price ?? 0,
+                    ];
+                })->toArray(),
+            ];
+
+            return response()->json([
+                'message' => 'Sparepart retrieved successfully',
+                'data' => $formattedSparepart,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+
     public function getAll(Request $request)
     {
         try {

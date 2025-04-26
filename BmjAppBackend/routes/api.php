@@ -105,6 +105,7 @@ Route::middleware("auth:sanctum")->group(function () {
         // Sparepart Routes
         Route::prefix('sparepart')->group(function () {
             Route::get('/', [SparepartController::class, 'getAll']);
+            Route::get('/{id}', [SparepartController::class, 'get']);
             Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
         });
     });
