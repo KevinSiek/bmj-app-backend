@@ -70,6 +70,7 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::prefix('back-order')->group(function () {
         Route::get('/', [BackOrderController::class, 'getAll']);
+        Route::get('/{id}', [BackOrderController::class, 'get']);
         Route::get('/process/{id}', [BackOrderController::class, 'process']);
     });
 

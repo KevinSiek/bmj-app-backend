@@ -49,18 +49,112 @@ class BackOrderController extends Controller
                 $backOrderQuery->whereBetween('created_at', [$startDate, $endDate]);
             }
 
-            // Paginate the results
-            $backOrders = $backOrderQuery->with(['purchaseOrder', 'purchaseOrder.employee'])
+            // Paginate the results with all required relationships
+            $backOrders = $backOrderQuery->with([
+                'purchaseOrder.quotation',
+                'purchaseOrder.quotation.customer',
+                'detailBackOrders.sparepart',
+            ])
                 ->orderBy('created_at', 'desc')
                 ->paginate(20);
 
+            // Transform the data to match the API contract
+            $formattedBackOrders = $backOrders->getCollection()->map(function ($backOrder) {
+                return $this->formatBackOrder($backOrder);
+            });
+
+            // Return paginated response with transformed data
             return response()->json([
                 'message' => 'List of all back orders retrieved successfully',
-                'data' => $backOrders,
+                'data' => $backOrders->setCollection($formattedBackOrders),
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
+    }
+
+    /**
+     * Get a single back order by ID.
+     *
+     * @param Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function get(Request $request, $id)
+    {
+        try {
+            // Initialize the query builder with access control
+            $backOrderQuery = $this->getAccessedBackOrder($request);
+
+            // Find the back order by ID with all required relationships
+            $backOrder = $backOrderQuery->with([
+                'purchaseOrder.quotation',
+                'purchaseOrder.quotation.customer',
+                'detailBackOrders.sparepart',
+            ])
+                ->findOrFail($id);
+
+            // Format the back order to match the API contract
+            $formattedBackOrder = $this->formatBackOrder($backOrder);
+
+            return response()->json([
+                'message' => 'Back order retrieved successfully',
+                'data' => $formattedBackOrder,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    /**
+     * Format a back order to match the API contract.
+     *
+     * @param BackOrder $backOrder
+     * @return array
+     */
+    private function formatBackOrder(BackOrder $backOrder)
+    {
+        return [
+            'id' => $backOrder->id,
+            'back_order_number' => $backOrder->back_order_number,
+            'status' => $backOrder->status,
+            'purchase_order' => [
+                'purchase_order_number' => $backOrder->purchaseOrder?->purchase_order_number,
+                'purchase_order_date' => $backOrder->purchaseOrder?->purchase_order_date,
+                'type' => $backOrder->purchaseOrder?->quotation?->type,
+            ],
+            'deliveryOrder' => [
+                'no' => $backOrder->detailBackOrders->first()?->number_delivery_order ?? '',
+                'date' => $backOrder->created_at->toDateString(), // Assuming delivery date is same as back order creation
+                'ship_mode' => '', // Placeholder as no direct mapping exists
+            ],
+            'customer' => [
+                'company_name' => $backOrder->purchaseOrder?->quotation?->customer?->company_name ?? '',
+                'address' => $backOrder->purchaseOrder?->quotation?->customer?->address ?? '',
+                'city' => $backOrder->purchaseOrder?->quotation?->customer?->city ?? '',
+                'province' => $backOrder->purchaseOrder?->quotation?->customer?->province ?? '',
+                'office' => $backOrder->purchaseOrder?->quotation?->customer?->office ?? '',
+                'urban' => $backOrder->purchaseOrder?->quotation?->customer?->urban ?? '',
+                'subdistrict' => $backOrder->purchaseOrder?->quotation?->customer?->subdistrict ?? '',
+                'postalCode' => $backOrder->purchaseOrder?->quotation?->customer?->postal_code ?? '',
+                'npwp' => $backOrder->purchaseOrder?->quotation?->customer?->npwp ?? '', // Assuming nullable
+                'delivery' => $backOrder->purchaseOrder?->quotation?->customer?->delivery ?? '', // Assuming nullable
+            ],
+            'notes' => $backOrder->notes ?? '',
+            'spareparts' => $backOrder->detailBackOrders->map(function ($detail) {
+                return [
+                    'sparepart_name' => $detail->sparepart?->name ?? '',
+                    'sparepart_number' => $detail->sparepart?->part_number ?? '',
+                    'quantity' => $detail->quantity ?? 1, // Assuming quantity is in DetailBackOrder
+                    'unit_price_sell' => $detail->sparepart?->unit_price_sell ?? 0, // Assuming in Sparepart
+                    'total_price' => ($detail->quantity ?? 1) * ($detail->sparepart?->unit_price_sell ?? 0),
+                    'stock' => $detail->sparepart?->stock ?? 0, // Assuming in Sparepart
+                    'order' => $detail->number_back_order ?? '',
+                    'delivery_order' => $detail->number_delivery_order ?? '',
+                    'back_order' => $detail->number_back_order ?? '',
+                ];
+            })->toArray(),
+        ];
     }
 
     public function process(Request $request, $id)
