@@ -65,6 +65,7 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::prefix('invoice')->group(function () {
         Route::get('/', [InvoiceController::class, 'getAll']);
+        Route::get('/{id}', [InvoiceController::class, 'get']);
     });
 
     Route::prefix('back-order')->group(function () {
