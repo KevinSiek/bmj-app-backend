@@ -100,6 +100,7 @@ Route::middleware("auth:sanctum")->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);
+            Route::get('/{id}', [BuyController::class, 'get']);
             Route::post('/', [BuyController::class, 'store']);
             Route::put('/{id}', [BuyController::class, 'update']);
             Route::delete('/{id}', [BuyController::class, 'destroy']);

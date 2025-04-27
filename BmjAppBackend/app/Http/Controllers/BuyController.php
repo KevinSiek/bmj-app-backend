@@ -30,24 +30,6 @@ class BuyController extends Controller
         }
     }
 
-    public function show($slug)
-    {
-        try {
-            $buy = Buy::where('slug', $slug)->first();
-
-            if (!$buy) {
-                return $this->handleNotFound('Buy not found');
-            }
-
-            return response()->json([
-                'message' => 'Buy retrieved successfully',
-                'data' => $buy,
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return $this->handleError($th);
-        }
-    }
-
     public function store(Request $request)
     {
         try {
@@ -148,6 +130,48 @@ class BuyController extends Controller
         }
     }
 
+    public function get($id)
+    {
+        try {
+            $buy = Buy::with('detailBuys.sparepart')
+                ->findOrFail($id);
+
+            // Calculate total purchase amount
+            $totalPurchase = $buy->detailBuys->sum(function ($detail) {
+                return $detail->quantity * $detail->unit_price;
+            });
+
+            // Get spare parts details
+            $spareParts = $buy->detailBuys->map(function ($detail) {
+                return [
+                    'sparepart_name' => $detail->sparepart->sparepart_name,
+                    'sparepart_number' => $detail->sparepart->sparepart_number,
+                    'quantity' => $detail->quantity,
+                    'unit_price' => $detail->unit_price,
+                    'seller' => $detail->seller,
+                    'total_price' => $detail->quantity * $detail->unit_price,
+                ];
+            });
+
+            // Format response
+            $formattedBuy = [
+                'buy_number' => $buy->buy_number ?? '',
+                'date' => $buy->created_at ?? '',
+                'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                'status' => $buy->status,
+                'total_amount' => $totalPurchase,
+                'spareparts' => $spareParts,
+            ];
+
+            return response()->json([
+                'message' => 'Buy retrieved successfully',
+                'data' => $formattedBuy,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
     public function getAll()
     {
         try {
@@ -177,7 +201,7 @@ class BuyController extends Controller
                         'date' => $buy->created_at ?? '',
                         'notes' => 'PURCHASE ITEM FROM SELLER KM',
                         'status' => $buy->status,
-                        'totalPurchase' => $totalPurchase,
+                        'total_amount' => $totalPurchase,
                         'spareparts' => $spareParts,
                     ];
                 });
