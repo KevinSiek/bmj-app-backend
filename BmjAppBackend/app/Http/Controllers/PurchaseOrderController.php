@@ -11,6 +11,78 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PurchaseOrderController extends Controller
 {
+    const PREPARE = "prepare";
+    const READY = "ready";
+    const RELEASE = "release";
+    
+    public function get(Request $request, $id)
+    {
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee'])
+                ->findOrFail($id);
+
+            $quotation = $purchaseOrder->quotation;
+            $customer = $quotation ? $quotation->customer : null;
+            $proformaInvoice = $purchaseOrder->proformaInvoice->first();
+
+            $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
+                $sparepart = $detail->sparepart;
+                return [
+                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                    'quantity' => $detail->quantity ?? 0,
+                    'unit_price_sell' => $detail->unit_price ?? 0,
+                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                    'stock' => $detail->is_indent ? 'indent' : 'available'
+                ];
+            })->toArray() : [];
+
+            $formattedPurchaseOrder = [
+                'id' => (string) ($purchaseOrder->id ?? ''),
+                'purchase_order' => [
+                    'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                    'type' => $quotation ? $quotation->type : ''
+                ],
+                'proforma_invoice' => [
+                    'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
+                    'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
+                ],
+                'customer' => [
+                    'company_name' => $customer ? $customer->company_name : '',
+                    'address' => $customer ? $customer->address : '',
+                    'city' => $customer ? $customer->city : '',
+                    'province' => $customer ? $customer->province : '',
+                    'office' => $customer ? $customer->office : '',
+                    'urban' => $customer ? $customer->urban : '',
+                    'subdistrict' => $customer ? $customer->subdistrict : '',
+                    'postal_code' => $customer ? $customer->postal_code : ''
+                ],
+                'price' => [
+                    'amount' => $quotation ? $quotation->amount : 0,
+                    'discount' => $quotation ? $quotation->discount : 0,
+                    'subtotal' => $quotation ? $quotation->subtotal : 0,
+                    'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                    'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
+                    'ppn' => $quotation ? $quotation->ppn : 0,
+                    'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
+                ],
+                'notes' => $purchaseOrder->notes ?? '',
+                'status' => $purchaseOrder->status ?? '',
+                'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                'spareparts' => $spareParts
+            ];
+
+            return response()->json([
+                'message' => 'Purchase order retrieved successfully',
+                'data' => $formattedPurchaseOrder,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
     public function getAll(Request $request)
     {
         try {
@@ -68,14 +140,14 @@ class PurchaseOrderController extends Controller
 
                     return [
                         'id' => (string) ($po->id ?? ''),
-                        'purchaseOrder' => [
-                            'purchaseOrderNumber' => $po->purchase_order_number ?? '',
-                            'purchaseOrderDate' => $po->purchase_order_date ?? '',
+                        'purchase_order' => [
+                            'purchase_order_number' => $po->purchase_order_number ?? '',
+                            'purchase_order_date' => $po->purchase_order_date ?? '',
                             'type' => $quotation ? $quotation->type : ''
                         ],
-                        'proformaInvoice' => [
+                        'proforma_invoice' => [
                             'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
-                            'proformaInvoiceDate' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
+                            'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : ''
                         ],
                         'customer' => [
                             'company_name' => $customer ? $customer->company_name : '',
@@ -97,6 +169,7 @@ class PurchaseOrderController extends Controller
                             'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
                         ],
                         'notes' => $po->notes ?? '',
+                        'status' => $po->status ?? '',
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                         'spareparts' => $spareParts
                     ];

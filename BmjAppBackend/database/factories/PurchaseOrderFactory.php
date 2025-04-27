@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Http\Controllers\PurchaseOrderController;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 use App\Models\{Quotation, PurchaseOrder, Employee};
@@ -27,6 +28,11 @@ class PurchaseOrderFactory extends Factory
             'purchase_order_date' => $purchaseOrderDate,
             'payment_due' => $this->faker->dateTimeBetween($purchaseOrderDate, '+30 days')->format('Y-m-d'),
             'employee_id' => Employee::inRandomOrder()->first()->id,
+            'status' => fake()->randomElement([
+                PurchaseOrderController::PREPARE,
+                PurchaseOrderController::READY,
+                PurchaseOrderController::RELEASE,
+            ]),
             'notes' => $this->faker->sentence()
         ];
     }
