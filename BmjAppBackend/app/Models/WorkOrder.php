@@ -10,9 +10,26 @@ class WorkOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'quotation_id', 'work_order_number', 'received_by', 'expected_days', 'expected_start_date',
-        'expected_end_date', 'compiled_by', 'start_date', 'end_date', 'job_descriptions',
-        'work_peformed_by', 'approved_by', 'additional_components', 'is_done',
+        'quotation_id',
+        'work_order_number',
+        'received_by',
+        'expected_days',
+        'expected_start_date',
+        'expected_end_date',
+        'start_date',
+        'end_date',
+        'job_descriptions',
+        'worker',
+        'compiled',
+        'head_of_service',
+        'approver',
+        'is_done',
+        'spareparts',
+        'backup_sparepart',
+        'scope',
+        'vaccine',
+        'apd',
+        'peduli_lindungi'
     ];
 
     public function quotation()

@@ -91,6 +91,7 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::middleware(['is_service'])->group(function () {
         Route::prefix('work-order')->group(function () {
             Route::get('/', [WorkOrderController::class, 'getAll']);
+            Route::get('/{id}', [WorkOrderController::class, 'get']);
             Route::put('/{id}', [WorkOrderController::class, 'update']);
             Route::get('/process/{id}', [WorkOrderController::class, 'process']);
         });

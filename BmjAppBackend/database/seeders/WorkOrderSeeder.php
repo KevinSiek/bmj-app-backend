@@ -16,13 +16,46 @@ class WorkOrderSeeder extends Seeder
                 'Overhaul generator 2000KVA',
                 'Ganti bearing utama generator',
                 'Perbaikan sistem kontrol digital',
-                'Kalibrasi sistem bahan bakar'
+                'Kalibrasi sistem bahan bakar',
+                ''
             ]),
-            'additional_components' => json_encode([
-                'oil_filter' => fake()->boolean(),
-                'air_filter' => fake()->boolean(),
-                'fuel_pump' => fake()->boolean()
-            ])
+            'spareparts' => fake()->randomElement([
+                'Overhaul generator 2000KVA',
+                'Ganti bearing utama generator',
+                'Perbaikan sistem kontrol digital',
+                'Kalibrasi sistem bahan bakar',
+                ''
+            ]),
+            'backup_sparepart' => fake()->randomElement([
+                'backup Overhaul generator 2000KVA',
+                'backup Ganti bearing utama generator',
+                'backup Perbaikan sistem kontrol digital',
+                'backup Kalibrasi sistem bahan bakar',
+                ''
+            ]),
+            'scope' => fake()->randomElement([
+                'scope 1',
+                'scope 2',
+                'scope 3',
+                ''
+            ]),
+            'vaccine' => fake()->randomElement([
+                'Sinovac',
+                'Astra Se-1',
+                'Nusantara 2',
+                ''
+            ]),
+            'apd' => fake()->randomElement([
+                'Masker N95',
+                'APD lengkap',
+                'Masker Kain',
+                ''
+            ]),
+            'peduli_lindungi' => fake()->randomElement([
+                'Surat',
+                'Aplikasi',
+                ''
+            ]),
         ]);
     }
 }

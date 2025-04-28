@@ -19,17 +19,22 @@ return new class extends Migration
             $table->date('expected_days')->nullable();
             $table->date('expected_start_date')->nullable();
             $table->date('expected_end_date')->nullable();
-            $table->foreignId('compiled_by')->constrained('employees')->onDelete('cascade');
+            $table->foreignId('compiled')->constrained('employees')->onDelete('cascade');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->string('job_descriptions')->nullable();
-            $table->string('work_peformed_by')->nullable();
-            $table->foreignId('approved_by')->constrained('employees')->onDelete('cascade');
+            $table->string('worker')->nullable();
+            $table->string('head_of_service')->nullable();
+            $table->foreignId('approver')->constrained('employees')->onDelete('cascade');
             $table->boolean('is_done')->nullable();
-            $table->string('additional_components')->nullable();
+            $table->string('spareparts')->nullable();
+            $table->string('backup_sparepart')->nullable();
+            $table->string('scope')->nullable();
+            $table->string('vaccine')->nullable();
+            $table->string('apd')->nullable();
+            $table->string('peduli_lindungi')->nullable();
             $table->timestamps();
         });
-
     }
 
     /**

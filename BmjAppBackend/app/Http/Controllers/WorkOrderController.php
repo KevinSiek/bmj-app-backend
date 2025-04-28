@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use App\Models\WorkOrder;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,6 +11,72 @@ use Illuminate\Support\Facades\Validator;
 
 class WorkOrderController extends Controller
 {
+    public function get(Request $request, $id)
+    {
+        try {
+            $workOrder = $this->getAccessedWorkOrder($request)
+                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart'])
+                ->findOrFail($id);
+
+            $quotation = $workOrder->quotation;
+            $proformaInvoice = $quotation->proformaInvoice ?? null;
+            $customer = $quotation->customer ?? null;
+            $director = Employee::where('role', '=', 'Director')->first();
+
+            $formattedWorkOrder = [
+                'id' => (string) $workOrder->id,
+                'service_order' => [
+                    'no' => $workOrder->work_order_number,
+                    'date' => $workOrder->created_at,
+                    'received_by' => $workOrder->received_by,
+                    'start_date' => $workOrder->start_date,
+                    'end_date' => $workOrder->end_date,
+                ],
+                'proforma_invoice' => [
+                    'proforma_invoice_number ' => $proformaInvoice->quotation_number ?? '',
+                    'proforma_invoice_date ' => $proformaInvoice->project ?? '',
+                ],
+                'customer' => [
+                    'company_name' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postal_code' => $customer->postal_code ?? ''
+                ],
+                'poc' => [
+                    'compiled' => $workOrder->compiled,
+                    'head_of_service' => $workOrder->head_of_service,
+                    'director' => $director->fullname,
+                    'worker' => $workOrder->worker,
+                    'approver' => $workOrder->approver,
+                ],
+                'date' => [
+                    'start_date' => $workOrder->start_date,
+                    'end_date' => $workOrder->end_date,
+                ],
+                'description' => $quotation->notes ?? '',
+                'additional' => [
+                    'spareparts' => $workOrder->spareparts,
+                    'backup_sparepart' => $workOrder->backup_sparepart,
+                    'scope' => $workOrder->scope,
+                    'vaccine' => $workOrder->vaccine,
+                    'apd' => $workOrder->apd,
+                    'execution_time' => $workOrder->expected_days,
+                ],
+            ];
+
+            return response()->json([
+                'message' => 'Work order retrieved successfully',
+                'data' => $formattedWorkOrder,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
     public function getAll(Request $request)
     {
         try {
@@ -50,40 +117,28 @@ class WorkOrderController extends Controller
             $workOrders = $query->orderBy('created_at', 'desc')
                 ->paginate(20);
 
+
+
             // Transform the results
             $workOrders->getCollection()->transform(function ($wo) {
                 $quotation = $wo->quotation;
+                $proformaInvoice = $quotation->proformaInvoice ?? null;
                 $customer = $quotation->customer ?? null;
+                $director = Employee::where('role', '=', 'Director')->first();
 
-                $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                    return [
-                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                        'quantity' => $detail->quantity,
-                        'unit' => 'pcs',
-                        'unit_price' => $detail->unit_price ?? 0,
-                        'amount' => ($detail->quantity * ($detail->unit_price ?? 0))
-                    ];
-                });
 
                 return [
                     'id' => (string) $wo->id,
-                    'workOrder' => [
+                    'service_order' => [
                         'no' => $wo->work_order_number,
+                        'date' => $wo->created_at,
                         'received_by' => $wo->received_by,
-                        'expected_start_date' => $wo->expected_start_date,
-                        'expected_end_date' => $wo->expected_end_date,
                         'start_date' => $wo->start_date,
                         'end_date' => $wo->end_date,
-                        'job_descriptions' => $wo->job_descriptions,
-                        'work_performed_by' => $wo->work_peformed_by,
-                        'approved_by' => $wo->approved_by,
-                        'additional_components' => $wo->additional_components
                     ],
-                    'quotation' => [
-                        'quotation_number' => $quotation->quotation_number ?? '',
-                        'project' => $quotation->project ?? '',
-                        'type' => $quotation->type ?? ''
+                    'proforma_invoice' => [
+                        'proforma_invoice_number ' => $proformaInvoice->quotation_number ?? '',
+                        'proforma_invoice_date ' => $proformaInvoice->project ?? '',
                     ],
                     'customer' => [
                         'company_name' => $customer->company_name ?? '',
@@ -95,15 +150,26 @@ class WorkOrderController extends Controller
                         'subdistrict' => $customer->subdistrict ?? '',
                         'postal_code' => $customer->postal_code ?? ''
                     ],
-                    'price' => [
-                        'amount' => $quotation->amount ?? 0,
-                        'discount' => $quotation->discount ?? 0,
-                        'subtotal' => $quotation->subtotal ?? 0,
-                        'ppn' => $quotation->ppn ?? 0,
-                        'grand_total' => $quotation->grand_total ?? 0
+                    'poc' => [
+                        'compiled' => $wo->compiled,
+                        'head_of_service' => $wo->head_of_service,
+                        'director' => $director->fullname,
+                        'worker' => $wo->worker,
+                        'approver' => $wo->approver,
                     ],
-                    'notes' => $quotation->notes ?? '',
-                    'spareparts' => $spareParts
+                    'date' => [
+                        'start_date' => $wo->start_date,
+                        'end_date' => $wo->end_date,
+                    ],
+                    'description' => $quotation->notes ?? '',
+                    'additional' => [
+                        'spareparts' => $wo->spareparts,
+                        'backup_sparepart' => $wo->backup_sparepart,
+                        'scope' => $wo->scope,
+                        'vaccine' => $wo->vaccine,
+                        'apd' => $wo->apd,
+                        'execution_time' => $wo->expected_days,
+                    ],
                 ];
             });
 
@@ -141,8 +207,8 @@ class WorkOrderController extends Controller
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
                 'job_descriptions' => 'nullable|string',
-                'work_peformed_by' => 'nullable|string|max:255',
-                'approved_by' => 'nullable|string|max:255',
+                'worker' => 'nullable|string|max:255',
+                'approver' => 'nullable|string|max:255',
                 'additional_components' => 'nullable|string'
             ]);
 
@@ -160,7 +226,7 @@ class WorkOrderController extends Controller
             if ($user->role == 'Marketing') {
                 // Remove fields that Marketing shouldn't be able to update
                 unset($validatedData['wo_number']);
-                unset($validatedData['approved_by']);
+                unset($validatedData['approver']);
                 // Add other restricted fields as needed
             }
 
