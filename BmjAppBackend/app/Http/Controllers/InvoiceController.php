@@ -90,7 +90,7 @@ class InvoiceController extends Controller
                 ]);
 
             // Get query parameters
-            $q = $request->query('q');
+            $q = $request->query('search');
             $month = $request->query('month');
             $year = $request->query('year');
 

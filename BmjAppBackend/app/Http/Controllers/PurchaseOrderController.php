@@ -14,7 +14,7 @@ class PurchaseOrderController extends Controller
     const PREPARE = "prepare";
     const READY = "ready";
     const RELEASE = "release";
-    
+
     public function get(Request $request, $id)
     {
         try {
@@ -90,7 +90,7 @@ class PurchaseOrderController extends Controller
                 ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee']);
 
             // Get query parameters
-            $q = $request->query('q');
+            $q = $request->query('search');
             $month = $request->query('month');
             $year = $request->query('year');
 

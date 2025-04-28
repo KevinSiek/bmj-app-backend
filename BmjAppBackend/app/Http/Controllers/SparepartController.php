@@ -53,7 +53,7 @@ class SparepartController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $q = $request->query('q');
+            $q = $request->query('search');
             $spareparts = $this->getAccessedSparepart($request);
 
             // Build the query with search functionality
