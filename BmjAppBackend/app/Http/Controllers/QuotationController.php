@@ -482,7 +482,7 @@ class QuotationController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $q = $request->query('q');
+            $q = $request->query('search');
             $month = $request->query('month');
             $year = $request->query('year');
 

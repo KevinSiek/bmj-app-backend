@@ -17,7 +17,7 @@ class WorkOrderController extends Controller
                 ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart']);
 
             // Get query parameters
-            $q = $request->query('q');
+            $q = $request->query('search');
             $month = $request->query('month');
             $year = $request->query('year');
 

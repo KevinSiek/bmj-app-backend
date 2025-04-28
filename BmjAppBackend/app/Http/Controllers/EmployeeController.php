@@ -166,7 +166,7 @@ class EmployeeController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $q = $request->query('q');
+            $q = $request->query('search');
             $query = Employee::query();
 
             if ($q) {
