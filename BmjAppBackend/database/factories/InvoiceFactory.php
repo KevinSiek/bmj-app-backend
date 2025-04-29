@@ -23,7 +23,7 @@ class InvoiceFactory extends Factory
         return [
             'proforma_invoice_id' => ProformaInvoice::inRandomOrder()->first()->id,
             'invoice_number' => Str::random(10),
-            'invoice_date' => $this->faker->date(),
+            'invoice_date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
             'term_of_payment' => $this->faker->sentence,
             'employee_id' => Employee::inRandomOrder()->first()->id,
         ];
