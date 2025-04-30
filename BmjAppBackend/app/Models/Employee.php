@@ -12,7 +12,14 @@ class Employee extends Authenticatable
     use HasApiTokens, HasFactory;
 
     protected $fillable = [
-        'fullname', 'slug', 'role', 'email', 'username', 'password', 'temp_password', 'temp_pass_already_use'
+        'fullname',
+        'slug',
+        'role',
+        'email',
+        'username',
+        'password',
+        'temp_password',
+        'temp_pass_already_use'
     ];
 
     public function quotations()
@@ -38,9 +45,22 @@ class Employee extends Authenticatable
     {
         return $this->hasMany(DetailAccesses::class);
     }
-    public function workOrder()
+    public function receivedWorkOrders()
     {
-        return $this->hasMany(WorkOrder::class);
+        return $this->hasMany(WorkOrder::class, 'received_by');
     }
 
+    public function compiledWorkOrders()
+    {
+        return $this->hasMany(WorkOrder::class, 'compiled');
+    }
+
+    public function approvedWorkOrders()
+    {
+        return $this->hasMany(WorkOrder::class, 'approver');
+    }
+    public function backOrder()
+    {
+        return $this->hasMany(BackOrder::class);
+    }
 }

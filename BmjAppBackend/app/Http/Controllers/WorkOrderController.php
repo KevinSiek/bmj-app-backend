@@ -67,7 +67,7 @@ class WorkOrderController extends Controller
                     'apd' => $workOrder->apd,
                     'execution_time' => $workOrder->expected_days,
                 ],
-                'wo_units' => $workOrder->woUnits->map(function ($woUnit) {
+                'units' => $workOrder->woUnits->map(function ($woUnit) {
                     return [
                         'id' => (string) $woUnit->id,
                         'job_description' => $woUnit->job_description,

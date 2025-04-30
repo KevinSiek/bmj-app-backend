@@ -12,7 +12,8 @@ class BackOrder extends Model
     protected $fillable = [
         'purchase_order_id',
         'back_order_number',
-        'status'
+        'status',
+        'employee_id'
     ];
 
     public function purchaseOrder()
@@ -28,5 +29,10 @@ class BackOrder extends Model
     public function buy()
     {
         return $this->hasOne(Buy::class);
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class);
     }
 }
