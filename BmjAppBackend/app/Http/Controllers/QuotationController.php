@@ -18,9 +18,9 @@ use Illuminate\Support\Facades\Validator;
 
 class QuotationController extends Controller
 {
-    const APPROVE = "approve";
-    const DECLINE = "decline";
-    const NEED_CHANGE = "change";
+    const APPROVE = "Approved";
+    const REJECTED = "Rejected";
+    const NEED_CHANGE = "Change";
 
     const SERVICE = "Service";
     const SPAREPARTS = "Spareparts";
@@ -33,44 +33,58 @@ class QuotationController extends Controller
         try {
             $userId = $request->user()->id;
 
-            // Validate the request data
+            // Validate the request data based on API contract
             $validatedData = $request->validate([
-                'project' => 'required|string|max:255',
-                'quotation_number' => 'required|string|unique:quotations,quotation_number',
-                'type' => 'required|string',
-                'amount' => 'required|numeric',
-                'discount' => 'required|numeric',
-                'subtotal' => 'required|numeric',
-                'ppn' => 'required|numeric',
-                'grand_total' => 'required|numeric',
+                'project.quotationNumber' => 'required|string|unique:quotations,quotation_number',
+                'project.type' => 'required|string',
+                'project.date' => 'required|date',
+                'price.amount' => 'required|numeric',
+                'price.discount' => 'required|numeric',
+                'price.subtotal' => 'required|numeric',
+                'price.ppn' => 'required|numeric',
+                'price.grandTotal' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
-                'company_name' => 'required|string',
-                'office' => 'required|string',
-                'address' => 'required|string',
-                'urban' => 'required|string',
-                'subdistrict' => 'required|string',
-                'city' => 'required|string',
-                'province' => 'required|string',
-                'postal_code' => 'required|numeric',
+                'customer.companyName' => 'required|string',
+                'customer.office' => 'required|string',
+                'customer.address' => 'required|string',
+                'customer.urban' => 'required|string',
+                'customer.subdistrict' => 'required|string',
+                'customer.city' => 'required|string',
+                'customer.province' => 'required|string',
+                'customer.postalCode' => 'required|numeric',
                 // Sparepart validation
                 'spareparts' => 'required|array',
-                'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
+                'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
-                'spareparts.*.unit_price' => 'required|numeric|min:1',
+                'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
             ]);
+
+            // Map API contract to database fields
+            $quotationData = [
+                'quotation_number' => $request->input('project.quotationNumber'),
+                'type' => $request->input('project.type'),
+                'date' => $request->input('project.date'),
+                'amount' => $request->input('price.amount'),
+                'discount' => $request->input('price.discount'),
+                'subtotal' => $request->input('price.subtotal'),
+                'ppn' => $request->input('price.ppn'),
+                'grand_total' => $request->input('price.grandTotal'),
+                'notes' => $request->input('notes'),
+                'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
+            ];
 
             // Handle Customer Data
             $customerData = [
-                'slug' => Str::slug($validatedData['company_name']) . '-' . Str::random(6),
-                'company_name' => $validatedData['company_name'],
-                'office' => $validatedData['office'],
-                'address' => $validatedData['address'],
-                'urban' => $validatedData['urban'],
-                'subdistrict' => $validatedData['subdistrict'],
-                'city' => $validatedData['city'],
-                'province' => $validatedData['province'],
-                'postal_code' => $validatedData['postal_code'],
+                'slug' => Str::slug($request->input('customer.companyName')) . '-' . Str::random(6),
+                'company_name' => $request->input('customer.companyName'),
+                'office' => $request->input('customer.office'),
+                'address' => $request->input('customer.address'),
+                'urban' => $request->input('customer.urban'),
+                'subdistrict' => $request->input('customer.subdistrict'),
+                'city' => $request->input('customer.city'),
+                'province' => $request->input('customer.province'),
+                'postal_code' => $request->input('customer.postalCode'),
             ];
 
             // Check if customer already exists
@@ -90,54 +104,53 @@ class QuotationController extends Controller
             }
 
             // Generate a unique slug based on the 'project' field
-            $slug = Str::slug($validatedData['project']);
-            $validatedData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
-            $validatedData['employee_id'] = $userId;
-            $validatedData['date'] = now();
-            $validatedData['review'] = true;
-            $validatedData['status'] = QuotationController::APPROVE;
-            $validatedData['customer_id'] = $customer->id; // Assign the customer ID to the quotation
+            $slug = Str::slug($quotationData['project']);
+            $quotationData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
+            $quotationData['employee_id'] = $userId;
+            $quotationData['review'] = true;
+            $quotationData['status'] = QuotationController::APPROVE;
+            $quotationData['customer_id'] = $customer->id; // Assign the customer ID to the quotation
 
             // Create the quotation with the validated data and slug
-            $quotation = Quotation::create($validatedData);
+            $quotation = Quotation::create($quotationData);
 
             // Create DetailQuotation from list of spareparts in this quotations
-            foreach ($request->input('spareparts') as $spareparts) {
-                $sparepartsId = $spareparts['sparepart_id'];
-                $sparepartsUnitPrice = $spareparts['unit_price'];
-                $quantityOrderSparepart = $spareparts['quantity'];
-                // Validate agans each spareparts data
-                $sparepartsValidator = Validator::make($spareparts, [
-                    'sparepart_id' => 'required|exists:spareparts,id',
+            foreach ($request->input('spareparts') as $sparepart) {
+                $sparepartId = $sparepart['sparepartId'];
+                $sparepartUnitPrice = $sparepart['unitPriceSell'];
+                $quantityOrderSparepart = $sparepart['quantity'];
+                // Validate against each sparepart data
+                $sparepartValidator = Validator::make($sparepart, [
+                    'sparepartId' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
-                    'unit_price' => 'required|numeric|min:1',
+                    'unitPriceSell' => 'required|numeric|min:1',
                 ]);
 
                 // If unit price that employee give different with official unit price, then this quotation need review
-                $sparepartsDbData = Sparepart::find($sparepartsId);
-                $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
-                if ($sparepartsUnitPrice != $sparepartsDbUnitPriceSell) {
-                    $validatedData['review'] = false;
-                    $validatedData['status'] = '';
-                    $quotation->update($validatedData);
+                $sparepartDbData = Sparepart::find($sparepartId);
+                $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
+                if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
+                    $quotationData['review'] = false;
+                    $quotationData['status'] = '';
+                    $quotation->update($quotationData);
                 }
                 // Determine if current sparepart quantity is exist or not.
-                $spareparts['is_indent'] = false;
-                if ($quantityOrderSparepart > $sparepartsDbData->total_unit) {
-                    $spareparts['is_indent'] = true;
+                $sparepart['is_indent'] = false;
+                if ($quantityOrderSparepart > $sparepartDbData->total_unit) {
+                    $sparepart['is_indent'] = true;
                 }
 
-                if ($sparepartsValidator->fails()) {
-                    throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
+                if ($sparepartValidator->fails()) {
+                    throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
                 }
 
                 // Insert into the bridge table
                 DB::table('detail_quotations')->insert([
                     'quotation_id' => $quotation->id,
-                    'sparepart_id' => $sparepartsId,
+                    'sparepart_id' => $sparepartId,
                     'quantity' => $quantityOrderSparepart,
-                    'is_indent' => $spareparts['is_indent'],
-                    'unit_price' => $sparepartsUnitPrice,
+                    'is_indent' => $sparepart['is_indent'],
+                    'unit_price' => $sparepartUnitPrice,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -167,8 +180,8 @@ class QuotationController extends Controller
 
         try {
             // Find the quotation by slug
-            $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->firstOrFail();
+            $quotations = $this->getAccessedQuotation($request);
+            $quotation = $quotations->where('slug', $slug)->firstOrFail();
             $po = $quotation->purchaseOrder;
 
             if ($po) {
@@ -179,42 +192,71 @@ class QuotationController extends Controller
 
             // Validate the request data
             $validatedData = $request->validate([
-                'project' => 'required|string|max:255',
-                'quotation_number' => 'sometimes|string|unique:quotations,quotation_number,' . $quotation->id,
-                'type' => 'required|string',
-                'amount' => 'required|numeric',
-                'discount' => 'required|numeric',
-                'subtotal' => 'required|numeric',
-                'ppn' => 'required|numeric',
-                'grand_total' => 'required|numeric',
+                'project.quotationNumber' => 'required|string',
+                'project.type' => 'required|string',
+                'project.date' => 'required|date',
+                'price.amount' => 'required|numeric',
+                'price.discount' => 'required|numeric',
+                'price.subtotal' => 'required|numeric',
+                'price.ppn' => 'required|numeric',
+                'price.grandTotal' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
-                'company_name' => 'required|string',
-                'office' => 'required|string',
-                'address' => 'required|string',
-                'urban' => 'required|string',
-                'subdistrict' => 'required|string',
-                'city' => 'required|string',
-                'province' => 'required|string',
-                'postal_code' => 'required|numeric',
+                'customer.companyName' => 'required|string',
+                'customer.office' => 'required|string',
+                'customer.address' => 'required|string',
+                'customer.urban' => 'required|string',
+                'customer.subdistrict' => 'required|string',
+                'customer.city' => 'required|string',
+                'customer.province' => 'required|string',
+                'customer.postalCode' => 'required|numeric',
                 // Sparepart validation
                 'spareparts' => 'required|array',
-                'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
+                'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
-                'spareparts.*.unit_price' => 'required|numeric|min:1',
+                'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
             ]);
+
+            // Map API contract to database fields
+            $quotationData = [
+                'quotation_number' => $request->input('project.quotationNumber'),
+                'type' => $request->input('project.type'),
+                'date' => $request->input('project.date'),
+                'amount' => $request->input('price.amount'),
+                'discount' => $request->input('price.discount'),
+                'subtotal' => $request->input('price.subtotal'),
+                'ppn' => $request->input('price.ppn'),
+                'grand_total' => $request->input('price.grandTotal'),
+                'notes' => $request->input('notes'),
+                'project' => $request->input('project.quotationNumber'),
+            ];
+
+            // Handle versioning for quotation_number
+            $baseQuotationNumber = $quotationData['quotation_number'];
+            $existingVersions = Quotation::where('quotation_number', 'like', $baseQuotationNumber . '%')
+                ->count();
+            $version = $existingVersions + 1;
+            $quotationData['quotation_number'] = $baseQuotationNumber . "-v{$version}";
+
+            // Validate the new quotation_number for uniqueness
+            $validator = Validator::make($quotationData, [
+                'quotation_number' => 'required|string|unique:quotations,quotation_number'
+            ]);
+            if ($validator->fails()) {
+                throw new \Exception('Generated quotation number is not unique: ' . $validator->errors()->first());
+            }
 
             // Handle Customer Data if provided
             $customerData = [
-                'slug' => Str::slug($validatedData['company_name']) . '-' . Str::random(6),
-                'company_name' => $validatedData['company_name'],
-                'office' => $validatedData['office'],
-                'address' => $validatedData['address'],
-                'urban' => $validatedData['urban'],
-                'subdistrict' => $validatedData['subdistrict'],
-                'city' => $validatedData['city'],
-                'province' => $validatedData['province'],
-                'postal_code' => $validatedData['postal_code'],
+                'slug' => Str::slug($request->input('customer.companyName')) . '-' . Str::random(6),
+                'company_name' => $request->input('customer.companyName'),
+                'office' => $request->input('customer.office'),
+                'address' => $request->input('customer.address'),
+                'urban' => $request->input('customer.urban'),
+                'subdistrict' => $request->input('customer.subdistrict'),
+                'city' => $request->input('customer.city'),
+                'province' => $request->input('customer.province'),
+                'postal_code' => $request->input('customer.postalCode'),
             ];
 
             // Check if customer already exists
@@ -233,54 +275,57 @@ class QuotationController extends Controller
                 $customer = Customer::create($customerData);
             }
 
-            // Assign the customer ID to the quotation
-            $validatedData['customer_id'] = $customer->id;
+            // Assign the customer ID and employee ID to the quotation
+            $quotationData['customer_id'] = $customer->id;
+            $quotationData['employee_id'] = $quotation->employee_id; // Retain original employee_id
+            $quotationData['review'] = true;
+            $quotationData['status'] = QuotationController::APPROVE;
 
-            // Update the quotation with the validated data
-            $quotation->update($validatedData);
+            // Generate a unique slug based on the 'project' field
+            $slug = Str::slug($quotationData['project']);
+            $quotationData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
 
-            // Handle Spareparts
-            // Delete existing spareparts for this quotation
-            DB::table('detail_quotations')->where('quotation_id', $quotation->id)->delete();
+            // Create new quotation with the validated data
+            $newQuotation = Quotation::create($quotationData);
 
             // Create DetailQuotation from list of spareparts in this quotations
-            foreach ($request->input('spareparts') as $spareparts) {
-                $sparepartsId = $spareparts['sparepart_id'];
-                $sparepartsUnitPrice = $spareparts['unit_price'];
+            foreach ($request->input('spareparts') as $sparepart) {
+                $sparepartId = $sparepart['sparepartId'];
+                $sparepartUnitPrice = $sparepart['unitPriceSell'];
 
-                // Validate against each spareparts data
-                $sparepartsValidator = Validator::make($spareparts, [
-                    'sparepart_id' => 'required|exists:spareparts,id',
+                // Validate against each sparepart data
+                $sparepartValidator = Validator::make($sparepart, [
+                    'sparepartId' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
-                    'unit_price' => 'required|numeric|min:1',
+                    'unitPriceSell' => 'required|numeric|min:1',
                 ]);
 
                 // If unit price that employee give different with official unit price, then this quotation need review
-                $sparepartsDbData = Sparepart::find($sparepartsId);
-                $sparepartsDbUnitPriceSell = $sparepartsDbData->unit_price_sell;
-                if ($sparepartsUnitPrice != $sparepartsDbUnitPriceSell) {
-                    $validatedData['review'] = false;
-                    $validatedData['status'] = '';
-                    $quotation->update($validatedData);
+                $sparepartDbData = Sparepart::find($sparepartId);
+                $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
+                if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
+                    $quotationData['review'] = false;
+                    $quotationData['status'] = '';
+                    $newQuotation->update($quotationData);
                 }
 
                 // Determine if current sparepart quantity is exist or not.
-                $spareparts['is_indent'] = false;
-                if ($spareparts['quantity'] > $sparepartsDbData->total_unit) {
-                    $spareparts['is_indent'] = true;
+                $sparepart['is_indent'] = false;
+                if ($sparepart['quantity'] > $sparepartDbData->total_unit) {
+                    $sparepart['is_indent'] = true;
                 }
 
-                if ($sparepartsValidator->fails()) {
-                    throw new \Exception('Invalid spareparts data: ' . $sparepartsValidator->errors()->first());
+                if ($sparepartValidator->fails()) {
+                    throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
                 }
 
                 // Insert into the bridge table
                 DB::table('detail_quotations')->insert([
-                    'quotation_id' => $quotation->id,
-                    'sparepart_id' => $sparepartsId,
-                    'quantity' => $spareparts['quantity'],
-                    'is_indent' => $spareparts['is_indent'],
-                    'unit_price' => $sparepartsUnitPrice,
+                    'quotation_id' => $newQuotation->id,
+                    'sparepart_id' => $sparepartId,
+                    'quantity' => $sparepart['quantity'],
+                    'is_indent' => $sparepart['is_indent'],
+                    'unit_price' => $sparepartUnitPrice,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -290,9 +335,9 @@ class QuotationController extends Controller
 
             // Return a success response
             return response()->json([
-                'message' => 'Quotation updated successfully',
-                'data' => $quotation
-            ], Response::HTTP_OK);
+                'message' => 'New quotation version created successfully',
+                'data' => $newQuotation
+            ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
@@ -403,7 +448,7 @@ class QuotationController extends Controller
             }
 
             $quotation->review = true;
-            $quotation->status = QuotationController::DECLINE;
+            $quotation->status = QuotationController::REJECTED;
             $quotation->save();
 
             // Commit the transaction
@@ -493,21 +538,29 @@ class QuotationController extends Controller
                     ->orWhere('type', 'like', "%$q%");
             });
 
-            if ($month && $year) {
-                $monthNumber = date('m', strtotime($month));
-                $startDate = "{$year}-{$monthNumber}-01";
-                $quotationsQuery->where('date', '>=', $startDate);
+            if ($year) {
+                $quotationsQuery->whereYear('date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $quotationsQuery->whereMonth('date', $monthNumber);
+                }
             }
 
-            $quotations = $quotationsQuery->paginate(20)->through(function ($quotation) {
+            $quotations = $quotationsQuery->orderByRaw("
+                REGEXP_REPLACE(quotation_number, '-v[0-9]+$', '') ASC,
+                COALESCE(
+                    CAST(NULLIF(REGEXP_SUBSTR(quotation_number, '-v([0-9]+)$'), '') AS UNSIGNED),
+                    0
+                ) ASC
+            ")->paginate(20)->through(function ($quotation) {
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
-                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepart_number ' => $detail->sparepart->sparepart_number ?? '',
+                        'sparepartName' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity ?? 0,
-                        'unit_price_sell ' => $detail->unit_price ?? 0,
-                        'total_price ' => $detail->quantity * ($detail->unit_price ?? 0),
+                        'unitPriceSell' => $detail->unit_price ?? 0,
+                        'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
                         'stock' => $detail->is_indent
                     ];
                 });
@@ -515,31 +568,31 @@ class QuotationController extends Controller
                 return [
                     'id' => (string) $quotation->id,
                     'slug' => $quotation->slug,
-                    'quotation_number' => $quotation->quotation_number,
                     'customer' => [
-                        'company_name' => $customer->company_name ?? '',
+                        'companyName' => $customer->company_name ?? '',
                         'address' => $customer->address ?? '',
                         'city' => $customer->city ?? '',
                         'province' => $customer->province ?? '',
                         'office' => $customer->office ?? '',
                         'urban' => $customer->urban ?? '',
                         'subdistrict' => $customer->subdistrict ?? '',
-                        'postal_code' => $customer->postal_code ?? ''
+                        'postalCode' => $customer->postal_code ?? ''
                     ],
                     'project' => [
-                        'quotation_number' => $quotation->quotation_number,
+                        'quotationNumber' => $quotation->quotation_number,
                         'type' => $quotation->type,
                         'date' => $quotation->date
                     ],
                     'price' => [
+                        'amount' => $quotation->amount,
+                        'discount' => $quotation->discount,
                         'subtotal' => $quotation->subtotal,
                         'ppn' => $quotation->ppn,
-                        'grand_total' => $quotation->grand_total
+                        'grandTotal' => $quotation->grand_total
                     ],
                     'status' => $quotation->status,
                     'notes' => $quotation->notes,
-                    'spareparts' => $spareParts,
-                    'date' => $quotation->date
+                    'spareparts' => $spareParts
                 ];
             });
 
