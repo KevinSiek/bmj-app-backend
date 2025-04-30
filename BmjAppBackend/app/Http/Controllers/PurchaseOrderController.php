@@ -11,9 +11,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PurchaseOrderController extends Controller
 {
-    const PREPARE = "prepare";
-    const READY = "ready";
-    const RELEASE = "release";
+    const PREPARE = "Prepare";
+    const READY = "Ready";
+    const RELEASE = "Release";
 
     public function get(Request $request, $id)
     {
@@ -71,6 +71,7 @@ class PurchaseOrderController extends Controller
                 'notes' => $purchaseOrder->notes ?? '',
                 'status' => $purchaseOrder->status ?? '',
                 'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'spareparts' => $spareParts
             ];
 
@@ -110,13 +111,13 @@ class PurchaseOrderController extends Controller
                 });
             }
 
-            // Apply month and year filter if both are provided
-            if ($month && $year) {
-                $monthNumber = date('m', strtotime($month));
-                $startDate = "{$year}-{$monthNumber}-01";
-                $endDate = date("Y-m-t", strtotime($startDate));
-
-                $query->whereBetween('purchase_order_date', [$startDate, $endDate]);
+            // Apply year and month filter
+            if ($year) {
+                $query->whereYear('purchase_order_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $query->whereMonth('purchase_order_date', $monthNumber);
+                }
             }
 
             // Paginate the results
