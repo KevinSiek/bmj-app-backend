@@ -2,6 +2,7 @@
 // database/seeders/WorkOrderSeeder.php
 namespace Database\Seeders;
 
+use App\Http\Controllers\WorkOrderController;
 use App\Models\WorkOrder;
 use App\Models\Quotation;
 use App\Models\WoUnit;
@@ -13,6 +14,12 @@ class WorkOrderSeeder extends Seeder
     {
         WorkOrder::factory(15)->create([
             'quotation_id' => Quotation::inRandomOrder()->first()->id,
+            'status' => fake()->randomElement([
+                WorkOrderController::ON_PROGRESS,
+                WorkOrderController::SPAREPART_READY,
+                WorkOrderController::DONE,
+
+            ]),
             'job_descriptions' => fake()->randomElement([
                 'Overhaul generator 2000KVA',
                 'Ganti bearing utama generator',

@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\Validator;
 
 class WorkOrderController extends Controller
 {
+    const SPAREPART_READY = "Sparepart Ready";
+    const ON_PROGRESS = "On Progress";
+    const DONE = "Done";
+
     public function get(Request $request, $id)
     {
         try {
@@ -58,6 +62,7 @@ class WorkOrderController extends Controller
                     'end_date' => $workOrder->end_date,
                 ],
                 'description' => $quotation->notes ?? '',
+                'status' => $workOrder->status ?? '',
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'additional' => [
                     'spareparts' => $workOrder->spareparts,
@@ -168,6 +173,7 @@ class WorkOrderController extends Controller
                         'end_date' => $wo->end_date,
                     ],
                     'description' => $quotation->notes ?? '',
+                    'status' => $wo->status ?? '',
                     'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                     'additional' => [
                         'spareparts' => $wo->spareparts,
