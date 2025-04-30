@@ -25,7 +25,7 @@ class PurchaseOrderFactory extends Factory
         return [
             'quotation_id' => Quotation::inRandomOrder()->first()->id,
             'purchase_order_number' => Str::random(10),
-            'purchase_order_date' => $purchaseOrderDate,
+            'purchase_order_date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
             'payment_due' => $this->faker->dateTimeBetween($purchaseOrderDate, '+30 days')->format('Y-m-d'),
             'employee_id' => Employee::inRandomOrder()->first()->id,
             'status' => fake()->randomElement([
