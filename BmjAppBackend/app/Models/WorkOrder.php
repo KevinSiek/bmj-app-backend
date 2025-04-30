@@ -41,4 +41,9 @@ class WorkOrder extends Model
     {
         return $this->belongsTo(Employee::class);
     }
+
+    public function woUnits()
+    {
+        return $this->hasMany(WoUnit::class, 'id_wo');
+    }
 }

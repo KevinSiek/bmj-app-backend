@@ -15,7 +15,7 @@ class WorkOrderController extends Controller
     {
         try {
             $workOrder = $this->getAccessedWorkOrder($request)
-                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart'])
+                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart', 'woUnits'])
                 ->findOrFail($id);
 
             $quotation = $workOrder->quotation;
@@ -67,6 +67,14 @@ class WorkOrderController extends Controller
                     'apd' => $workOrder->apd,
                     'execution_time' => $workOrder->expected_days,
                 ],
+                'wo_units' => $workOrder->woUnits->map(function ($woUnit) {
+                    return [
+                        'id' => (string) $woUnit->id,
+                        'job_description' => $woUnit->job_description,
+                        'unit_type' => $woUnit->unit_type,
+                        'quantity' => $woUnit->quantity,
+                    ];
+                })->toArray(),
             ];
 
             return response()->json([
@@ -82,7 +90,7 @@ class WorkOrderController extends Controller
     {
         try {
             $query = $this->getAccessedWorkOrder($request)
-                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart']);
+                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart', 'woUnits']);
 
             // Get query parameters
             $q = $request->query('search');
@@ -169,6 +177,14 @@ class WorkOrderController extends Controller
                         'apd' => $wo->apd,
                         'execution_time' => $wo->expected_days,
                     ],
+                    'units' => $wo->woUnits->map(function ($woUnit) {
+                        return [
+                            'id' => (string) $woUnit->id,
+                            'job_description' => $woUnit->job_description,
+                            'unit_type' => $woUnit->unit_type,
+                            'quantity' => $woUnit->quantity,
+                        ];
+                    })->toArray(),
                 ];
             });
 

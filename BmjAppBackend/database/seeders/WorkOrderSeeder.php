@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\WorkOrder;
 use App\Models\Quotation;
+use App\Models\WoUnit;
 use Illuminate\Database\Seeder;
 
 class WorkOrderSeeder extends Seeder
@@ -56,6 +57,9 @@ class WorkOrderSeeder extends Seeder
                 'Aplikasi',
                 ''
             ]),
-        ]);
+        ])->each(function ($workOrder) {
+            // Create 1-3 wo_units for each work order
+            WoUnit::factory(rand(1, 3))->create(['id_wo' => $workOrder->id]);
+        });
     }
 }
