@@ -65,6 +65,7 @@ class InvoiceController extends Controller
                     'ppn' => $quotation->ppn ?? 0,
                     'grand_total' => $quotation->grand_total ?? 0,
                 ],
+                'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'spareparts' => $spareParts,
                 'type' => $quotation->type,
@@ -104,13 +105,13 @@ class InvoiceController extends Controller
                 });
             }
 
-            // Apply month and year filter if both are provided
-            if ($month && $year) {
-                $monthNumber = date('m', strtotime($month));
-                $startDate = "{$year}-{$monthNumber}-01";
-                $endDate = date("Y-m-t", strtotime($startDate));
-
-                $query->whereBetween('invoice_date', [$startDate, $endDate]);
+            // Apply year and month filter
+            if ($year) {
+                $query->whereYear('invoice_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $query->whereMonth('invoice_date', $monthNumber);
+                }
             }
 
             // Paginate the results
@@ -162,6 +163,7 @@ class InvoiceController extends Controller
                             'ppn' => $quotation->ppn ?? 0,
                             'grand_total' => $quotation->grand_total ?? 0,
                         ],
+                        'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'spareparts' => $spareParts,
                         'type' => $quotation->type,

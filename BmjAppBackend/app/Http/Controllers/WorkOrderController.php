@@ -58,6 +58,7 @@ class WorkOrderController extends Controller
                     'end_date' => $workOrder->end_date,
                 ],
                 'description' => $quotation->notes ?? '',
+                'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'additional' => [
                     'spareparts' => $workOrder->spareparts,
                     'backup_sparepart' => $workOrder->backup_sparepart,
@@ -104,20 +105,18 @@ class WorkOrderController extends Controller
                 });
             }
 
-            // Apply month and year filter if both are provided
-            if ($month && $year) {
-                $monthNumber = date('m', strtotime($month));
-                $startDate = "{$year}-{$monthNumber}-01";
-                $endDate = date("Y-m-t", strtotime($startDate));
-
-                $query->whereBetween('created_at', [$startDate, $endDate]);
+            // Apply year and month filter
+            if ($year) {
+                $query->whereYear('created_at', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $query->whereMonth('created_at', $monthNumber);
+                }
             }
 
             // Paginate the results
             $workOrders = $query->orderBy('created_at', 'desc')
                 ->paginate(20);
-
-
 
             // Transform the results
             $workOrders->getCollection()->transform(function ($wo) {
@@ -125,7 +124,6 @@ class WorkOrderController extends Controller
                 $proformaInvoice = $quotation->proformaInvoice ?? null;
                 $customer = $quotation->customer ?? null;
                 $director = Employee::where('role', '=', 'Director')->first();
-
 
                 return [
                     'id' => (string) $wo->id,
@@ -162,6 +160,7 @@ class WorkOrderController extends Controller
                         'end_date' => $wo->end_date,
                     ],
                     'description' => $quotation->notes ?? '',
+                    'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                     'additional' => [
                         'spareparts' => $wo->spareparts,
                         'backup_sparepart' => $wo->backup_sparepart,

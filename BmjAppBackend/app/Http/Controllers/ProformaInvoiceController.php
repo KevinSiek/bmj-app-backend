@@ -164,6 +164,7 @@ class ProformaInvoiceController extends Controller
                     'total_amount' => $quotation->total_amount,
                 ],
                 'down_payment' => $proformaInvoice->down_payment ?? 0,
+                'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'date' => $proformaInvoice->created_at,
                 'spareparts' => $spareparts,
