@@ -36,13 +36,13 @@ class ProformaInvoiceController extends Controller
                 });
             }
 
-            // Apply month and year filter if both are provided
-            if ($month && $year) {
-                $monthNumber = date('m', strtotime($month));
-                $startDate = "{$year}-{$monthNumber}-01";
-                $endDate = date("Y-m-t", strtotime($startDate));
-
-                $query->whereBetween('proforma_invoice_date', [$startDate, $endDate]);
+            // Apply year and month filter
+            if ($year) {
+                $query->whereYear('proforma_invoice_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $query->whereMonth('proforma_invoice_date', $monthNumber);
+                }
             }
 
             // Paginate the results
@@ -92,6 +92,7 @@ class ProformaInvoiceController extends Controller
                             'total_amount' => $quotation->total_amount,
                         ],
                         'down_payment' => $pi->down_payment ?? 0,
+                        'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'date' => $pi->created_at,
                         'spareparts' => $spareparts,
@@ -157,6 +158,7 @@ class ProformaInvoiceController extends Controller
                     'discount' => $quotation->discount ?? 0,
                     'subtotal' => $quotation->subtotal ?? 0,
                     'down_payment' => $proformaInvoice->down_payment ?? 0,
+                    'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                     'total' => $quotation->grand_total ?? 0,
                     'ppn' => $quotation->ppn ?? 0,
                     'total_amount' => $quotation->total_amount,

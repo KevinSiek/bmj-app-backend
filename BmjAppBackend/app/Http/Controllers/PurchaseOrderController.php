@@ -172,6 +172,7 @@ class PurchaseOrderController extends Controller
                         'notes' => $po->notes ?? '',
                         'status' => $po->status ?? '',
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                        'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'spareparts' => $spareParts
                     ];
                 });
