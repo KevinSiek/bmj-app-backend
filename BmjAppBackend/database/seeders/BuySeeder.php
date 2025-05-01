@@ -16,7 +16,7 @@ class BuySeeder extends Seeder
             ->state([
                 'buy_number' => fn() => 'BUY-' . fake()->unique()->bothify('####-##'),
                 'review' => fake()->boolean(70),
-                'status' => fake()->randomElement([
+                'current_status' => fake()->randomElement([
                     BuyController::APPROVE,
                     BuyController::NEED_CHANGE,
                     BuyController::DECLINE,

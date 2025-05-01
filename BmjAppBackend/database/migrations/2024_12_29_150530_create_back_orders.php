@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('back_order_number');
             $table->foreignId('purchase_order_id')->constrained('purchase_orders');
-            $table->string('status')->nullable();
+            $table->string('current_status')->nullable();
             $table->timestamps();
         });
     }

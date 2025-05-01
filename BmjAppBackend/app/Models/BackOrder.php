@@ -12,7 +12,7 @@ class BackOrder extends Model
     protected $fillable = [
         'purchase_order_id',
         'back_order_number',
-        'status',
+        'current_status',
         'employee_id'
     ];
 

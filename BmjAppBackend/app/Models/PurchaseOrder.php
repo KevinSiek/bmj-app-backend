@@ -15,7 +15,7 @@ class PurchaseOrder extends Model
         'purchase_order_date',
         'payment_due',
         'employee_id',
-        'status',
+        'current_status',
         'notes'
     ];
 

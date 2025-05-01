@@ -108,7 +108,7 @@ class QuotationController extends Controller
             $quotationData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
             $quotationData['employee_id'] = $userId;
             $quotationData['review'] = true;
-            $quotationData['status'] = QuotationController::APPROVE;
+            $quotationData['current_status'] = QuotationController::APPROVE;
             $quotationData['customer_id'] = $customer->id; // Assign the customer ID to the quotation
 
             // Create the quotation with the validated data and slug
@@ -131,7 +131,7 @@ class QuotationController extends Controller
                 $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
                 if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
                     $quotationData['review'] = false;
-                    $quotationData['status'] = '';
+                    $quotationData['current_status'] = '';
                     $quotation->update($quotationData);
                 }
                 // Determine if current sparepart quantity is exist or not.
@@ -279,7 +279,7 @@ class QuotationController extends Controller
             $quotationData['customer_id'] = $customer->id;
             $quotationData['employee_id'] = $quotation->employee_id; // Retain original employee_id
             $quotationData['review'] = true;
-            $quotationData['status'] = QuotationController::APPROVE;
+            $quotationData['current_status'] = QuotationController::APPROVE;
 
             // Generate a unique slug based on the 'project' field
             $slug = Str::slug($quotationData['project']);
@@ -305,7 +305,7 @@ class QuotationController extends Controller
                 $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
                 if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
                     $quotationData['review'] = false;
-                    $quotationData['status'] = '';
+                    $quotationData['current_status'] = '';
                     $newQuotation->update($quotationData);
                 }
 
@@ -362,7 +362,7 @@ class QuotationController extends Controller
             }
 
             $quotation->review = true;
-            $quotation->status = QuotationController::NEED_CHANGE;
+            $quotation->current_status = QuotationController::NEED_CHANGE;
             $quotation->save();
 
             // Commit the transaction
@@ -405,7 +405,7 @@ class QuotationController extends Controller
             }
 
             $quotation->review = true;
-            $quotation->status = QuotationController::APPROVE;
+            $quotation->current_status = QuotationController::APPROVE;
             $quotation->save();
 
             // Commit the transaction
@@ -448,7 +448,7 @@ class QuotationController extends Controller
             }
 
             $quotation->review = true;
-            $quotation->status = QuotationController::REJECTED;
+            $quotation->current_status = QuotationController::REJECTED;
             $quotation->save();
 
             // Commit the transaction
@@ -509,7 +509,8 @@ class QuotationController extends Controller
                     'ppn' => $quotation->ppn,
                     'grand_total' => $quotation->grand_total
                 ],
-                'status' => $quotation->status,
+                'current_status' => $quotation->current_status,
+                'status' => json_decode($quotation->status, true) ?? [], // Added status field
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
                 'date' => $quotation->date
@@ -590,7 +591,8 @@ class QuotationController extends Controller
                         'ppn' => $quotation->ppn,
                         'grandTotal' => $quotation->grand_total
                     ],
-                    'status' => $quotation->status,
+                    'current_status' => $quotation->current_status,
+                    'status' => json_decode($quotation->status, true) ?? [], // Added status field
                     'notes' => $quotation->notes,
                     'spareparts' => $spareParts
                 ];
@@ -613,7 +615,7 @@ class QuotationController extends Controller
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
             $isNeedReview = $quotation->review;
-            $isApproved = $quotation->status == QuotationController::APPROVE;
+            $isApproved = $quotation->current_status == QuotationController::APPROVE;
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -631,7 +633,7 @@ class QuotationController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            $quotation->update(['status' => 'PO']);
+            $quotation->update(['current_status' => 'PO']);
 
             // Get the spareparts associated with the quotation
             $spareparts = DB::table('detail_quotations')
@@ -649,7 +651,7 @@ class QuotationController extends Controller
             $backOrder = BackOrder::create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'back_order_number' => 'PT' . now(),
-                'status' => 'Pending',
+                'current_status' => 'Pending',
             ]);
 
             // Decrease the total_unit for each sparepart after moveToPo
@@ -691,7 +693,7 @@ class QuotationController extends Controller
                     $boStatus = 'pending';
                 }
                 $backOrder->update([
-                    'status' => $boStatus
+                    'current_status' => $boStatus
                 ]);
                 DetailBackOrder::create([
                     'back_order_id' => $backOrder->id,

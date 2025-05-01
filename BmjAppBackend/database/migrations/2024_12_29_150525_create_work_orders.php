@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('compiled')->constrained('employees')->onDelete('cascade');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
-            $table->string('status')->nullable();
+            $table->string('current_status')->nullable();
             $table->string('job_descriptions')->nullable();
             $table->string('worker')->nullable();
             $table->string('head_of_service')->nullable();

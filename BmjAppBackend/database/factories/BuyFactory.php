@@ -25,7 +25,7 @@ class BuyFactory extends Factory
             'buy_number' => Str::random(10),
             'total_amount' => $this->faker->randomFloat(2, 1000, 10000),
             'review' => $this->faker->boolean,
-            'status' => $this->faker->randomElement([
+            'current_status' => $this->faker->randomElement([
                 BuyController::APPROVE,
                 BuyController::NEED_CHANGE,
                 BuyController::DECLINE,

@@ -13,7 +13,7 @@ class Buy extends Model
         'buy_number',
         'total_amount',
         'review',
-        'status',
+        'current_status',
         'notes',
         'back_order_id',
     ];

@@ -36,7 +36,13 @@ class QuotationFactory extends Factory
             'grand_total' => $this->faker->randomFloat(2, 6000, 12000),
             'notes' => $this->faker->sentence,
             'employee_id' => Employee::factory(),
-            'status' => '',
+            'current_status' => '',
+            'status' => json_encode([ // Added status field
+                [
+                    'name' => 'Prepare',
+                    'date' => now()->format('d/m/Y')
+                ]
+            ]),
             'review' => $this->faker->boolean(),
         ];
     }

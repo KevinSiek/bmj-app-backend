@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('buy_number');
             $table->decimal('total_amount', 15, 2);
             $table->boolean('review')->default(false);
-            $table->string('status');
+            $table->string('current_status');
             $table->string('notes');
             $table->foreignId('back_order_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();

@@ -28,7 +28,7 @@ class PurchaseOrderFactory extends Factory
             'purchase_order_date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
             'payment_due' => $this->faker->dateTimeBetween($purchaseOrderDate, '+30 days')->format('Y-m-d'),
             'employee_id' => Employee::inRandomOrder()->first()->id,
-            'status' => fake()->randomElement([
+            'current_status' => fake()->randomElement([
                 PurchaseOrderController::PREPARE,
                 PurchaseOrderController::READY,
                 PurchaseOrderController::RELEASE,

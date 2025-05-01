@@ -38,7 +38,7 @@ class BuyController extends Controller
                 'buy_number' =>  'required|string|unique:buys,buy_number',
                 'total_amount' =>  'required|numeric',
                 'review' => 'sometimes|boolean',
-                'status' =>  'required|string',
+                'current_status' =>  'required|string',
                 'notes' => 'sometimes|string',
                 'back_order_id' => 'sometimes|exists:back_orders,id',
                 // Sparepart validation
@@ -158,7 +158,7 @@ class BuyController extends Controller
                 'buy_number' => $buy->buy_number ?? '',
                 'date' => $buy->created_at ?? '',
                 'notes' => 'PURCHASE ITEM FROM SELLER KM',
-                'status' => $buy->status,
+                'current_status' => $buy->current_status,
                 'total_amount' => $totalPurchase,
                 'spareparts' => $spareParts,
             ];
@@ -200,7 +200,7 @@ class BuyController extends Controller
                         'buy_number' => $buy->buy_number ?? '',
                         'date' => $buy->created_at ?? '',
                         'notes' => 'PURCHASE ITEM FROM SELLER KM',
-                        'status' => $buy->status,
+                        'current_status' => $buy->current_status,
                         'total_amount' => $totalPurchase,
                         'spareparts' => $spareParts,
                     ];

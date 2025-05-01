@@ -62,7 +62,7 @@ class WorkOrderController extends Controller
                     'end_date' => $workOrder->end_date,
                 ],
                 'description' => $quotation->notes ?? '',
-                'status' => $workOrder->status ?? '',
+                'current_status' => $workOrder->current_status ?? '',
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'additional' => [
                     'spareparts' => $workOrder->spareparts,
@@ -110,7 +110,7 @@ class WorkOrderController extends Controller
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
-                                ->orWhere('status', 'like', '%' . $q . '%');
+                                ->orWhere('current_status', 'like', '%' . $q . '%');
                         })
                         ->orWhereHas('quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
@@ -173,7 +173,7 @@ class WorkOrderController extends Controller
                         'end_date' => $wo->end_date,
                     ],
                     'description' => $quotation->notes ?? '',
-                    'status' => $wo->status ?? '',
+                    'current_status' => $wo->current_status ?? '',
                     'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                     'additional' => [
                         'spareparts' => $wo->spareparts,

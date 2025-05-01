@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('quotation_id')->constrained('quotations');
             $table->string('purchase_order_number');
-            $table->string('status');
+            $table->string('current_status');
             $table->date('purchase_order_date');
             $table->date('payment_due');
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');

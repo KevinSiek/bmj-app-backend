@@ -23,8 +23,13 @@ class Quotation extends Model
         'grand_total',
         'notes',
         'employee_id',
-        'status',
+        'current_status',
+        'status', // Added status to fillable
         'review'
+    ];
+
+    protected $casts = [
+        'status' => 'array' // Cast status as array
     ];
 
     public function customer()

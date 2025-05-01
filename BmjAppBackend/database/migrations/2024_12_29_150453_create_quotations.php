@@ -26,7 +26,8 @@ return new class extends Migration
             $table->decimal('grand_total', 15, 2);
             $table->text('notes')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
-            $table->text('status')->nullable();
+            $table->text('current_status')->nullable();
+            $table->json('status')->nullable(); 
             $table->boolean('review');
             $table->timestamps();
         });

@@ -31,7 +31,7 @@ class WorkOrderFactory extends Factory
             'compiled' => Employee::inRandomOrder()->first()->id,
             'start_date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
             'end_date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
-            'status' => fake()->randomElement([
+            'current_status' => fake()->randomElement([
                 WorkOrderController::ON_PROGRESS,
                 WorkOrderController::SPAREPART_READY,
                 WorkOrderController::DONE,

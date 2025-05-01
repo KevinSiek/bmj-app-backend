@@ -43,9 +43,19 @@ class QuotationSeeder extends Seeder
                     'Spareparts',
                     'Service',
                 ]),
-                'status' => fn() => fake()->randomElement([
+                'current_status' => fn() => fake()->randomElement([
                     'Ready',
                     'Not ready',
+                ]),
+                'status' => fn() => json_encode([
+                    [
+                        'name' => 'Prepare',
+                        'date' => now()->format('d/m/Y')
+                    ],
+                    [
+                        'name' => fake()->randomElement(['Ready', 'Need Change']),
+                        'date' => now()->format('d/m/Y')
+                    ]
                 ])
             ]);
     }

@@ -69,7 +69,8 @@ class PurchaseOrderController extends Controller
                     'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
                 ],
                 'notes' => $purchaseOrder->notes ?? '',
-                'status' => $purchaseOrder->status ?? '',
+                'current_status' => $purchaseOrder->current_status ?? '',
+                'status' => json_decode($quotation->status, true) ?? [], // Added status field
                 'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'spareparts' => $spareParts
@@ -103,7 +104,7 @@ class PurchaseOrderController extends Controller
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
-                                ->orWhere('status', 'like', '%' . $q . '%');
+                                ->orWhere('current_status', 'like', '%' . $q . '%');
                         })
                         ->orWhereHas('quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
@@ -170,7 +171,8 @@ class PurchaseOrderController extends Controller
                             'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
                         ],
                         'notes' => $po->notes ?? '',
-                        'status' => $po->status ?? '',
+                        'current_status' => $po->current_status ?? '',
+                        'status' => json_decode($quotation->status, true) ?? [], // Added status field
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                         'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'spareparts' => $spareParts
@@ -212,7 +214,7 @@ class PurchaseOrderController extends Controller
 
             $quotation = $purchaseOrder->quotation;
             $quotation->update([
-                'status' => 'PI'
+                'current_status' => 'PI'
             ]);
 
             DB::commit();

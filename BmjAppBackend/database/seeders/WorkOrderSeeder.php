@@ -14,7 +14,7 @@ class WorkOrderSeeder extends Seeder
     {
         WorkOrder::factory(15)->create([
             'quotation_id' => Quotation::inRandomOrder()->first()->id,
-            'status' => fake()->randomElement([
+            'current_status' => fake()->randomElement([
                 WorkOrderController::ON_PROGRESS,
                 WorkOrderController::SPAREPART_READY,
                 WorkOrderController::DONE,

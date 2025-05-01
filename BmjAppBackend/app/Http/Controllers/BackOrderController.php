@@ -33,7 +33,7 @@ class BackOrderController extends Controller
             if ($q) {
                 $backOrderQuery->where(function ($query) use ($q) {
                     $query->where('back_order_number', 'like', "%$q%")
-                        ->orWhere('status', 'like', "%$q%")
+                        ->orWhere('current_status', 'like', "%$q%")
                         ->orWhereHas('purchaseOrder', function ($qry) use ($q) {
                             $qry->where('purchase_order_number', 'like', "%$q%");
                         });
@@ -117,7 +117,7 @@ class BackOrderController extends Controller
         return [
             'id' => $backOrder->id,
             'back_order_number' => $backOrder->back_order_number,
-            'status' => $backOrder->status,
+            'current_status' => $backOrder->current_status,
             'purchase_order' => [
                 'purchase_order_number' => $backOrder->purchaseOrder?->purchase_order_number,
                 'purchase_order_date' => $backOrder->purchaseOrder?->purchase_order_date,
@@ -181,7 +181,7 @@ class BackOrderController extends Controller
             }
 
             // Check if back order is already processed
-            if ($backOrder->status === self::READY) {
+            if ($backOrder->current_status === self::READY) {
                 return response()->json([
                     'message' => 'Back order already processed'
                 ], Response::HTTP_BAD_REQUEST);
@@ -193,7 +193,7 @@ class BackOrderController extends Controller
                 'buy_number' => 'BUY-' . Str::random(8),
                 'total_amount' => 0, // Will be updated after calculating
                 'review' => true, // Process means it already approved
-                'status' => BuyController::DONE, // Process means it already done
+                'current_status' => BuyController::DONE, // Process means it already done
                 'notes' => 'Auto-generated from BackOrder #' . $backOrder->back_order_number,
                 'back_order_id' => $backOrder->id,
             ]);
@@ -260,7 +260,7 @@ class BackOrderController extends Controller
             $buy->save();
 
             // Update back order status
-            $backOrder->status = self::READY;
+            $backOrder->current_status = self::READY;
             $backOrder->save();
 
             DB::commit();
