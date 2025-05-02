@@ -557,11 +557,11 @@ class QuotationController extends Controller
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
-                        'sparepartName' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepartNumber' => $detail->sparepart->sparepart_number ?? '',
+                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity ?? 0,
-                        'unitPriceSell' => $detail->unit_price ?? 0,
-                        'totalPrice' => $detail->quantity * ($detail->unit_price ?? 0),
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
                         'stock' => $detail->is_indent
                     ];
                 });
@@ -570,17 +570,17 @@ class QuotationController extends Controller
                     'id' => (string) $quotation->id,
                     'slug' => $quotation->slug,
                     'customer' => [
-                        'companyName' => $customer->company_name ?? '',
+                        'company_name' => $customer->company_name ?? '',
                         'address' => $customer->address ?? '',
                         'city' => $customer->city ?? '',
                         'province' => $customer->province ?? '',
                         'office' => $customer->office ?? '',
                         'urban' => $customer->urban ?? '',
                         'subdistrict' => $customer->subdistrict ?? '',
-                        'postalCode' => $customer->postal_code ?? ''
+                        'postal_code' => $customer->postal_code ?? ''
                     ],
                     'project' => [
-                        'quotationNumber' => $quotation->quotation_number,
+                        'quotation_number' => $quotation->quotation_number,
                         'type' => $quotation->type,
                         'date' => $quotation->date
                     ],
