@@ -172,14 +172,13 @@ class QuotationController extends Controller
         }
     }
 
-    public function update(Request $request)
+    public function update(Request $request, $slug)
     {
         // Start a database transaction
         DB::beginTransaction();
 
         try {
             // Find the quotation by slug
-            $slug = $request->input('slug');
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->firstOrFail();
             $po = $quotation->purchaseOrder;
