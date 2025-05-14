@@ -5,6 +5,7 @@ namespace Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 use App\Models\{Quotation, Customer, Employee};
+use Illuminate\Support\Arr;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Quotation>
@@ -36,7 +37,7 @@ class QuotationFactory extends Factory
             'grand_total' => $this->faker->randomFloat(2, 6000, 12000),
             'notes' => $this->faker->sentence,
             'employee_id' => Employee::factory(),
-            'current_status' => '',
+            'current_status' => Arr::random(['Process', 'On Review', 'PO', 'Cancelled', 'Revised']),
             'status' => json_encode([ // Added status field
                 [
                     'name' => 'Prepare',

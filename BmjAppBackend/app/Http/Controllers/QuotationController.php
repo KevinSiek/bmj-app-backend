@@ -37,7 +37,6 @@ class QuotationController extends Controller
             $validatedData = $request->validate([
                 'project.quotationNumber' => 'required|string|unique:quotations,quotation_number',
                 'project.type' => 'required|string',
-                'project.date' => 'required|date',
                 'price.amount' => 'required|numeric',
                 'price.discount' => 'required|numeric',
                 'price.subtotal' => 'required|numeric',
@@ -64,7 +63,7 @@ class QuotationController extends Controller
             $quotationData = [
                 'quotation_number' => $request->input('project.quotationNumber'),
                 'type' => $request->input('project.type'),
-                'date' => $request->input('project.date'),
+                'date' => now(),
                 'amount' => $request->input('price.amount'),
                 'discount' => $request->input('price.discount'),
                 'subtotal' => $request->input('price.subtotal'),
