@@ -171,7 +171,8 @@ class EmployeeController extends Controller
 
             if ($q) {
                 $searchTerm = $q;
-                $query->where('fullname', 'like', "%$searchTerm%");
+                $query->where('fullname', 'like', "%$searchTerm%")
+                    ->orWhere('username', 'like', "%$searchTerm%");
             }
 
             $employees = $query->paginate(20);
