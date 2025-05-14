@@ -14,6 +14,9 @@ class PurchaseOrderController extends Controller
     const PREPARE = "Prepare";
     const READY = "Ready";
     const RELEASE = "Release";
+    const FINISHED = "Finished";
+    const RETURNED = "Returned";
+    const PAID = "Paid";
 
     public function get(Request $request, $id)
     {

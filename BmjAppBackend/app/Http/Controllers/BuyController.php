@@ -12,10 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class BuyController extends Controller
 {
-    const APPROVE = "approve";
-    const DECLINE = "decline";
-    const NEED_CHANGE = "change";
-    const DONE = "done";
+    const APPROVE = "Approved";
+    const DECLINE = "Rejected";
+    const WAIT_REVIEW = "Wait for Review";
+    const DONE = "Done";
 
     public function index()
     {

@@ -15,7 +15,9 @@ use Illuminate\Support\Str;
 class BackOrderController extends Controller
 {
     // Status constants
+    const PROCESS = 'Process';
     const READY = 'Ready';
+    
     const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
 
     public function getAll(Request $request)

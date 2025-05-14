@@ -18,10 +18,20 @@ use Illuminate\Support\Facades\Validator;
 
 class QuotationController extends Controller
 {
+    // Quotation state in general
     const APPROVE = "Approved";
+    const WAITING = "Waiting";
     const REJECTED = "Rejected";
-    const NEED_CHANGE = "Change";
+    const PROCESS = "Process";
+    const DONE = "Done";
 
+    // Quotation review state
+    const NEED_CHANGE = "Change";
+    const REVISED = "Revised";
+    const ON_REVIEW = "On Review";
+    const CANCELLED = "Cancelled";
+
+    // Type of quotation
     const SERVICE = "Service";
     const SPAREPARTS = "Spareparts";
 
@@ -646,13 +656,14 @@ class QuotationController extends Controller
                 'purchase_order_number' => 'PO-' . now()->format('YmdHis'),
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
-                'notes' => $request->input('notes', '') // Use request notes or default to empty string
+                'notes' => $request->input('notes', ''), // Use request notes or default to empty string
+                'current_status' => PurchaseOrderController::PREPARE,
             ]);
 
             $backOrder = BackOrder::create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'back_order_number' => 'PT' . now(),
-                'current_status' => 'Pending',
+                'current_status' => BackOrderController::PROCESS,
             ]);
 
             // Decrease the total_unit for each sparepart after moveToPo
@@ -689,13 +700,14 @@ class QuotationController extends Controller
 
                 // Create Detail back order for each sparepart
                 // TODO: This is maybe not efficient but we need to handle multiple sparepart statuse in single BO ID
-                $boStatus = BackOrderController::READY;
-                if ($numberBoInBo) {
-                    $boStatus = 'pending';
-                }
-                $backOrder->update([
-                    'current_status' => $boStatus
-                ]);
+                // $boStatus = BackOrderController::READY;
+                // if ($numberBoInBo) {
+                //     $boStatus = BackOrderController::PROCESS;
+                // }
+                // $backOrder->update([
+                //     'current_status' => $boStatus
+                // ]);
+
                 DetailBackOrder::create([
                     'back_order_id' => $backOrder->id,
                     'sparepart_id' => $sparepart->sparepart_id,

@@ -27,7 +27,7 @@ class BuyFactory extends Factory
             'review' => $this->faker->boolean,
             'current_status' => $this->faker->randomElement([
                 BuyController::APPROVE,
-                BuyController::NEED_CHANGE,
+                BuyController::WAIT_REVIEW,
                 BuyController::DECLINE,
                 BuyController::DONE,
             ]),

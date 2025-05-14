@@ -18,7 +18,7 @@ class BuySeeder extends Seeder
                 'review' => fake()->boolean(70),
                 'current_status' => fake()->randomElement([
                     BuyController::APPROVE,
-                    BuyController::NEED_CHANGE,
+                    BuyController::WAIT_REVIEW,
                     BuyController::DECLINE,
                     BuyController::DONE,
                 ]),
