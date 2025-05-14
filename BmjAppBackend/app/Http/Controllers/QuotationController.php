@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use PDO;
 
 class QuotationController extends Controller
 {
@@ -35,12 +36,21 @@ class QuotationController extends Controller
     const SERVICE = "Service";
     const SPAREPARTS = "Spareparts";
 
+    const ALLOWED_ROLE_TO_CREATE = ['Marketing', 'Director'];
+
     public function store(Request $request)
     {
         // Start a database transaction
         DB::beginTransaction();
 
         try {
+            $role = $request->user()->role;
+            $allowed = $this->isAllowedRole($role);
+
+            if (!$allowed) {
+                return $this->handleNotFound('You have no access in this action');
+            }
+
             $userId = $request->user()->id;
 
             // Validate the request data based on API contract
@@ -774,6 +784,21 @@ class QuotationController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
+        }
+    }
+
+    // Helper function to secure special access for function in this class
+    protected function isAllowedRole($role)
+    {
+        try {
+            $allowed = in_array($role, QuotationController::ALLOWED_ROLE_TO_CREATE);
+
+
+            // Return the response with transformed data and pagination details
+            return $allowed;
+        } catch (\Throwable $th) {
+            echo ('Error at getAccessedQuotation: ' . $th->getMessage());
+            return [];
         }
     }
 
