@@ -57,6 +57,7 @@ class ProformaInvoiceController extends Controller
                     foreach ($detailQuotations as $detailQuotation) {
                         $sparepart = $detailQuotation->sparepart;
                         $spareparts->push([
+                            'sparepart_id' => $sparepart->id ?? '',
                             'sparepart_name' => $sparepart->sparepart_name ?? '',
                             'sparepart_number' => $sparepart->part_number ?? '',
                             'quantity' => $detailQuotation->quantity ?? 0,
@@ -129,6 +130,7 @@ class ProformaInvoiceController extends Controller
             foreach ($detailQuotations as $detailQuotation) {
                 $sparepart = $detailQuotation->sparepart;
                 $spareparts->push([
+                    'sparepart_id' => $sparepart->id ?? '',
                     'sparepart_name' => $sparepart->sparepart_name ?? '',
                     'sparepart_number' => $sparepart->part_number ?? '',
                     'quantity' => $detailQuotation->quantity ?? 0,

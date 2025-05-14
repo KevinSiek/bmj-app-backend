@@ -476,6 +476,7 @@ class QuotationController extends Controller
             $customer = $quotation->customer;
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
+                    'sparepart_id' => $detail->sparepart->id ?? '',
                     'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
                     'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
                     'quantity' => $detail->quantity ?? 0,
@@ -557,6 +558,7 @@ class QuotationController extends Controller
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
+                        'sparepart_id' => $detail->sparepart->id ?? '',
                         'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
                         'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity ?? 0,

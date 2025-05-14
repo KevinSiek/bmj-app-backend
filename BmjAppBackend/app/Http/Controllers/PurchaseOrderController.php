@@ -29,6 +29,7 @@ class PurchaseOrderController extends Controller
             $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
                 $sparepart = $detail->sparepart;
                 return [
+                    'sparepart_id' => $sparepart ? $sparepart->id : '',
                     'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
                     'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
                     'quantity' => $detail->quantity ?? 0,
@@ -131,6 +132,7 @@ class PurchaseOrderController extends Controller
                     $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
                         $sparepart = $detail->sparepart;
                         return [
+                            'sparepart_id' => $sparepart ? $sparepart->id : '',
                             'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
                             'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
                             'quantity' => $detail->quantity ?? 0,

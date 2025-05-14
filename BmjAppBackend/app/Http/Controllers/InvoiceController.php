@@ -27,6 +27,7 @@ class InvoiceController extends Controller
 
             $spareParts = $quotation->detailQuotations->map(function ($detail) {
                 return [
+                    'sparepart_id' => $detail->sparepart->id ?? '',
                     'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
                     'sparepart_number' => $detail->sparepart->part_number ?? '',
                     'quantity' => $detail->quantity,
@@ -125,6 +126,7 @@ class InvoiceController extends Controller
 
                     $spareParts = $quotation->detailQuotations->map(function ($detail) {
                         return [
+                            'sparepart_id' => $detail->sparepart->id ?? '',
                             'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
                             'sparepart_number' => $detail->sparepart->part_number ?? '',
                             'quantity' => $detail->quantity,
