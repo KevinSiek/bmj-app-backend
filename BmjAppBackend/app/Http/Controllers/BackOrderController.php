@@ -17,7 +17,7 @@ class BackOrderController extends Controller
     // Status constants
     const PROCESS = 'Process';
     const READY = 'Ready';
-    
+
     const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
 
     public function getAll(Request $request)
@@ -233,7 +233,7 @@ class BackOrderController extends Controller
                     'buy_id' => $buy->id,
                     'sparepart_id' => $sparepart->id,
                     'quantity' => $quantity,
-                    'seller' => $cheapestDetailBuy->seller,
+                    'seller_id' => $cheapestDetailBuy->seller_id,
                     'unit_price' => $unitPrice,
                 ]);
 
@@ -276,7 +276,6 @@ class BackOrderController extends Controller
             return $this->handleError($th, 'Failed to process back order');
         }
     }
-
 
     protected function getAccessedBackOrder($request)
     {

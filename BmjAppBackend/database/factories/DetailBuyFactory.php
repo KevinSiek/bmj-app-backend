@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use App\Models\{Sparepart, Buy, DetailBuy};
+use App\Models\{Sparepart, Buy, DetailBuy, Seller};
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\DetailBuy>
@@ -23,7 +23,7 @@ class DetailBuyFactory extends Factory
             'buy_id' => Buy::factory(),
             'sparepart_id' => Sparepart::factory(),
             'quantity' => $this->faker->numberBetween(1, 100),
-            'seller' => $this->faker->company,
+            'seller_id' => Seller::factory(),
             'unit_price' => $this->faker->randomFloat(2, 100, 1000),
         ];
     }
