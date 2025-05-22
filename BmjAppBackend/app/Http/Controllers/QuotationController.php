@@ -37,6 +37,30 @@ class QuotationController extends Controller
     const SPAREPARTS = "Spareparts";
 
     const ALLOWED_ROLE_TO_CREATE = ['Marketing', 'Director'];
+    /**
+     * Convert month number to Roman numeral
+     *
+     * @param int $month
+     * @return string
+     */
+    protected function getRomanMonth($month)
+    {
+        $romanNumerals = [
+            1 => 'I',
+            2 => 'II',
+            3 => 'III',
+            4 => 'IV',
+            5 => 'V',
+            6 => 'VI',
+            7 => 'VII',
+            8 => 'VIII',
+            9 => 'IX',
+            10 => 'X',
+            11 => 'XI',
+            12 => 'XII'
+        ];
+        return $romanNumerals[$month] ?? 'I';
+    }
 
     public function store(Request $request)
     {
@@ -661,9 +685,27 @@ class QuotationController extends Controller
                 ->where('quotation_id', $quotation->id)
                 ->get();
 
+            // Generate purchase order number from quotation number
+            try {
+                // Expected quotation_number format: 033/BMJ-PI/V/2024
+                $parts = explode('/', $quotation->quotation_number);
+                $poNumber = $parts[0]; // e.g., 033
+                $romanMonth = $parts[2]; // e.g., V
+                $year = substr($parts[3], -2); // e.g., 24 from 2024
+                $purchaseOrderNumber = "PO-IN/{$poNumber}/{$romanMonth}/{$year}";
+            } catch (\Throwable $th) {
+                // Fallback to timestamp-based PO number with current month and year
+                $currentMonth = now()->month; // e.g., 5 for May
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., V
+                $year = now()->format('y'); // e.g., 25 for 2025
+                $timestamp = now()->format('YmdHis'); // Unique identifier
+                $purchaseOrderNumber = "PO-IN/{$timestamp}/{$romanMonth}/{$year}";
+            }
+
+
             $purchaseOrder = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
-                'purchase_order_number' => 'PO-' . now()->format('YmdHis'),
+                'purchase_order_number' => $purchaseOrderNumber,
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
                 'notes' => $request->input('notes', ''), // Use request notes or default to empty string
