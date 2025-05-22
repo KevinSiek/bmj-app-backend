@@ -224,6 +224,40 @@ class ProformaInvoiceController extends Controller
         }
     }
 
+    // Update the data for a specific proforma invoice
+    public function update(Request $request, $id)
+    {
+        try {
+            // Validate the request data
+            $validatedData = $request->validate([
+                'down_payment' => 'required|numeric|min:0',
+            ]);
+
+            // Find the proforma invoice with access control
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+
+            if (!$proformaInvoice) {
+                return $this->handleNotFound('Proforma invoice not found');
+            }
+
+            // Update only the down_payment field for now
+            $proformaInvoice->update([
+                'down_payment' => $validatedData['down_payment'],
+            ]);
+
+            return response()->json([
+                'message' => 'Down payment updated successfully',
+                'data' => [
+                    'id' => (string) $proformaInvoice->id,
+                    'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number,
+                    'down_payment' => $proformaInvoice->down_payment,
+                ],
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Failed to update down payment');
+        }
+    }
+
     protected function getAccessedProformaInvoice($request)
     {
         try {

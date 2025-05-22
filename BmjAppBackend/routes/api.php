@@ -61,6 +61,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/', [ProformaInvoiceController::class, 'getAll']);
         Route::get('/{id}', [ProformaInvoiceController::class, 'get']);
         Route::get('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
+        Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
     });
 
     Route::prefix('invoice')->group(function () {
