@@ -163,6 +163,7 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
     public function getAll(Request $request)
     {
         try {
@@ -229,6 +230,30 @@ class EmployeeController extends Controller
         } catch (\Throwable $th) {
             return response()->json([
                 'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Retrieve an employee by their slug
+    public function get($slug)
+    {
+        try {
+            $employee = Employee::where('slug', '=', $slug)->first();
+
+            if (!$employee) {
+                return response()->json([
+                    'message' => 'Employee not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json([
+                'message' => 'Employee retrieved successfully',
+                'data' => $employee
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Failed to retrieve employee',
                 'error' => $th->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
