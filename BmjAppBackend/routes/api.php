@@ -13,6 +13,7 @@ use App\Http\Controllers\SparepartController;
 use App\Http\Controllers\WorkOrderController;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
+use App\Http\Controllers\GeneralController;
 
 // Token and Login Routes
 Route::post('/tokens/create', function (Request $request) {
@@ -38,7 +39,10 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::put('/{id}', [AccessesController::class, 'update']);
         Route::delete('/{id}', [AccessesController::class, 'destroy']);
     });
-
+    // Api to store general value in future, like discount etc
+    Route::prefix('general')->group(function () {
+        Route::get('/discount', [GeneralController::class, 'getDiscount']);
+    });
     Route::prefix('quotation')->group(function () {
         Route::get('/', [QuotationController::class, 'getAll']);
         Route::get('/{slug}', [QuotationController::class, 'get']);
