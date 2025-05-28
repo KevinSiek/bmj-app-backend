@@ -99,7 +99,7 @@ class ProformaInvoiceController extends Controller
                             'total_amount' => $quotation->total_amount,
                         ],
                         'down_payment' => $pi->down_payment ?? 0,
-                        'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                        'status' => $quotation->status,
                         'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'date' => $pi->created_at,
@@ -176,7 +176,7 @@ class ProformaInvoiceController extends Controller
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'date' => $proformaInvoice->created_at,
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' => $quotation->status,
                 'spareparts' => $spareparts,
             ];
 

@@ -407,6 +407,13 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
+            $po = $quotation->purchaseOrder;
+
+            if ($po) {
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -441,6 +448,13 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
+            $po = $quotation->purchaseOrder;
+
+            if ($po) {
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -484,6 +498,13 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
+            $po = $quotation->purchaseOrder;
+
+            if ($po) {
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -562,7 +583,7 @@ class QuotationController extends Controller
                     'grand_total' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' =>  $quotation->status,
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
                 'date' => $quotation->date
@@ -645,7 +666,7 @@ class QuotationController extends Controller
                         'grandTotal' => $quotation->grand_total
                     ],
                     'current_status' => $quotation->current_status,
-                    'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                    'status' =>  $quotation->status,
                     'notes' => $quotation->notes,
                     'spareparts' => $spareParts
                 ];

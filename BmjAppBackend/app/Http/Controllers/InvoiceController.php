@@ -66,7 +66,7 @@ class InvoiceController extends Controller
                     'ppn' => $quotation->ppn ?? 0,
                     'grand_total' => $quotation->grand_total ?? 0,
                 ],
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' => $quotation->status,
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'spareparts' => $spareParts,
@@ -166,7 +166,7 @@ class InvoiceController extends Controller
                             'ppn' => $quotation->ppn ?? 0,
                             'grand_total' => $quotation->grand_total ?? 0,
                         ],
-                        'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                        'status' => $quotation->status,
                         'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'spareparts' => $spareParts,

@@ -80,7 +80,7 @@ class PurchaseOrderController extends Controller
                 ],
                 'notes' => $purchaseOrder->notes ?? '',
                 'current_status' => $purchaseOrder->current_status ?? '',
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' =>  $quotation->status,
                 'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'spareparts' => $spareParts
@@ -183,7 +183,7 @@ class PurchaseOrderController extends Controller
                         ],
                         'notes' => $po->notes ?? '',
                         'current_status' => $po->current_status ?? '',
-                        'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                        'status' => $quotation->status,
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                         'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'spareparts' => $spareParts
