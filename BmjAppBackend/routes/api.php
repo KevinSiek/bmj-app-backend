@@ -49,10 +49,16 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/', [QuotationController::class, 'store']);
         Route::put('/{slug}', [QuotationController::class, 'update']);
         Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+
+        // Api to change current status of quotation it self
         Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
         Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
         Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
         Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
+
+        // Api to change status of quotation in general
+        Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
+        Route::get('/return/{slug}', [QuotationController::class, 'changeStatusToReturn']);
     });
 
     Route::prefix('purchase-order')->group(function () {

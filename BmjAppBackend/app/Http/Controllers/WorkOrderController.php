@@ -15,6 +15,12 @@ class WorkOrderController extends Controller
     const ON_PROGRESS = "On Progress";
     const DONE = "Done";
 
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
+
     public function get(Request $request, $id)
     {
         try {
@@ -281,6 +287,9 @@ class WorkOrderController extends Controller
             $workOrder->update([
                 'is_done' => true,
             ]);
+
+            $quotation = $workOrder->quotation;
+            $this->quotationController->changeStatusToSent($request, $quotation);
 
             return response()->json([
                 'message' => 'Work order processed successfully',

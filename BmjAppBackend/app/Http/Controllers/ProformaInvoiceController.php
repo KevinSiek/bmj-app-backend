@@ -11,6 +11,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ProformaInvoiceController extends Controller
 {
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
+
     public function getAll(Request $request)
     {
         try {
@@ -209,8 +215,9 @@ class ProformaInvoiceController extends Controller
 
             $quotation = $proformaInvoice->purchaseOrder->quotation;
             $quotation->update([
-                'current_status' => 'INVOICE'
+                'current_status' => QuotationController::PAID
             ]);
+            $this->quotationController->changeStatusToPaid($request, $quotation);
 
             DB::commit();
 

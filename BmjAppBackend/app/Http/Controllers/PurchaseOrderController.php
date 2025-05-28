@@ -18,6 +18,12 @@ class PurchaseOrderController extends Controller
     const RETURNED = "Returned";
     const PAID = "Paid";
 
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
+
     public function get(Request $request, $id)
     {
         try {
@@ -261,8 +267,9 @@ class PurchaseOrderController extends Controller
 
             $quotation = $purchaseOrder->quotation;
             $quotation->update([
-                'current_status' => 'PI'
+                'current_status' => QuotationController::PI
             ]);
+            $this->quotationController->changeStatusToPi($request, $quotation);
 
             DB::commit();
 
