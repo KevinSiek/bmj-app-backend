@@ -17,8 +17,14 @@ class BackOrderController extends Controller
     // Status constants
     const PROCESS = 'Process';
     const READY = 'Ready';
-    
+
     const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
+
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
 
     public function getAll(Request $request)
     {
@@ -201,6 +207,7 @@ class BackOrderController extends Controller
             ]);
 
             // Process each detail back order
+            $quotation = $backOrder->purchaseOrder->quotation;
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
                 // Skip if no back order quantity
                 if ($detailBackOrder->number_back_order <= 0) {
@@ -233,7 +240,7 @@ class BackOrderController extends Controller
                     'buy_id' => $buy->id,
                     'sparepart_id' => $sparepart->id,
                     'quantity' => $quantity,
-                    'seller' => $cheapestDetailBuy->seller,
+                    'seller_id' => $cheapestDetailBuy->seller_id,
                     'unit_price' => $unitPrice,
                 ]);
 
@@ -243,8 +250,6 @@ class BackOrderController extends Controller
                 $sparepart->total_unit += $quantity;
                 $sparepart->save();
 
-                // Find corresponding detail quotation and update its status
-                $quotation = $backOrder->purchaseOrder->quotation;
                 if ($quotation) {
                     $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
                         ->where('sparepart_id', $detailBackOrder->sparepart_id)
@@ -265,6 +270,13 @@ class BackOrderController extends Controller
             $backOrder->current_status = self::READY;
             $backOrder->save();
 
+            $quotation = $backOrder->purchaseOrder->quotation;
+            $purchaseOrder = $backOrder->purchaseOrder;
+            $purchaseOrder->update([
+                'current_status' => PurchaseOrderController::READY
+            ]);
+            $this->quotationController->changeStatusToInventory($request, $quotation);
+
             DB::commit();
 
             return response()->json([
@@ -276,7 +288,6 @@ class BackOrderController extends Controller
             return $this->handleError($th, 'Failed to process back order');
         }
     }
-
 
     protected function getAccessedBackOrder($request)
     {

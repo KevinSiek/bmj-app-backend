@@ -12,6 +12,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ProformaInvoiceController extends Controller
 {
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
+
     public function getAll(Request $request)
     {
         try {
@@ -94,7 +100,7 @@ class ProformaInvoiceController extends Controller
                             'total_amount' => $quotation->total_amount,
                         ],
                         'down_payment' => $pi->down_payment ?? 0,
-                        'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                        'status' => $quotation->status,
                         'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'date' => $pi->created_at,
@@ -171,7 +177,7 @@ class ProformaInvoiceController extends Controller
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'date' => $proformaInvoice->created_at,
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' => $quotation->status,
                 'spareparts' => $spareparts,
             ];
 
@@ -210,8 +216,9 @@ class ProformaInvoiceController extends Controller
 
             $quotation = $proformaInvoice->purchaseOrder->quotation;
             $quotation->update([
-                'current_status' => 'INVOICE'
+                'current_status' => QuotationController::PAID
             ]);
+            $this->quotationController->changeStatusToPaid($request, $quotation);
 
             DB::commit();
 
@@ -222,6 +229,40 @@ class ProformaInvoiceController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to promote proforma invoice');
+        }
+    }
+
+    // Update the data for a specific proforma invoice
+    public function update(Request $request, $id)
+    {
+        try {
+            // Validate the request data
+            $validatedData = $request->validate([
+                'down_payment' => 'required|numeric|min:0',
+            ]);
+
+            // Find the proforma invoice with access control
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+
+            if (!$proformaInvoice) {
+                return $this->handleNotFound('Proforma invoice not found');
+            }
+
+            // Update only the down_payment field for now
+            $proformaInvoice->update([
+                'down_payment' => $validatedData['down_payment'],
+            ]);
+
+            return response()->json([
+                'message' => 'Down payment updated successfully',
+                'data' => [
+                    'id' => (string) $proformaInvoice->id,
+                    'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number,
+                    'down_payment' => $proformaInvoice->down_payment,
+                ],
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Failed to update down payment');
         }
     }
 

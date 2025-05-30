@@ -38,12 +38,33 @@ class QuotationFactory extends Factory
             'notes' => $this->faker->sentence,
             'employee_id' => Employee::factory(),
             'current_status' => Arr::random(['Process', 'On Review', 'PO', 'Cancelled', 'Revised']),
-            'status' => json_encode([ // Added status field
+            'status' => [
                 [
-                    'name' => 'Prepare',
-                    'date' => now()->format('d/m/Y')
+                    'state' => 'Po',
+                    'timestamp' => now()->format('d/m/Y'),
+                    'employeeId' => 1
+                ],
+                [
+                    'state' => 'Pi',
+                    'timestamp' => now()->format('d/m/Y'),
+                    'employeeId' => 1
+                ],
+                [
+                    'state' => 'Inventory',
+                    'timestamp' => now()->format('d/m/Y'),
+                    'employeeId' => 1
+                ],
+                [
+                    'state' => 'Paid',
+                    'timestamp' => now()->format('d/m/Y'),
+                    'employeeId' => 1
+                ],
+                [
+                    'state' => 'Done',
+                    'timestamp' => now()->format('d/m/Y'),
+                    'employeeId' => 1
                 ]
-            ]),
+            ],
             'review' => $this->faker->boolean(),
         ];
     }

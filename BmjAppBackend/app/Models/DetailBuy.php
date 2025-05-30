@@ -13,7 +13,7 @@ class DetailBuy extends Model
         'buy_id',
         'sparepart_id',
         'quantity',
-        'seller',
+        'seller_id',
         'unit_price',
     ];
 
@@ -25,5 +25,10 @@ class DetailBuy extends Model
     public function sparepart()
     {
         return $this->belongsTo(Sparepart::class);
+    }
+
+    public function seller()
+    {
+        return $this->belongsTo(Seller::class);
     }
 }

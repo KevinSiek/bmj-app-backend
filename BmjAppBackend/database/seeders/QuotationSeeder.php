@@ -47,16 +47,28 @@ class QuotationSeeder extends Seeder
                     'Ready',
                     'Not ready',
                 ]),
-                'status' => fn() => json_encode([
+                'status' => fn() => [
                     [
-                        'name' => 'Prepare',
-                        'date' => now()->format('d/m/Y')
+                        'state' => 'Po',
+                        'timestamp' => now()->format('d/m/Y'),
+                        'employeeId' => 1
                     ],
                     [
-                        'name' => fake()->randomElement(['Ready', 'Need Change']),
-                        'date' => now()->format('d/m/Y')
+                        'state' => 'Pi',
+                        'timestamp' => now()->format('d/m/Y'),
+                        'employeeId' => 1
+                    ],
+                    [
+                        'state' => 'Inventory',
+                        'timestamp' => now()->format('d/m/Y'),
+                        'employeeId' => 1
+                    ],
+                    [
+                        'state' => 'Paid',
+                        'timestamp' => now()->format('d/m/Y'),
+                        'employeeId' => 1
                     ]
-                ])
+                ]
             ]);
     }
 }

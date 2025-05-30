@@ -163,6 +163,23 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+    public function get(Request $request, $id)
+    {
+        try {
+            $employee = Employee::findOrFail($id);
+
+            return response()->json([
+                'message' => 'Employees retrieved successfully',
+                'data' => $employee
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function getAll(Request $request)
     {
         try {
@@ -180,23 +197,6 @@ class EmployeeController extends Controller
             return response()->json([
                 'message' => 'List all employees',
                 'data' => $employees
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            return response()->json([
-                'message' => 'Internal server error',
-                'error' => $th->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    public function get(Request $request, $id)
-    {
-        try {
-            $employee = Employee::findOrFail($id);
-
-            return response()->json([
-                'message' => 'Employees retrieved successfully',
-                'data' => $employee
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return response()->json([

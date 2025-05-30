@@ -15,11 +15,10 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
-use PDO;
 
 class QuotationController extends Controller
 {
-    // Quotation state in general
+    // Quotation reviewing state in general
     const APPROVE = "Approved";
     const WAITING = "Waiting";
     const REJECTED = "Rejected";
@@ -37,6 +36,39 @@ class QuotationController extends Controller
     const SPAREPARTS = "Spareparts";
 
     const ALLOWED_ROLE_TO_CREATE = ['Marketing', 'Director'];
+
+    // Status for whole quotation
+    const PO = 'Po';
+    const PI = 'Pi';
+    const Inventory = 'Inventory';
+    const PAID = 'Paid';
+    const SENT = 'Sent';
+    const RETURN = 'Return';
+
+    /**
+     * Convert month number to Roman numeral
+     *
+     * @param int $month
+     * @return string
+     */
+    protected function getRomanMonth($month)
+    {
+        $romanNumerals = [
+            1 => 'I',
+            2 => 'II',
+            3 => 'III',
+            4 => 'IV',
+            5 => 'V',
+            6 => 'VI',
+            7 => 'VII',
+            8 => 'VIII',
+            9 => 'IX',
+            10 => 'X',
+            11 => 'XI',
+            12 => 'XII'
+        ];
+        return $romanNumerals[$month] ?? 'I';
+    }
 
     public function store(Request $request)
     {
@@ -375,6 +407,13 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
+            $po = $quotation->purchaseOrder;
+
+            if ($po) {
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -409,6 +448,13 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
+            $po = $quotation->purchaseOrder;
+
+            if ($po) {
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -452,6 +498,13 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
+            $po = $quotation->purchaseOrder;
+
+            if ($po) {
+                return response()->json([
+                    'message' => 'Quotation already in purchase order.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -530,7 +583,7 @@ class QuotationController extends Controller
                     'grand_total' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' =>  $quotation->status,
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
                 'date' => $quotation->date
@@ -613,7 +666,7 @@ class QuotationController extends Controller
                         'grandTotal' => $quotation->grand_total
                     ],
                     'current_status' => $quotation->current_status,
-                    'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                    'status' =>  $quotation->status,
                     'notes' => $quotation->notes,
                     'spareparts' => $spareParts
                 ];
@@ -654,16 +707,35 @@ class QuotationController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            $quotation->update(['current_status' => 'PO']);
+            $quotation->update(['current_status' => self::PO]);
+            $this->changeStatusToPo($request, $quotation);
 
             // Get the spareparts associated with the quotation
             $spareparts = DB::table('detail_quotations')
                 ->where('quotation_id', $quotation->id)
                 ->get();
 
+            // Generate purchase order number from quotation number
+            try {
+                // Expected quotation_number format: 033/BMJ-PI/V/2024
+                $parts = explode('/', $quotation->quotation_number);
+                $poNumber = $parts[0]; // e.g., 033
+                $romanMonth = $parts[2]; // e.g., V
+                $year = substr($parts[3], -2); // e.g., 24 from 2024
+                $purchaseOrderNumber = "PO-IN/{$poNumber}/{$romanMonth}/{$year}";
+            } catch (\Throwable $th) {
+                // Fallback to timestamp-based PO number with current month and year
+                $currentMonth = now()->month; // e.g., 5 for May
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., V
+                $year = now()->format('y'); // e.g., 25 for 2025
+                $timestamp = now()->format('YmdHis'); // Unique identifier
+                $purchaseOrderNumber = "PO-IN/{$timestamp}/{$romanMonth}/{$year}";
+            }
+
+
             $purchaseOrder = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
-                'purchase_order_number' => 'PO-' . now()->format('YmdHis'),
+                'purchase_order_number' => $purchaseOrderNumber,
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
                 'notes' => $request->input('notes', ''), // Use request notes or default to empty string
@@ -755,7 +827,6 @@ class QuotationController extends Controller
                     'is_done' => false,
                 ]);
             }
-
             DB::commit();
 
             return response()->json([
@@ -784,6 +855,321 @@ class QuotationController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
+        }
+    }
+
+    // Functions to change quotation state in general
+    public function changeStatusToPo(Request $request, $quotation)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            // Only allow Director or Marketing to change status to Po
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::PO,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Po',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Po');
+        }
+    }
+
+    public function changeStatusToPi(Request $request, $quotation)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::PI,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Pi',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Pi');
+        }
+    }
+
+    public function changeStatusToInventory(Request $request, $quotation)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::Inventory,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Inventory',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Inventory');
+        }
+    }
+
+    public function changeStatusToPaid(Request $request, $quotation)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::PAID,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Paid',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Paid');
+        }
+    }
+
+    public function changeStatusToSent(Request $request, $quotation)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::SENT,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Sent',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Sent');
+        }
+    }
+    public function changeStatusToDone(Request $request, $slug)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            $quotations = $this->getAccessedQuotation($request);
+            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::DONE,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Return',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Return');
+        }
+    }
+
+    public function changeStatusToReturn(Request $request, $slug)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            $quotations = $this->getAccessedQuotation($request);
+            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::RETURN,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+            ]);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success update status of the quotation to Return',
+                'data' => $quotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update quotation status to Return');
         }
     }
 

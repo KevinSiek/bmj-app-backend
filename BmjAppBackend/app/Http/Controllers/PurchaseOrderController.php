@@ -18,6 +18,12 @@ class PurchaseOrderController extends Controller
     const RETURNED = "Returned";
     const PAID = "Paid";
 
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
+
     public function get(Request $request, $id)
     {
         try {
@@ -74,7 +80,7 @@ class PurchaseOrderController extends Controller
                 ],
                 'notes' => $purchaseOrder->notes ?? '',
                 'current_status' => $purchaseOrder->current_status ?? '',
-                'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                'status' =>  $quotation->status,
                 'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                 'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                 'spareparts' => $spareParts
@@ -177,7 +183,7 @@ class PurchaseOrderController extends Controller
                         ],
                         'notes' => $po->notes ?? '',
                         'current_status' => $po->current_status ?? '',
-                        'status' => json_decode($quotation->status, true) ?? [], // Added status field
+                        'status' => $quotation->status,
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
                         'quotationNumber' => $quotation ? $quotation->quotation_number : '',
                         'spareparts' => $spareParts
@@ -191,6 +197,31 @@ class PurchaseOrderController extends Controller
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
+    }
+
+    /**
+     * Convert month number to Roman numeral
+     *
+     * @param int $month
+     * @return string
+     */
+    protected function getRomanMonth($month)
+    {
+        $romanNumerals = [
+            1 => 'I',
+            2 => 'II',
+            3 => 'III',
+            4 => 'IV',
+            5 => 'V',
+            6 => 'VI',
+            7 => 'VII',
+            8 => 'VIII',
+            9 => 'IX',
+            10 => 'X',
+            11 => 'XI',
+            12 => 'XII'
+        ];
+        return $romanNumerals[$month] ?? 'I';
     }
 
     public function moveToPi(Request $request, $id)
@@ -210,17 +241,35 @@ class PurchaseOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            // Generate proforma invoice number from purchase order number
+            try {
+                // Expected purchase_order_number format: PO-IN/033/V/24
+                $parts = explode('/', $purchaseOrder->purchase_order_number);
+                $piNumber = $parts[1]; // e.g., 033
+                $romanMonth = $parts[2]; // e.g., V
+                $year = $parts[3]; // e.g., 24
+                $proformaInvoiceNumber = "PI-IN/{$piNumber}/{$romanMonth}/{$year}";
+            } catch (\Throwable $th) {
+                // Fallback to timestamp-based PI number with current month and year
+                $currentMonth = now()->month; // e.g., 5 for May
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., V
+                $year = now()->format('y'); // e.g., 25 for 2025
+                $timestamp = now()->format('YmdHis'); // Unique identifier
+                $proformaInvoiceNumber = "PI-IN/{$timestamp}/{$romanMonth}/{$year}";
+            }
+
             $proformaInvoice = ProformaInvoice::create([
                 'purchase_order_id' => $purchaseOrder->id,
-                'proforma_invoice_number' => 'PI-' . now()->format('YmdHis'),
+                'proforma_invoice_number' => $proformaInvoiceNumber,
                 'proforma_invoice_date' => now(),
                 'employee_id' => $purchaseOrder->employee_id,
             ]);
 
             $quotation = $purchaseOrder->quotation;
             $quotation->update([
-                'current_status' => 'PI'
+                'current_status' => QuotationController::PI
             ]);
+            $this->quotationController->changeStatusToPi($request, $quotation);
 
             DB::commit();
 

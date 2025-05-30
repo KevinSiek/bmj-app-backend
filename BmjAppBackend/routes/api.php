@@ -13,6 +13,7 @@ use App\Http\Controllers\SparepartController;
 use App\Http\Controllers\WorkOrderController;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
+use App\Http\Controllers\GeneralController;
 
 // Token and Login Routes
 Route::post('/tokens/create', function (Request $request) {
@@ -38,7 +39,10 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::put('/{id}', [AccessesController::class, 'update']);
         Route::delete('/{id}', [AccessesController::class, 'destroy']);
     });
-
+    // Api to store general value in future, like discount etc
+    Route::prefix('general')->group(function () {
+        Route::get('/discount', [GeneralController::class, 'getDiscount']);
+    });
     Route::prefix('quotation')->group(function () {
         Route::get('/', [QuotationController::class, 'getAll']);
         Route::get('/{slug}', [QuotationController::class, 'get']);
@@ -49,6 +53,10 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
         Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
         Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
+
+        // Api to change status of quotation in general
+        Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
+        Route::get('/return/{slug}', [QuotationController::class, 'changeStatusToReturn']);
     });
 
     Route::prefix('purchase-order')->group(function () {
@@ -63,6 +71,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/{id}', [ProformaInvoiceController::class, 'get']);
         Route::post('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
         Route::post('/paid/{id}', [ProformaInvoiceController::class, 'paid']);
+        Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
     });
 
     Route::prefix('invoice')->group(function () {
