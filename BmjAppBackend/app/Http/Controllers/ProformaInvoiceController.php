@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\ProformaInvoice;
+use App\Models\PurchaseOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -217,6 +218,33 @@ class ProformaInvoiceController extends Controller
             return response()->json([
                 'message' => 'Proforma invoice promoted to invoice successfully',
                 'data' => $invoice
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to promote proforma invoice');
+        }
+    }
+
+    public function paid(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+
+            if (!$proformaInvoice) {
+                return $this->handleNotFound('Proforma invoice not found');
+            }
+
+            $purchaseOrder = $proformaInvoice->purchaseOrder;
+            $purchaseOrder->current_status = PurchaseOrderController::PAID;
+            $purchaseOrder->save();
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Proforma invoice paid successfully',
+                'data' => $proformaInvoice
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();

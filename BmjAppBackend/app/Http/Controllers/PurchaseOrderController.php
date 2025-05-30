@@ -234,6 +234,32 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    public function updateStatus(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        $status = $request->input('status');
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->findOrFail($id);
+
+            $purchaseOrder->current_status = $status;
+            $purchaseOrder->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return a success response
+            return response()->json([
+                'message' => 'Purchase order status updated successfully',
+                'data' => $purchaseOrder
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update purchase order status to' . $status);
+        }
+    }
+
     protected function getAccessedPurchaseOrder($request)
     {
         try {

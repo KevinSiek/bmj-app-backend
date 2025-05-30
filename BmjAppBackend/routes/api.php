@@ -44,7 +44,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/{slug}', [QuotationController::class, 'get']);
         Route::post('/', [QuotationController::class, 'store']);
         Route::put('/{slug}', [QuotationController::class, 'update']);
-        Route::get('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+        Route::post('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
         Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
         Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
         Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
@@ -55,12 +55,14 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/', [PurchaseOrderController::class, 'getAll']);
         Route::get('/{id}', [PurchaseOrderController::class, 'get']);
         Route::get('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
+        Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
     });
 
     Route::prefix('proforma-invoice')->group(function () {
         Route::get('/', [ProformaInvoiceController::class, 'getAll']);
         Route::get('/{id}', [ProformaInvoiceController::class, 'get']);
-        Route::get('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
+        Route::post('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
+        Route::post('/paid/{id}', [ProformaInvoiceController::class, 'paid']);
     });
 
     Route::prefix('invoice')->group(function () {
