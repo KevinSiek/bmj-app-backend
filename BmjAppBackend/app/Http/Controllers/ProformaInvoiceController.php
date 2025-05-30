@@ -238,7 +238,7 @@ class ProformaInvoiceController extends Controller
         try {
             // Validate the request data
             $validatedData = $request->validate([
-                'down_payment' => 'required|numeric|min:0',
+                'downPayment' => 'required|numeric|min:0',
             ]);
 
             // Find the proforma invoice with access control
@@ -250,7 +250,7 @@ class ProformaInvoiceController extends Controller
 
             // Update only the down_payment field for now
             $proformaInvoice->update([
-                'down_payment' => $validatedData['down_payment'],
+                'down_payment' => $validatedData['downPayment'],
             ]);
 
             return response()->json([
