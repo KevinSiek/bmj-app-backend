@@ -25,6 +25,7 @@ class Quotation extends Model
         'employee_id',
         'current_status',
         'status', // Added status to fillable
+        'is_return',
         'review'
     ];
 

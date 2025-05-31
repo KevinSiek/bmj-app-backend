@@ -27,8 +27,9 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
             $table->text('current_status')->nullable();
-            $table->json('status')->nullable(); 
+            $table->json('status')->nullable();
             $table->boolean('review');
+            $table->boolean('is_return');
             $table->timestamps();
         });
     }

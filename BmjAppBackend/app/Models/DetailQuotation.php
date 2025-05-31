@@ -15,6 +15,7 @@ class DetailQuotation extends Model
         'quantity',
         'total_unit',
         'unit_price',
+        'is_return',
         'stock'
     ];
 

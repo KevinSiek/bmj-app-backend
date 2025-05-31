@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use App\Models\DetailQuotation;
 
 class QuotationController extends Controller
 {
@@ -44,6 +45,8 @@ class QuotationController extends Controller
     const PAID = 'Paid';
     const SENT = 'Sent';
     const RETURN = 'Return';
+    const DECLINED = "Declined";
+    const APPROVED = "Approved";
 
     /**
      * Convert month number to Roman numeral
@@ -846,12 +849,120 @@ class QuotationController extends Controller
             $quotationNeedReview = $quoatations->where('review', !$isNeedReview);
 
             // Paginate the results
-            $quotationNeedReview = $quotationNeedReview->paginate(20);
+            $quotations = $quotationNeedReview->paginate(20)->through(function ($quotation) {
+                $customer = $quotation->customer;
+                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                    return [
+                        'sparepart_id' => $detail->sparepart->id ?? '',
+                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                        'quantity' => $detail->quantity ?? 0,
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                        'stock' => $detail->is_indent
+                    ];
+                });
+
+                return [
+                    'id' => (string) $quotation->id,
+                    'slug' => $quotation->slug,
+                    'quotation_number' => $quotation->quotation_number,
+                    'customer' => [
+                        'company_name' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postal_code' => $customer->postal_code ?? ''
+                    ],
+                    'project' => [
+                        'quotation_number' => $quotation->quotation_number,
+                        'type' => $quotation->type,
+                        'date' => $quotation->date
+                    ],
+                    'price' => [
+                        'subtotal' => $quotation->subtotal,
+                        'ppn' => $quotation->ppn,
+                        'grand_total' => $quotation->grand_total
+                    ],
+                    'current_status' => $quotation->current_status,
+                    'status' => $quotation->status,
+                    'notes' => $quotation->notes,
+                    'spareparts' => $spareParts,
+                    'date' => $quotation->date
+                ];
+            });
 
             // Return the response with transformed data and pagination details
             return response()->json([
-                'message' => 'List of all quotations that need to be review',
-                'data' => $quotationNeedReview,
+                'message' => $isNeedReview ? 'List of all quotations that need to be reviewed' : 'List of all quotations that do not need to be reviewed',
+                'data' => $quotations,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    public function isNeedReturn(Request $request, $isNeedReturn)
+    {
+        try {
+            $quoatations = $this->getAccessedQuotation($request);
+            $quotationNeedReturn = $quoatations->where('is_return', !$isNeedReturn);
+
+            // Paginate the results
+            $quotations = $quotationNeedReturn->paginate(20)->through(function ($quotation) {
+                $customer = $quotation->customer;
+                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                    return [
+                        'sparepart_id' => $detail->sparepart->id ?? '',
+                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                        'quantity' => $detail->quantity ?? 0,
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'is_return' => $detail->is_return ?? 0,
+                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                        'stock' => $detail->is_indent
+                    ];
+                });
+
+                return [
+                    'id' => (string) $quotation->id,
+                    'slug' => $quotation->slug,
+                    'quotation_number' => $quotation->quotation_number,
+                    'customer' => [
+                        'company_name' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postal_code' => $customer->postal_code ?? ''
+                    ],
+                    'project' => [
+                        'quotation_number' => $quotation->quotation_number,
+                        'type' => $quotation->type,
+                        'date' => $quotation->date
+                    ],
+                    'price' => [
+                        'subtotal' => $quotation->subtotal,
+                        'ppn' => $quotation->ppn,
+                        'grand_total' => $quotation->grand_total
+                    ],
+                    'current_status' => $quotation->current_status,
+                    'status' => $quotation->status,
+                    'notes' => $quotation->notes,
+                    'spareparts' => $spareParts,
+                    'date' => $quotation->date
+                ];
+            });
+
+            // Return the response with transformed data and pagination details
+            return response()->json([
+                'message' => $isNeedReturn ? 'List of all quotations that need to be returned' : 'List of all quotations that do not need to be returned',
+                'data' => $quotations,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -1132,11 +1243,25 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
+            // Validate the returned parameter
+            $request->validate([
+                'returned' => 'required|array',
+                'returned.*' => 'integer|exists:spareparts,id',
+            ]);
+
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->firstOrFail();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
+            }
+
+            // Update DetailQuotation entries for the specified sparepart_ids
+            $returnedSparepartIds = $request->input('returned', []);
+            if (!empty($returnedSparepartIds)) {
+                DetailQuotation::where('quotation_id', $quotation->id)
+                    ->whereIn('sparepart_id', $returnedSparepartIds)
+                    ->update(['is_return' => true]);
             }
 
             $user = $request->user();
@@ -1153,10 +1278,59 @@ class QuotationController extends Controller
                 'timestamp' => now()->toIso8601String(),
             ];
 
-            // Update quotation with new status and current_status
+            // Update quotation with new status and is_return flag
             $quotation->update([
+                'review' => false,
                 'status' => $currentStatus,
+                'current_status' => '',
+                'is_return' => !empty($returnedSparepartIds), // Set is_return to true if any spare parts are returned
             ]);
+
+            // Format the quotation data
+            $customer = $quotation->customer;
+            $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                return [
+                    'sparepart_id' => $detail->sparepart->id ?? '',
+                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                    'quantity' => $detail->quantity ?? 0,
+                    'unit_price_sell' => $detail->unit_price ?? 0,
+                    'is_return' => $detail->is_return ?? 0,
+                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                    'stock' => $detail->is_indent
+                ];
+            });
+
+            $formattedQuotation = [
+                'id' => (string) $quotation->id,
+                'slug' => $quotation->slug,
+                'quotation_number' => $quotation->quotation_number,
+                'customer' => [
+                    'company_name' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postal_code' => $customer->postal_code ?? ''
+                ],
+                'project' => [
+                    'quotation_number' => $quotation->quotation_number,
+                    'type' => $quotation->type,
+                    'date' => $quotation->date
+                ],
+                'price' => [
+                    'subtotal' => $quotation->subtotal,
+                    'ppn' => $quotation->ppn,
+                    'grand_total' => $quotation->grand_total
+                ],
+                'current_status' => $quotation->current_status,
+                'status' => $quotation->status,
+                'notes' => $quotation->notes,
+                'spareparts' => $spareParts,
+                'date' => $quotation->date
+            ];
 
             // Commit the transaction
             DB::commit();
@@ -1164,7 +1338,7 @@ class QuotationController extends Controller
             // Return the response with transformed data
             return response()->json([
                 'message' => 'Success update status of the quotation to Return',
-                'data' => $quotation,
+                'data' => $formattedQuotation,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
@@ -1173,12 +1347,219 @@ class QuotationController extends Controller
         }
     }
 
+    public function declineReturn(Request $request, $slug)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            $quotations = $this->getAccessedQuotation($request);
+            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            // Check if the quotation is in a return state
+            if (!$quotation->is_return) {
+                return response()->json([
+                    'message' => 'Quotation is not in a return state',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $status = $quotation->status ?? [];
+            if (!is_array($status)) {
+                $status = [];
+            }
+
+            // Append new status entry for decline
+            $status[] = [
+                'state' => self::DECLINED,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status, review, and is_return
+            $quotation->update([
+                'status' => $status,
+                'review' => true, // Mark review as true to indicate return process already reviewed
+                'current_status' => self::DECLINED, // Update current_status to Declined
+                'is_return' => false, // Reset is_return to false
+            ]);
+
+            // Reset is_return in DetailQuotation entries for this quotation
+            DetailQuotation::where('quotation_id', $quotation->id)
+                ->update(['is_return' => false]);
+
+            // Format the quotation data
+            $customer = $quotation->customer;
+            $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                return [
+                    'sparepart_id' => $detail->sparepart->id ?? '',
+                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                    'quantity' => $detail->quantity ?? 0,
+                    'unit_price_sell' => $detail->unit_price ?? 0,
+                    'is_return' => $detail->is_return ?? 0,
+                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                    'stock' => $detail->is_indent
+                ];
+            });
+
+            $formattedQuotation = [
+                'id' => (string) $quotation->id,
+                'slug' => $quotation->slug,
+                'quotation_number' => $quotation->quotation_number,
+                'customer' => [
+                    'company_name' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postal_code' => $customer->postal_code ?? ''
+                ],
+                'project' => [
+                    'quotation_number' => $quotation->quotation_number,
+                    'type' => $quotation->type,
+                    'date' => $quotation->date
+                ],
+                'price' => [
+                    'subtotal' => $quotation->subtotal,
+                    'ppn' => $quotation->ppn,
+                    'grand_total' => $quotation->grand_total
+                ],
+                'current_status' => $quotation->current_status,
+                'status' => $quotation->status,
+                'notes' => $quotation->notes,
+                'spareparts' => $spareParts,
+                'date' => $quotation->date
+            ];
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success decline return process for the quotation',
+                'data' => $formattedQuotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to decline return process for the quotation');
+        }
+    }
+
+    public function approveReturn(Request $request, $slug)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            $quotations = $this->getAccessedQuotation($request);
+            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            // Check if the quotation is in a return state
+            if (!$quotation->is_return) {
+                return response()->json([
+                    'message' => 'Quotation is not in a return state',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $user = $request->user();
+            // Ensure status is initialized as an array
+            $status = $quotation->status ?? [];
+            if (!is_array($status)) {
+                $status = [];
+            }
+
+            // Append new status entry for approval
+            $status[] = [
+                'state' => self::APPROVED,
+                'employeeId' => $user->id,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status, review, and is_return
+            $quotation->update([
+                'status' => $status,
+                'review' => true, // Mark review as true to indicate return process already reviewed
+                'current_status' => self::APPROVED, // Update current_status to Approved
+            ]);
+
+            // Format the quotation data
+            $customer = $quotation->customer;
+            $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                return [
+                    'sparepart_id' => $detail->sparepart->id ?? '',
+                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                    'quantity' => $detail->quantity ?? 0,
+                    'unit_price_sell' => $detail->unit_price ?? 0,
+                    'is_return' => $detail->is_return ?? 0,
+                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                    'stock' => $detail->is_indent
+                ];
+            });
+
+            $formattedQuotation = [
+                'id' => (string) $quotation->id,
+                'slug' => $quotation->slug,
+                'quotation_number' => $quotation->quotation_number,
+                'customer' => [
+                    'company_name' => $customer->company_name ?? '',
+                    'address' => $customer->address ?? '',
+                    'city' => $customer->city ?? '',
+                    'province' => $customer->province ?? '',
+                    'office' => $customer->office ?? '',
+                    'urban' => $customer->urban ?? '',
+                    'subdistrict' => $customer->subdistrict ?? '',
+                    'postal_code' => $customer->postal_code ?? ''
+                ],
+                'project' => [
+                    'quotation_number' => $quotation->quotation_number,
+                    'type' => $quotation->type,
+                    'date' => $quotation->date
+                ],
+                'price' => [
+                    'subtotal' => $quotation->subtotal,
+                    'ppn' => $quotation->ppn,
+                    'grand_total' => $quotation->grand_total
+                ],
+                'current_status' => $quotation->current_status,
+                'status' => $quotation->status,
+                'notes' => $quotation->notes,
+                'spareparts' => $spareParts,
+                'date' => $quotation->date
+            ];
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return the response with transformed data
+            return response()->json([
+                'message' => 'Success decline return process for the quotation',
+                'data' => $formattedQuotation,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to decline return process for the quotation');
+        }
+    }
     // Helper function to secure special access for function in this class
     protected function isAllowedRole($role)
     {
         try {
             $allowed = in_array($role, QuotationController::ALLOWED_ROLE_TO_CREATE);
-
 
             // Return the response with transformed data and pagination details
             return $allowed;

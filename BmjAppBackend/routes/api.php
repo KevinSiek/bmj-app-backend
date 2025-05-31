@@ -52,13 +52,16 @@ Route::middleware("auth:sanctum")->group(function () {
 
         // Api to change current status of quotation it self
         Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+        Route::get('/return/{isNeedReturn}', [QuotationController::class, 'isNeedReturn']);
         Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
         Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
         Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
 
         // Api to change status of quotation in general
         Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
-        Route::get('/return/{slug}', [QuotationController::class, 'changeStatusToReturn']);
+        Route::post('/return/{slug}', [QuotationController::class, 'changeStatusToReturn']);
+        Route::get('/declineReturn/{slug}', [QuotationController::class, 'declineReturn']);
+        Route::get('/approveReturn/{slug}', [QuotationController::class, 'approveReturn']);
     });
 
     Route::prefix('purchase-order')->group(function () {

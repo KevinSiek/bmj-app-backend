@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('sparepart_id')->constrained('spareparts');
             $table->integer('quantity');
             $table->boolean('is_indent');
+            $table->boolean('is_return');
             $table->integer('unit_price');
             $table->timestamps();
         });

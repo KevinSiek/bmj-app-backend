@@ -66,6 +66,7 @@ class QuotationFactory extends Factory
                 ]
             ],
             'review' => $this->faker->boolean(),
+            'is_return' => $this->faker->boolean(),
         ];
     }
 }
