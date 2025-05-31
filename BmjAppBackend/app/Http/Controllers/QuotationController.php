@@ -185,7 +185,7 @@ class QuotationController extends Controller
                 $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
                 if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
                     $quotationData['review'] = false;
-                    $quotationData['current_status'] = '';
+                    $quotationData['current_status'] = QuotationController::ON_REVIEW;
                     $quotation->update($quotationData);
                 }
                 // Determine if current sparepart quantity is exist or not.
@@ -359,7 +359,7 @@ class QuotationController extends Controller
                 $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
                 if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
                     $quotationData['review'] = false;
-                    $quotationData['current_status'] = '';
+                    $quotationData['current_status'] = QuotationController::ON_REVIEW;
                     $newQuotation->update($quotationData);
                 }
 

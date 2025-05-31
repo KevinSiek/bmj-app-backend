@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\ProformaInvoice;
+use App\Models\PurchaseOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -237,7 +238,7 @@ class ProformaInvoiceController extends Controller
         try {
             // Validate the request data
             $validatedData = $request->validate([
-                'down_payment' => 'required|numeric|min:0',
+                'downPayment' => 'required|numeric|min:0',
             ]);
 
             // Find the proforma invoice with access control
@@ -249,7 +250,7 @@ class ProformaInvoiceController extends Controller
 
             // Update only the down_payment field for now
             $proformaInvoice->update([
-                'down_payment' => $validatedData['down_payment'],
+                'down_payment' => $validatedData['downPayment'],
             ]);
 
             return response()->json([
@@ -262,6 +263,33 @@ class ProformaInvoiceController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Failed to update down payment');
+        }
+    }
+
+    public function paid(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+
+            if (!$proformaInvoice) {
+                return $this->handleNotFound('Proforma invoice not found');
+            }
+
+            $purchaseOrder = $proformaInvoice->purchaseOrder;
+            $purchaseOrder->current_status = PurchaseOrderController::PAID;
+            $purchaseOrder->save();
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Proforma invoice paid successfully',
+                'data' => $proformaInvoice
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to promote proforma invoice');
         }
     }
 
