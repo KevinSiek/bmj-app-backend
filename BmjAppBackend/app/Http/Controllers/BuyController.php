@@ -35,39 +35,49 @@ class BuyController extends Controller
         try {
             // Validate the request data
             $validatedData = $request->validate([
-                'buy_number' => 'required|string|unique:buys,buy_number',
-                'total_amount' => 'required|numeric',
+                'buyNumber' => 'required|string|unique:buys,buy_number',
+                'totalAmount' => 'required|numeric',
                 'review' => 'sometimes|boolean',
-                'current_status' => 'required|string',
+                'currentStatus' => 'required|string',
                 'notes' => 'sometimes|string',
-                'back_order_id' => 'sometimes|exists:back_orders,id',
+                'backOrderId' => 'sometimes|exists:back_orders,id',
                 // Sparepart validation
                 'spareparts' => 'required|array',
-                'spareparts.*.seller_name' => 'required|string|max:255',
-                'spareparts.*.seller_type' => 'required|string',
-                'spareparts.*.sparepart_id' => 'required|exists:spareparts,id',
+                'spareparts.*.sellerName' => 'required|string|max:255',
+                'spareparts.*.sellerType' => 'required|string',
+                'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
-                'spareparts.*.unit_price' => 'required|numeric|min:1',
+                'spareparts.*.unitPrice' => 'required|numeric|min:1',
             ]);
 
+            // Map API contract to database fields
+            $buyData = [
+                'buy_number' => $request->input('buyNumber'),
+                'total_amount' => $request->input('totalAmount'),
+                'review' =>  $request->input('review'),
+                'current_status' => $request->input('currentStatus'),
+                'back_order_id' => $request->input('backOrderId'),
+                'notes' => $request->input('notes'),
+            ];
+
             // Create buy data
-            $buy = Buy::create($validatedData);
+            $buy = Buy::create($buyData);
 
             // Create DetailBuys from list of spareparts in this buy
             foreach ($request->input('spareparts') as $spareparts) {
-                $sparepartsId = $spareparts['sparepart_id'];
-                $sparepartsUnitPrice = $spareparts['unit_price'];
+                $sparepartsId = $spareparts['sparepartId'];
+                $sparepartsUnitPrice = $spareparts['unitPrice'];
                 $quantityOrderSparepart = $spareparts['quantity'];
-                $sellerName = $spareparts['seller_name'];
-                $sellerType = $spareparts['seller_type'];
+                $sellerName = $spareparts['sellerName'];
+                $sellerType = $spareparts['sellerType'];
 
                 // Validate each spareparts data
                 $sparepartsValidator = Validator::make($spareparts, [
-                    'seller_name' => 'required|string|max:255',
-                    'seller_type' => 'required|string',
-                    'sparepart_id' => 'required|exists:spareparts,id',
+                    'sellerName' => 'required|string|max:255',
+                    'sellerType' => 'required|string',
+                    'sparepartId' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
-                    'unit_price' => 'required|numeric|min:1',
+                    'unitPrice' => 'required|numeric|min:1',
                 ]);
 
                 if ($sparepartsValidator->fails()) {
