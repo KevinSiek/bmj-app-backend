@@ -1256,6 +1256,15 @@ class QuotationController extends Controller
                 return $this->handleNotFound('Quotation not found');
             }
 
+            // Check if quotation is already in return state and has any returned spare parts
+            $inReturnState = $quotation->is_return;
+            $alreadyHaveReturnedSparepart = DetailQuotation::where('quotation_id', $quotation->id)->where('is_return', true)->exists();
+            if ($inReturnState && $alreadyHaveReturnedSparepart) {
+                return response()->json([
+                    'message' => 'Cannot change to Return state: Quotation is already in return state with returned spare parts',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             // Update DetailQuotation entries for the specified sparepart_ids
             $returnedSparepartIds = $request->input('returned', []);
             if (!empty($returnedSparepartIds)) {
