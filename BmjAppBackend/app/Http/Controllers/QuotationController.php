@@ -845,11 +845,39 @@ class QuotationController extends Controller
     public function isNeedReview(Request $request, $isNeedReview)
     {
         try {
+            $q = $request->query('search');
+            $month = $request->query('month');
+            $year = $request->query('year');
+
             $quoatations = $this->getAccessedQuotation($request);
             $quotationNeedReview = $quoatations->where('review', !$isNeedReview);
 
+            // Apply search filter if provided
+            if ($q) {
+                $quotationNeedReview->where(function ($query) use ($q) {
+                    $query->where('project', 'like', "%$q%")
+                        ->orWhere('quotation_number', 'like', "%$q%")
+                        ->orWhere('type', 'like', "%$q%");
+                });
+            }
+
+            // Apply year and month filters if provided
+            if ($year) {
+                $quotationNeedReview->whereYear('date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $quotationNeedReview->whereMonth('date', $monthNumber);
+                }
+            }
+
             // Paginate the results
-            $quotations = $quotationNeedReview->paginate(20)->through(function ($quotation) {
+            $quotations = $quotationNeedReview->orderByRaw("
+                REGEXP_REPLACE(quotation_number, '-v[0-9]+$', '') ASC,
+                COALESCE(
+                    CAST(NULLIF(REGEXP_SUBSTR(quotation_number, '-v([0-9]+)$'), '') AS UNSIGNED),
+                    0
+                ) ASC
+            ")->paginate(20)->through(function ($quotation) {
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
@@ -908,11 +936,39 @@ class QuotationController extends Controller
     public function isNeedReturn(Request $request, $isNeedReturn)
     {
         try {
+            $q = $request->query('search');
+            $month = $request->query('month');
+            $year = $request->query('year');
+
             $quoatations = $this->getAccessedQuotation($request);
             $quotationNeedReturn = $quoatations->where('is_return', !$isNeedReturn);
 
+            // Apply search filter if provided
+            if ($q) {
+                $quotationNeedReturn->where(function ($query) use ($q) {
+                    $query->where('project', 'like', "%$q%")
+                        ->orWhere('quotation_number', 'like', "%$q%")
+                        ->orWhere('type', 'like', "%$q%");
+                });
+            }
+
+            // Apply year and month filters if provided
+            if ($year) {
+                $quotationNeedReturn->whereYear('date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $quotationNeedReturn->whereMonth('date', $monthNumber);
+                }
+            }
+
             // Paginate the results
-            $quotations = $quotationNeedReturn->paginate(20)->through(function ($quotation) {
+            $quotations = $quotationNeedReturn->orderByRaw("
+                REGEXP_REPLACE(quotation_number, '-v[0-9]+$', '') ASC,
+                COALESCE(
+                    CAST(NULLIF(REGEXP_SUBSTR(quotation_number, '-v([0-9]+)$'), '') AS UNSIGNED),
+                    0
+                ) ASC
+            ")->paginate(20)->through(function ($quotation) {
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
