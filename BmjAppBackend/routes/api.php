@@ -52,8 +52,8 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
         Route::get('/return/{isNeedReturn}', [QuotationController::class, 'isNeedReturn']);
         Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
-        Route::get('/approve/{slug}', [QuotationController::class, 'approve']);
-        Route::get('/decline/{slug}', [QuotationController::class, 'decline']);
+        Route::post('/approve/{slug}', [QuotationController::class, 'approve']);
+        Route::post('/reject/{slug}', [QuotationController::class, 'decline']);
 
         // Api to change status of quotation in general
         Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
