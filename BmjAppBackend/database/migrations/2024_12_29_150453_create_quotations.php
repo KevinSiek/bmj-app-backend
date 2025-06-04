@@ -29,7 +29,7 @@ return new class extends Migration
             $table->text('current_status')->nullable();
             $table->json('status')->nullable();
             $table->boolean('review');
-            $table->boolean('is_return');
+            $table->boolean('is_return')->nullable();
             $table->timestamps();
         });
     }
