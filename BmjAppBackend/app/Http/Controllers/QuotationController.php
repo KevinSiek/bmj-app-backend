@@ -783,15 +783,10 @@ class QuotationController extends Controller
                     $sparepartRecord->save();
                 }
 
-                // Create Detail back order for each sparepart
-                // TODO: This is maybe not efficient but we need to handle multiple sparepart statuse in single BO ID
-                // $boStatus = BackOrderController::READY;
-                // if ($numberBoInBo) {
-                //     $boStatus = BackOrderController::PROCESS;
-                // }
-                // $backOrder->update([
-                //     'current_status' => $boStatus
-                // ]);
+                // Change current status of PO to BO
+                if ($numberBoInBo) {
+                    $purchaseOrder->update(['current_status' => PurchaseOrderController::BO]);
+                }
 
                 DetailBackOrder::create([
                     'back_order_id' => $backOrder->id,

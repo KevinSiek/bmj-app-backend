@@ -272,8 +272,10 @@ class BackOrderController extends Controller
 
             $quotation = $backOrder->purchaseOrder->quotation;
             $purchaseOrder = $backOrder->purchaseOrder;
+            // Update PO current status to PREPARE
+            // It will become ready after user click "Sparepart ready" in PO
             $purchaseOrder->update([
-                'current_status' => PurchaseOrderController::READY
+                'current_status' => PurchaseOrderController::PREPARE
             ]);
             $this->quotationController->changeStatusToInventory($request, $quotation);
 

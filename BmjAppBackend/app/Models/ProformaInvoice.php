@@ -16,6 +16,7 @@ class ProformaInvoice extends Model
         'down_payment',
         'grand_total',
         'total_amount',
+        'is_dp_paid',
         'total_amount_text',
         'employee_id'
     ];

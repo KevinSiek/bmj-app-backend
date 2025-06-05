@@ -281,6 +281,9 @@ class ProformaInvoiceController extends Controller
             $purchaseOrder->current_status = PurchaseOrderController::PAID;
             $purchaseOrder->save();
 
+            $proformaInvoice->is_dp_paid = true;
+            $proformaInvoice->save();
+
             DB::commit();
 
             return response()->json([
