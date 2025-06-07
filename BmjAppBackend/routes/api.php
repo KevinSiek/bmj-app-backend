@@ -65,7 +65,7 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::prefix('purchase-order')->group(function () {
         Route::get('/', [PurchaseOrderController::class, 'getAll']);
         Route::get('/{id}', [PurchaseOrderController::class, 'get']);
-        Route::get('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
+        Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
         Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
     });
 
