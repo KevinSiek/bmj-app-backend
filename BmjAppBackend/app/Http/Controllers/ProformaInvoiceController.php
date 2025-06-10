@@ -215,11 +215,6 @@ class ProformaInvoiceController extends Controller
             ]);
 
             $quotation = $proformaInvoice->purchaseOrder->quotation;
-            $quotation->update([
-                'current_status' => QuotationController::PAID
-            ]);
-            $this->quotationController->changeStatusToPaid($request, $quotation);
-
             DB::commit();
 
             return response()->json([
@@ -266,7 +261,7 @@ class ProformaInvoiceController extends Controller
         }
     }
 
-    public function paid(Request $request, $id)
+    public function dpPaid(Request $request, $id)
     {
         DB::beginTransaction();
 
@@ -278,7 +273,7 @@ class ProformaInvoiceController extends Controller
             }
 
             $purchaseOrder = $proformaInvoice->purchaseOrder;
-            $purchaseOrder->current_status = PurchaseOrderController::PAID;
+            $purchaseOrder->current_status = QuotationController::DP_PAID;
             $purchaseOrder->save();
 
             $proformaInvoice->is_dp_paid = true;
@@ -287,7 +282,41 @@ class ProformaInvoiceController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Proforma invoice paid successfully',
+                'message' => 'Proforma invoice down payment paid successfully',
+                'data' => $proformaInvoice
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to promote proforma invoice');
+        }
+    }
+
+    public function fullPaid(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+
+            if (!$proformaInvoice) {
+                return $this->handleNotFound('Proforma invoice not found');
+            }
+
+            $purchaseOrder = $proformaInvoice->purchaseOrder;
+            $quotation = $purchaseOrder->quotation;
+            $purchaseOrder->current_status = QuotationController::FULL_PAID;
+            $purchaseOrder->save();
+
+            $proformaInvoice->is_full_paid = true;
+            $proformaInvoice->save();
+
+            $this->quotationController->changeStatusToPaid($request, $quotation);
+
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Proforma invoice paid fully successfully',
                 'data' => $proformaInvoice
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
