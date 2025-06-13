@@ -1042,7 +1042,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::PO,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1086,7 +1086,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::PI,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1130,7 +1130,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::Inventory,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1174,7 +1174,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::PAID,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1218,7 +1218,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::SENT,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1264,7 +1264,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::DONE,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1334,7 +1334,7 @@ class QuotationController extends Controller
             // Append new status entry
             $currentStatus[] = [
                 'state' => self::RETURN,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1437,7 +1437,7 @@ class QuotationController extends Controller
             // Append new status entry for decline
             $status[] = [
                 'state' => self::DECLINED,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -1544,7 +1544,7 @@ class QuotationController extends Controller
             // Append new status entry for approval
             $status[] = [
                 'state' => self::APPROVED,
-                'employeeId' => $user->id,
+                'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
