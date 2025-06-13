@@ -370,6 +370,15 @@ class PurchaseOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            // Check if quotation already have PI that has DP_PAID
+            $proformaInvoice = $purchaseOrder->proformaInvoice;
+            $isDpPaid = $proformaInvoice->is_dp_paid;
+            if (!$proformaInvoice && $isDpPaid) {
+                return response()->json([
+                    'message' => 'PI must be made in advance and down payment must be paid'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             // Generate work order number
             $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
             $randomString1 = strtoupper(Str::random(3));
