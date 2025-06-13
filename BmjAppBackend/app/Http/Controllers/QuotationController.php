@@ -42,7 +42,8 @@ class QuotationController extends Controller
     const PO = 'Po';
     const PI = 'Pi';
     const Inventory = 'Inventory';
-    const PAID = 'Paid';
+    const DP_PAID = 'DP Paid';
+    const FULL_PAID = 'Full Paid';
     const SENT = 'Sent';
     const RETURN = 'Return';
     const DECLINED = "Declined";

@@ -59,7 +59,8 @@ class PurchaseOrderController extends Controller
                 'proforma_invoice' => [
                     'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
                     'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : '',
-                    'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : ''
+                    'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : '',
+                    'is_full_paid' => $proformaInvoice ? $proformaInvoice->is_full_paid : ''
                 ],
                 'customer' => [
                     'company_name' => $customer ? $customer->company_name : '',
@@ -163,7 +164,8 @@ class PurchaseOrderController extends Controller
                         'proforma_invoice' => [
                             'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
                             'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : '',
-                            'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : ''
+                            'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : '',
+                            'is_full_paid' => $proformaInvoice ? $proformaInvoice->is_full_paid : ''
                         ],
                         'customer' => [
                             'company_name' => $customer ? $customer->company_name : '',
@@ -267,6 +269,7 @@ class PurchaseOrderController extends Controller
                 'proforma_invoice_date' => now(),
                 'employee_id' => $purchaseOrder->employee_id,
                 'is_dp_paid' => false,
+                'is_full_paid' => false,
             ]);
 
             $quotation = $purchaseOrder->quotation;
