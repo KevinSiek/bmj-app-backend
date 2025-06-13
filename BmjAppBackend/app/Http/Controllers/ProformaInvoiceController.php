@@ -283,6 +283,8 @@ class ProformaInvoiceController extends Controller
 
             $proformaInvoice->is_dp_paid = true;
             $proformaInvoice->save();
+            $quotation = $purchaseOrder->quotation;
+            $this->quotationController->changeStatusToPaid($request, $quotation);
 
             DB::commit();
 
