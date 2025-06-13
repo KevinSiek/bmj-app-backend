@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\ProformaInvoice;
 use App\Models\PurchaseOrder;
+use App\Models\WorkOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class PurchaseOrderController extends Controller
 {
@@ -313,6 +316,110 @@ class PurchaseOrderController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to update purchase order status to' . $status);
+        }
+    }
+
+    public function release(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->findOrFail($id);
+            $quotation = $purchaseOrder->quotation;
+
+            // Check if this quotation is Service
+            if ($quotation->type !== QuotationController::SERVICE) {
+                return response()->json([
+                    'message' => 'Only SERVICE type quotations can be released to work order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Validate request input
+            $validator = Validator::make($request->all(), [
+                'receivedBy' => 'required|exists:employees,id',
+                'compiled' => 'required|exists:employees,id',
+                'approver' => 'required|exists:employees,id',
+                'spareparts' => 'required|array|min:1',
+                'spareparts.*' => 'string|max:255',
+                'backupSparepart' => 'nullable|array',
+                'backupSparepart.*' => 'string|max:255',
+                'jobDescriptions' => 'nullable|string',
+                'worker' => 'nullable|array',
+                'worker.*' => 'string|max:255',
+                'headOfService' => 'nullable|string',
+                'scope' => 'nullable|string',
+                'vaccine' => 'nullable|string',
+                'apd' => 'nullable|string',
+                'peduliLindungi' => 'nullable|string',
+                'expectedDays' => 'nullable|integer|min:1',
+                'expectedStartDate' => 'nullable|date',
+                'expectedEndDate' => 'nullable|date|after_or_equal:expectedStartDate'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Check if work order already exists
+            if ($quotation->workOrder) {
+                return response()->json([
+                    'message' => 'Work order already exists for this quotation'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Generate work order number
+            $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
+            $randomString1 = strtoupper(Str::random(3));
+            $randomString2 = strtoupper(Str::random(3));
+            $monthRoman = $this->getRomanMonth(now()->month);
+            $year = now()->year;
+            $workOrderNumber = "WO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+
+            // Create work order
+            $workOrder = WorkOrder::create([
+                'quotation_id' => $quotation->id,
+                'work_order_number' => $workOrderNumber,
+                'received_by' => $request->receivedBy,
+                'expected_days' => $request->expectedDays,
+                'expected_start_date' => $request->expectedStartDate,
+                'expected_end_date' => $request->expectedEndDate,
+                'compiled' => $request->compiled,
+                'start_date' => null,
+                'end_date' => null,
+                'job_descriptions' => $request->jobDescriptions,
+                'worker' => $request->worker ? json_encode($request->worker) : null,
+                'head_of_service' => $request->headOfService,
+                'approver' => $request->approver,
+                'is_done' => false,
+                'spareparts' => json_encode($request->spareparts),
+                'backup_sparepart' => $request->backupSparepart ? json_encode($request->backupSparepart) : null,
+                'scope' => $request->scope,
+                'vaccine' => $request->vaccine,
+                'apd' => $request->apd,
+                'peduli_lindungi' => $request->peduliLindungi,
+            ]);
+
+            // Update purchase order status
+            $purchaseOrder->current_status = self::RELEASE;
+            $purchaseOrder->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return a success response
+            return response()->json([
+                'message' => 'Purchase order released and work order created successfully',
+                'data' => [
+                    'purchase_order' => $purchaseOrder,
+                    'work_order' => $workOrder
+                ]
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to release purchase order');
         }
     }
 

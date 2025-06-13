@@ -796,36 +796,6 @@ class QuotationController extends Controller
                     'number_back_order' => $numberBoInBo,
                 ]);
             }
-
-            // Check if this quotation is Service or not
-            $isService = $quotation->type == QuotationController::SERVICE;
-            if ($isService && !$quotation->workOrder) {
-                $user = $request->user();
-                $userId = $user->id;
-
-                WorkOrder::create([
-                    'quotation_id' => $quotation->id,
-                    'work_order_number' => 'WO-' . now()->format('YmdHis'),
-                    'received_by' => $userId,
-                    'expected_days' => null,
-                    'expected_start_date' => null,
-                    'expected_end_date' => null,
-                    'compiled' => $userId,
-                    'start_date' => null,
-                    'end_date' => null,
-                    'job_descriptions' => null,
-                    'worker' => null,
-                    'head_of_service' => null,
-                    'approver' => $userId,
-                    'spareparts' => null,
-                    'backup_sparepart' => null,
-                    'scope' => null,
-                    'vaccine' => null,
-                    'apd' => null,
-                    'peduli_lindungi' => null,
-                    'is_done' => false,
-                ]);
-            }
             DB::commit();
 
             return response()->json([
