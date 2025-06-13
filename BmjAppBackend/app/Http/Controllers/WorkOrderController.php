@@ -69,7 +69,7 @@ class WorkOrderController extends Controller
                 ],
                 'description' => $quotation->notes ?? '',
                 'current_status' => $workOrder->current_status ?? '',
-                'quotationNumber' => $quotation ? $quotation->quotation_number : '',
+                'quotation_number' => $quotation ? $quotation->quotation_number : '',
                 'additional' => [
                     'spareparts' => $workOrder->spareparts,
                     'backup_sparepart' => $workOrder->backup_sparepart,
@@ -180,7 +180,7 @@ class WorkOrderController extends Controller
                     ],
                     'description' => $quotation->notes ?? '',
                     'current_status' => $wo->current_status ?? '',
-                    'quotationNumber' => $quotation ? $quotation->quotation_number : '',
+                    'quotation_number' => $quotation ? $quotation->quotation_number : '',
                     'additional' => [
                         'spareparts' => $wo->spareparts,
                         'backup_sparepart' => $wo->backup_sparepart,
