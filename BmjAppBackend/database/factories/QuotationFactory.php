@@ -42,27 +42,27 @@ class QuotationFactory extends Factory
                 [
                     'state' => 'Po',
                     'timestamp' => now()->format('d/m/Y'),
-                    'employeeId' => 1
+                    'employee' => "Director Name"
                 ],
                 [
                     'state' => 'Pi',
                     'timestamp' => now()->format('d/m/Y'),
-                    'employeeId' => 1
+                    'employee' => "PI Name"
                 ],
                 [
                     'state' => 'Inventory',
                     'timestamp' => now()->format('d/m/Y'),
-                    'employeeId' => 1
+                    'employee' => "Inventory Name"
                 ],
                 [
                     'state' => 'Paid',
                     'timestamp' => now()->format('d/m/Y'),
-                    'employeeId' => 1
+                    'employee' => "PI Name"
                 ],
                 [
                     'state' => 'Done',
                     'timestamp' => now()->format('d/m/Y'),
-                    'employeeId' => 1
+                    'employee' => "Done Name"
                 ]
             ],
             'review' => $this->faker->boolean(),

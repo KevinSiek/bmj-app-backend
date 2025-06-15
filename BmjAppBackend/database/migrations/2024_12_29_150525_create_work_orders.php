@@ -16,15 +16,15 @@ return new class extends Migration
             $table->foreignId('quotation_id')->constrained('quotations');
             $table->string('work_order_number');
             $table->foreignId('received_by')->constrained('employees')->onDelete('cascade')->nullable();
-            $table->date('expected_days')->nullable();
+            $table->integer('expected_days')->nullable();
             $table->date('expected_start_date')->nullable();
             $table->date('expected_end_date')->nullable();
-            $table->foreignId('compiled')->constrained('employees')->onDelete('cascade');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->string('current_status')->nullable();
             $table->string('job_descriptions')->nullable();
             $table->string('worker')->nullable();
+            $table->foreignId('compiled')->constrained('employees')->onDelete('cascade');
             $table->string('head_of_service')->nullable();
             $table->foreignId('approver')->constrained('employees')->onDelete('cascade');
             $table->boolean('is_done')->nullable();

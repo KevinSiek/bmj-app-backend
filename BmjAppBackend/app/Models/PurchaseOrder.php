@@ -31,11 +31,11 @@ class PurchaseOrder extends Model
 
     public function proformaInvoice()
     {
-        return $this->hasMany(ProformaInvoice::class);
+        return $this->hasOne(ProformaInvoice::class);
     }
 
     public function backOrders()
     {
-        return $this->hasMany(BackOrder::class);
+        return $this->hasOne(BackOrder::class);
     }
 }

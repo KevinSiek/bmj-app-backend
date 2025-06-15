@@ -325,6 +325,7 @@ class PurchaseOrderController extends Controller
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->findOrFail($id);
+
             $quotation = $purchaseOrder->quotation;
 
             // Check if this quotation is Service
@@ -395,11 +396,12 @@ class PurchaseOrderController extends Controller
                 'expected_days' => $request->expectedDays,
                 'expected_start_date' => $request->expectedStartDate,
                 'expected_end_date' => $request->expectedEndDate,
-                'compiled' => $request->compiled,
-                'start_date' => null,
+                'start_date' => now(),
                 'end_date' => null,
+                'current_status' => WorkOrderController::ON_PROGRESS,
                 'job_descriptions' => $request->jobDescriptions,
                 'worker' => $request->worker ? json_encode($request->worker) : null,
+                'compiled' => $request->compiled,
                 'head_of_service' => $request->headOfService,
                 'approver' => $request->approver,
                 'is_done' => false,

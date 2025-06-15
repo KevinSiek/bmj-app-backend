@@ -31,7 +31,7 @@ class WorkOrderController extends Controller
             $quotation = $workOrder->quotation;
             $proformaInvoice = $quotation->proformaInvoice ?? null;
             $customer = $quotation->customer ?? null;
-            $director = Employee::where('role', '=', 'Director')->first();
+            $director = Employee::where('role', '=', 'Director')->first(); // Only with director at momment
 
             $formattedWorkOrder = [
                 'id' => (string) $workOrder->id,
@@ -142,7 +142,7 @@ class WorkOrderController extends Controller
                 $quotation = $wo->quotation;
                 $proformaInvoice = $quotation->proformaInvoice ?? null;
                 $customer = $quotation->customer ?? null;
-                $director = Employee::where('role', '=', 'Director')->first();
+                $director = Employee::where('role', '=', 'Director')->first(); // Only with director at momment
 
                 return [
                     'id' => (string) $wo->id,
@@ -286,6 +286,8 @@ class WorkOrderController extends Controller
 
             $workOrder->update([
                 'is_done' => true,
+                'current_status' => self::DONE,
+                'end_date' => now()
             ]);
 
             $quotation = $workOrder->quotation;

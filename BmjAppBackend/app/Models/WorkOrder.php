@@ -19,6 +19,7 @@ class WorkOrder extends Model
         'start_date',
         'end_date',
         'job_descriptions',
+        'current_status',
         'worker',
         'compiled',
         'head_of_service',

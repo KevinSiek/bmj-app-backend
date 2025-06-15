@@ -52,22 +52,22 @@ class QuotationSeeder extends Seeder
                     [
                         'state' => 'Po',
                         'timestamp' => now()->format('d/m/Y'),
-                        'employeeId' => 1
+                        'employee' => "Po Name"
                     ],
                     [
                         'state' => 'Pi',
                         'timestamp' => now()->format('d/m/Y'),
-                        'employeeId' => 1
+                        'employee' => "Pi Name"
                     ],
                     [
                         'state' => 'Inventory',
                         'timestamp' => now()->format('d/m/Y'),
-                        'employeeId' => 1
+                        'employee' => "Inventory Name"
                     ],
                     [
                         'state' => 'Paid',
                         'timestamp' => now()->format('d/m/Y'),
-                        'employeeId' => 1
+                        'employee' => "Paid Name"
                     ]
                 ]
             ]);

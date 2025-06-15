@@ -207,10 +207,30 @@ class ProformaInvoiceController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            // Get current date components
+            $currentDate = now();
+            $year = $currentDate->format('Y');
+            $month = $currentDate->month;
+
+            // Convert month to Roman numeral
+            $romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+            $romanMonth = $romanMonths[$month - 1];
+
+            // Get the count of invoices for the current month and year to determine the sequence number
+            $invoiceCount = Invoice::whereYear('invoice_date', $year)
+                ->whereMonth('invoice_date', $month)
+                ->count() + 1; // Increment by 1 for the new invoice
+
+            // Format the sequence number with leading zeros (e.g., 001)
+            $sequenceNumber = str_pad($invoiceCount, 3, '0', STR_PAD_LEFT);
+
+            // Generate invoice number in the format IP/<InputNumberInOrder>/<RomawiMonth>/<Year>
+            $invoiceNumber = "IP/{$sequenceNumber}/{$romanMonth}/{$year}";
+
             $invoice = Invoice::create([
                 'proforma_invoice_id' => $proformaInvoice->id,
-                'invoice_number' => 'INVOICE-' . now()->format('YmdHis'),
-                'invoice_date' => now(),
+                'invoice_number' => $invoiceNumber,
+                'invoice_date' => $currentDate,
                 'employee_id' => $proformaInvoice->employee_id,
             ]);
 
@@ -313,7 +333,6 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice->save();
 
             $this->quotationController->changeStatusToPaid($request, $quotation, false);
-
 
             DB::commit();
 
