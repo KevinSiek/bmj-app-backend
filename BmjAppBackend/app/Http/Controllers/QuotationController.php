@@ -1126,7 +1126,7 @@ class QuotationController extends Controller
         }
     }
 
-    public function changeStatusToPaid(Request $request, $quotation)
+    public function changeStatusToPaid(Request $request, $quotation, $isDpPaid)
     {
         // Start a database transaction
         DB::beginTransaction();
@@ -1145,7 +1145,7 @@ class QuotationController extends Controller
 
             // Append new status entry
             $currentStatus[] = [
-                'state' => self::PAID,
+                'state' => $isDpPaid ? self::DP_PAID : self::FULL_PAID,
                 'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];

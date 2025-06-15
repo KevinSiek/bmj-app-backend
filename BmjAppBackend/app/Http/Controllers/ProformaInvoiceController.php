@@ -279,7 +279,7 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice->is_dp_paid = true;
             $proformaInvoice->save();
             $quotation = $purchaseOrder->quotation;
-            $this->quotationController->changeStatusToPaid($request, $quotation);
+            $this->quotationController->changeStatusToPaid($request, $quotation, true);
 
             DB::commit();
 
@@ -312,7 +312,7 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice->is_full_paid = true;
             $proformaInvoice->save();
 
-            $this->quotationController->changeStatusToPaid($request, $quotation);
+            $this->quotationController->changeStatusToPaid($request, $quotation, false);
 
 
             DB::commit();
