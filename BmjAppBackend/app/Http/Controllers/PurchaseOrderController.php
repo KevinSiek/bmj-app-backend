@@ -443,8 +443,26 @@ class PurchaseOrderController extends Controller
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->findOrFail($id);
 
+            // Map camelCase input to snake_case for validation and update
+            $input = $request->all();
+            $mappedInput = [];
+            $fieldMap = [
+                'quotationId' => 'quotation_id',
+                'purchaseOrderNumber' => 'purchase_order_number',
+                'purchaseOrderDate' => 'purchase_order_date',
+                'paymentDue' => 'payment_due',
+                'employeeId' => 'employee_id',
+                'currentStatus' => 'current_status',
+                'notes' => 'notes',
+            ];
+            foreach ($fieldMap as $camel => $snake) {
+                if (array_key_exists($camel, $input)) {
+                    $mappedInput[$snake] = $input[$camel];
+                }
+            }
+
             // Define validation rules, all fields are nullable
-            $validator = Validator::make($request->all(), [
+            $validator = Validator::make($mappedInput, [
                 'quotation_id' => 'nullable|exists:quotations,id',
                 'purchase_order_number' => ['nullable', 'string', 'max:255', Rule::unique('purchase_orders')->ignore($id)],
                 'purchase_order_date' => 'nullable|date',
@@ -463,27 +481,10 @@ class PurchaseOrderController extends Controller
 
             // Prepare update data, only include fields that are provided and not null
             $updateData = [];
-
-            if ($request->filled('quotation_id')) {
-                $updateData['quotation_id'] = $request->input('quotation_id');
-            }
-            if ($request->filled('purchase_order_number')) {
-                $updateData['purchase_order_number'] = $request->input('purchase_order_number');
-            }
-            if ($request->filled('purchase_order_date')) {
-                $updateData['purchase_order_date'] = $request->input('purchase_order_date');
-            }
-            if ($request->has('payment_due')) {
-                $updateData['payment_due'] = $request->input('payment_due');
-            }
-            if ($request->has('employee_id')) {
-                $updateData['employee_id'] = $request->input('employee_id');
-            }
-            if ($request->filled('current_status')) {
-                $updateData['current_status'] = $request->input('current_status');
-            }
-            if ($request->has('notes')) {
-                $updateData['notes'] = $request->input('notes');
+            foreach ($fieldMap as $camel => $snake) {
+                if (array_key_exists($camel, $input) && $input[$camel] !== null) {
+                    $updateData[$snake] = $input[$camel];
+                }
             }
 
             // Update the purchase order if there are changes

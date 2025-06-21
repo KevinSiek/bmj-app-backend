@@ -31,20 +31,20 @@ class WorkOrderController extends Controller
             $quotation = $workOrder->quotation;
             $proformaInvoice = $quotation->proformaInvoice ?? null;
             $customer = $quotation->customer ?? null;
-            $director = Employee::where('role', '=', 'Director')->first(); // Only with director at momment
+            $director = Employee::where('role', '=', 'Director')->first(); // Only with director at moment
 
             $formattedWorkOrder = [
                 'id' => (string) $workOrder->id,
                 'service_order' => [
                     'no' => $workOrder->work_order_number,
                     'date' => $workOrder->created_at,
-                    'received_by' => $workOrder->received_by,
+                    'received_by' => $workOrder->received_by ?? '',
                     'start_date' => $workOrder->start_date,
                     'end_date' => $workOrder->end_date,
                 ],
                 'proforma_invoice' => [
-                    'proforma_invoice_number ' => $proformaInvoice->quotation_number ?? '',
-                    'proforma_invoice_date ' => $proformaInvoice->project ?? '',
+                    'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
+                    'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
@@ -57,11 +57,11 @@ class WorkOrderController extends Controller
                     'postal_code' => $customer->postal_code ?? ''
                 ],
                 'poc' => [
-                    'compiled' => $workOrder->compiled,
-                    'head_of_service' => $workOrder->head_of_service,
-                    'director' => $director->fullname,
-                    'worker' => $workOrder->worker,
-                    'approver' => $workOrder->approver,
+                    'compiled' => $workOrder->compiled ?? '',
+                    'head_of_service' => $workOrder->head_of_service ?? '',
+                    'director' => $director->fullname ?? '',
+                    'worker' => $workOrder->worker ?? '',
+                    'approver' => $workOrder->approver ?? '',
                 ],
                 'date' => [
                     'start_date' => $workOrder->start_date,
@@ -142,20 +142,20 @@ class WorkOrderController extends Controller
                 $quotation = $wo->quotation;
                 $proformaInvoice = $quotation->proformaInvoice ?? null;
                 $customer = $quotation->customer ?? null;
-                $director = Employee::where('role', '=', 'Director')->first(); // Only with director at momment
+                $director = Employee::where('role', '=', 'Director')->first(); // Only with director at moment
 
                 return [
                     'id' => (string) $wo->id,
                     'service_order' => [
                         'no' => $wo->work_order_number,
                         'date' => $wo->created_at,
-                        'received_by' => $wo->received_by,
+                        'received_by' => $wo->received_by ?? '',
                         'start_date' => $wo->start_date,
                         'end_date' => $wo->end_date,
                     ],
                     'proforma_invoice' => [
-                        'proforma_invoice_number ' => $proformaInvoice->quotation_number ?? '',
-                        'proforma_invoice_date ' => $proformaInvoice->project ?? '',
+                        'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
+                        'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date ?? '',
                     ],
                     'customer' => [
                         'company_name' => $customer->company_name ?? '',
@@ -168,11 +168,11 @@ class WorkOrderController extends Controller
                         'postal_code' => $customer->postal_code ?? ''
                     ],
                     'poc' => [
-                        'compiled' => $wo->compiled,
-                        'head_of_service' => $wo->head_of_service,
-                        'director' => $director->fullname,
-                        'worker' => $wo->worker,
-                        'approver' => $wo->approver,
+                        'compiled' => $wo->compiled ?? '',
+                        'head_of_service' => $wo->head_of_service ?? '',
+                        'director' => $director->fullname ?? '',
+                        'worker' => $wo->worker ?? '',
+                        'approver' => $wo->approver ?? '',
                     ],
                     'date' => [
                         'start_date' => $wo->start_date,
@@ -225,17 +225,34 @@ class WorkOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            // Map camelCase input to snake_case for validation and update
+            $input = $request->all();
+            $mappedInput = [
+                'work_order_number'    => $input['workOrderNumber'] ?? null,
+                'received_by'          => $input['receivedBy'] ?? null,
+                'expected_start_date'  => $input['expectedStartDate'] ?? null,
+                'expected_end_date'    => $input['expectedEndDate'] ?? null,
+                'start_date'           => $input['startDate'] ?? null,
+                'end_date'             => $input['endDate'] ?? null,
+                'job_descriptions'     => $input['jobDescriptions'] ?? null,
+                'worker'               => $input['worker'] ?? null,
+                'compiled'             => $input['compiled'] ?? null,
+                'approver'             => $input['approver'] ?? null,
+                'additional_components' => $input['additionalComponents'] ?? null,
+            ];
+
             // Validation rules
-            $validator = Validator::make($request->all(), [
-                'work_order_number' => 'sometimes|required|string|max:255|unique:work_orders,work_order_number,' . $workOrder->id,
-                'received_by' => 'nullable|string|max:255',
-                'expected_start_date' => 'nullable|date',
-                'expected_end_date' => 'nullable|date|after_or_equal:expected_start_date',
-                'start_date' => 'nullable|date',
-                'end_date' => 'nullable|date|after_or_equal:start_date',
-                'job_descriptions' => 'nullable|string',
-                'worker' => 'nullable|string|max:255',
-                'approver' => 'nullable|string|max:255',
+            $validator = Validator::make($mappedInput, [
+                'work_order_number'    => 'sometimes|required|string|max:255|unique:work_orders,work_order_number,' . $workOrder->id,
+                'received_by'          => 'nullable|string|max:255',
+                'expected_start_date'  => 'nullable|date',
+                'expected_end_date'    => 'nullable|date|after_or_equal:expected_start_date',
+                'start_date'           => 'nullable|date',
+                'end_date'             => 'nullable|date|after_or_equal:start_date',
+                'job_descriptions'     => 'nullable|string',
+                'worker'               => 'nullable|string|max:255',
+                'compiled'             => 'nullable|string|max:255',
+                'approver'             => 'nullable|string|max:255',
                 'additional_components' => 'nullable|string'
             ]);
 
@@ -251,10 +268,9 @@ class WorkOrderController extends Controller
             // For Marketing users, prevent changing certain fields
             $user = $request->user();
             if ($user->role == 'Marketing') {
-                // Remove fields that Marketing shouldn't be able to update
-                unset($validatedData['wo_number']);
+                unset($validatedData['work_order_number']);
                 unset($validatedData['approver']);
-                // Add other restricted fields as needed
+                unset($validatedData['compiled']);
             }
 
             $workOrder->update($validatedData);

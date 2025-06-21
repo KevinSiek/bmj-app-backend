@@ -45,20 +45,6 @@ class Employee extends Authenticatable
     {
         return $this->hasMany(DetailAccesses::class);
     }
-    public function receivedWorkOrders()
-    {
-        return $this->hasMany(WorkOrder::class, 'received_by');
-    }
-
-    public function compiledWorkOrders()
-    {
-        return $this->hasMany(WorkOrder::class, 'compiled');
-    }
-
-    public function approvedWorkOrders()
-    {
-        return $this->hasMany(WorkOrder::class, 'approver');
-    }
     public function backOrder()
     {
         return $this->hasMany(BackOrder::class);

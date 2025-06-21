@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('quotation_id')->constrained('quotations');
             $table->string('work_order_number');
-            $table->foreignId('received_by')->constrained('employees')->onDelete('cascade')->nullable();
+            $table->string('received_by')->nullable();
             $table->integer('expected_days')->nullable();
             $table->date('expected_start_date')->nullable();
             $table->date('expected_end_date')->nullable();
@@ -24,9 +24,9 @@ return new class extends Migration
             $table->string('current_status')->nullable();
             $table->string('job_descriptions')->nullable();
             $table->string('worker')->nullable();
-            $table->foreignId('compiled')->constrained('employees')->onDelete('cascade');
+            $table->string('compiled')->nullable();
             $table->string('head_of_service')->nullable();
-            $table->foreignId('approver')->constrained('employees')->onDelete('cascade');
+            $table->string('approver')->nullable();
             $table->boolean('is_done')->nullable();
             $table->string('spareparts')->nullable();
             $table->string('backup_sparepart')->nullable();
@@ -43,6 +43,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('invoices');
+        Schema::dropIfExists('work_orders');
     }
 };

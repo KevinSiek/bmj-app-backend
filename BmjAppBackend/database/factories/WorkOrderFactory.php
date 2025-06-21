@@ -4,7 +4,6 @@ namespace Database\Factories;
 
 use App\Http\Controllers\WorkOrderController;
 use App\Models\WorkOrder;
-use App\Models\Employee;
 use App\Models\Quotation;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -53,7 +52,7 @@ class WorkOrderFactory extends Factory
         return [
             'quotation_id' => Quotation::inRandomOrder()->first()->id ?? Quotation::factory()->create()->id,
             'work_order_number' => 'WO-' . strtoupper($this->faker->unique()->lexify('????')) . '-' . $this->faker->numberBetween(1000, 9999),
-            'received_by' => Employee::inRandomOrder()->first()->id ?? Employee::factory()->create()->id,
+            'received_by' => $this->faker->name,
             'expected_days' => $this->faker->numberBetween(1, 30),
             'expected_start_date' => $expectedStartDate,
             'expected_end_date' => $expectedEndDate,
@@ -67,9 +66,9 @@ class WorkOrderFactory extends Factory
                 'Michael Brown',
                 'Sarah Johnson'
             ], $this->faker->numberBetween(1, 3))),
-            'compiled' => Employee::inRandomOrder()->first()->id ?? Employee::factory()->create()->id,
+            'compiled' => $this->faker->name,
             'head_of_service' => $this->faker->name,
-            'approver' => Employee::inRandomOrder()->first()->id ?? Employee::factory()->create()->id,
+            'approver' => $this->faker->name,
             'is_done' => $isDone,
             'spareparts' => implode(', ', $this->faker->randomElements([
                 'Oil Filter',

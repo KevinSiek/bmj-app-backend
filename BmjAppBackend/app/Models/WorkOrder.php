@@ -38,21 +38,6 @@ class WorkOrder extends Model
         return $this->belongsTo(Quotation::class);
     }
 
-    public function receivedBy()
-    {
-        return $this->belongsTo(Employee::class, 'received_by');
-    }
-
-    public function compiledBy()
-    {
-        return $this->belongsTo(Employee::class, 'compiled');
-    }
-
-    public function approver()
-    {
-        return $this->belongsTo(Employee::class, 'approver');
-    }
-
     public function woUnits()
     {
         return $this->hasMany(WoUnit::class, 'id_wo');

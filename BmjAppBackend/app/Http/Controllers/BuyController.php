@@ -54,7 +54,7 @@ class BuyController extends Controller
             $buyData = [
                 'buy_number' => $request->input('buyNumber'),
                 'total_amount' => $request->input('totalAmount'),
-                'review' =>  $request->input('review'),
+                'review' => $request->input('review'),
                 'current_status' => $request->input('currentStatus'),
                 'back_order_id' => $request->input('backOrderId'),
                 'notes' => $request->input('notes'),
@@ -115,6 +115,8 @@ class BuyController extends Controller
 
     public function update(Request $request, $slug)
     {
+        DB::beginTransaction();
+
         try {
             $buy = Buy::where('slug', $slug)->first();
 
@@ -122,12 +124,135 @@ class BuyController extends Controller
                 return $this->handleNotFound('Buy not found');
             }
 
-            $buy->update($request->all());
+            // Validate the request data
+            $validator = Validator::make($request->all(), [
+                'buyNumber' => 'sometimes|string|unique:buys,buy_number,' . $buy->id,
+                'totalAmount' => 'sometimes|numeric',
+                'review' => 'sometimes|boolean',
+                'currentStatus' => 'sometimes|string',
+                'notes' => 'sometimes|string',
+                'backOrderId' => 'sometimes|exists:back_orders,id',
+                // Sparepart validation
+                'spareparts' => 'sometimes|array',
+                'spareparts.*.sellerName' => 'required_with:spareparts|string|max:255',
+                'spareparts.*.sellerType' => 'required_with:spareparts|string',
+                'spareparts.*.sparepartId' => 'required_with:spareparts|exists:spareparts,id',
+                'spareparts.*.quantity' => 'required_with:spareparts|integer|min:1',
+                'spareparts.*.unitPrice' => 'required_with:spareparts|numeric|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // Map camelCase inputs to database fields
+            $buyData = [];
+            if ($request->has('buyNumber')) {
+                $buyData['buy_number'] = $request->input('buyNumber');
+            }
+            if ($request->has('totalAmount')) {
+                $buyData['total_amount'] = $request->input('totalAmount');
+            }
+            if ($request->has('review')) {
+                $buyData['review'] = $request->input('review');
+            }
+            if ($request->has('currentStatus')) {
+                $buyData['current_status'] = $request->input('currentStatus');
+            }
+            if ($request->has('notes')) {
+                $buyData['notes'] = $request->input('notes');
+            }
+            if ($request->has('backOrderId')) {
+                $buyData['back_order_id'] = $request->input('backOrderId');
+            }
+
+            // Update Buy model if there are changes
+            if (!empty($buyData)) {
+                $buy->update($buyData);
+            }
+
+            // Handle spareparts update if provided
+            if ($request->has('spareparts')) {
+                // Delete existing detail_buys
+                DB::table('detail_buys')->where('buy_id', $buy->id)->delete();
+
+                // Create new detail_buys
+                foreach ($request->input('spareparts') as $sparepart) {
+                    $sparepartValidator = Validator::make($sparepart, [
+                        'sellerName' => 'required|string|max:255',
+                        'sellerType' => 'required|string',
+                        'sparepartId' => 'required|exists:spareparts,id',
+                        'quantity' => 'required|integer|min:1',
+                        'unitPrice' => 'required|numeric|min:1',
+                    ]);
+
+                    if ($sparepartValidator->fails()) {
+                        throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
+                    }
+
+                    // Find or create seller
+                    $seller = Seller::firstOrCreate(
+                        [
+                            'name' => $sparepart['sellerName'],
+                            'type' => $sparepart['sellerType'],
+                        ]
+                    );
+
+                    // Insert into detail_buys
+                    DB::table('detail_buys')->insert([
+                        'buy_id' => $buy->id,
+                        'sparepart_id' => $sparepart['sparepartId'],
+                        'quantity' => $sparepart['quantity'],
+                        'unit_price' => $sparepart['unitPrice'],
+                        'seller_id' => $seller->id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            // Fetch updated buy with relations for response
+            $updatedBuy = Buy::with('detailBuys.sparepart', 'detailBuys.seller')->findOrFail($buy->id);
+
+            // Calculate total purchase amount
+            $totalPurchase = $updatedBuy->detailBuys->sum(function ($detail) {
+                return $detail->quantity * $detail->unit_price;
+            });
+
+            // Get spare parts details
+            $spareParts = $updatedBuy->detailBuys->map(function ($detail) {
+                return [
+                    'sparepart_name' => $detail->sparepart->sparepart_name,
+                    'sparepart_number' => $detail->sparepart->sparepart_number,
+                    'quantity' => $detail->quantity,
+                    'unit_price' => $detail->unit_price,
+                    'seller_name' => $detail->seller->name ?? '',
+                    'seller_type' => $detail->seller->type ?? '',
+                    'total_price' => $detail->quantity * $detail->unit_price,
+                ];
+            });
+
+            // Format response
+            $formattedBuy = [
+                'buy_number' => $updatedBuy->buy_number ?? '',
+                'date' => $updatedBuy->created_at ?? '',
+                'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                'current_status' => $updatedBuy->current_status,
+                'total_amount' => $totalPurchase,
+                'spareparts' => $spareParts,
+            ];
+
+            DB::commit();
+
             return response()->json([
                 'message' => 'Buy updated successfully',
-                'data' => $buy,
+                'data' => $formattedBuy,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Buy update failed');
         }
     }
