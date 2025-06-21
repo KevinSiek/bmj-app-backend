@@ -119,6 +119,7 @@ class QuotationController extends Controller
             // Map API contract to database fields
             $quotationData = [
                 'quotation_number' => $request->input('project.quotationNumber'),
+                'version' => 1, // Set initial version to 1
                 'type' => $request->input('project.type'),
                 'date' => now(),
                 'amount' => $request->input('price.amount'),
@@ -284,22 +285,21 @@ class QuotationController extends Controller
                 'ppn' => $request->input('price.ppn'),
                 'grand_total' => $request->input('price.grandTotal'),
                 'notes' => $request->input('notes'),
-                'project' => $request->input('project.quotationNumber'),
+                'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
             ];
 
-            // Handle versioning for quotation_number
-            $baseQuotationNumber = $quotationData['quotation_number'];
-            $existingVersions = Quotation::where('quotation_number', 'like', $baseQuotationNumber . '%')
-                ->count();
-            $version = $existingVersions + 1;
-            $quotationData['quotation_number'] = $baseQuotationNumber . "-v{$version}";
+            // Handle versioning using the version field
+            $baseQuotationNumber = $quotation['quotation_number'];
+            $existingVersion = Quotation::where('quotation_number', $baseQuotationNumber)
+                ->max('version');
+            $quotationData['version'] = $existingVersion + 1;
 
             // Validate the new quotation_number for uniqueness
-            $validator = Validator::make($quotationData, [
-                'quotation_number' => 'required|string|unique:quotations,quotation_number'
-            ]);
-            if ($validator->fails()) {
-                throw new \Exception('Generated quotation number is not unique: ' . $validator->errors()->first());
+            $existingQuotation = Quotation::where('quotation_number', $baseQuotationNumber)
+                ->where('version', $quotationData['version'])
+                ->first();
+            if ($existingQuotation) {
+                throw new \Exception('Quotation number with this version already exists.');
             }
 
             // Handle Customer Data if provided
@@ -567,6 +567,7 @@ class QuotationController extends Controller
                 'id' => (string) $quotation->id,
                 'slug' => $quotation->slug,
                 'quotation_number' => $quotation->quotation_number,
+                'version' => $quotation->version, // Include version
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
                     'address' => $customer->address ?? '',
@@ -588,7 +589,7 @@ class QuotationController extends Controller
                     'grand_total' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
-                'status' =>  $quotation->status,
+                'status' => $quotation->status,
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
                 'date' => $quotation->date
@@ -625,57 +626,55 @@ class QuotationController extends Controller
                 }
             }
 
-            $quotations = $quotationsQuery->orderByRaw("
-                REGEXP_REPLACE(quotation_number, '-v[0-9]+$', '') ASC,
-                COALESCE(
-                    CAST(NULLIF(REGEXP_SUBSTR(quotation_number, '-v([0-9]+)$'), '') AS UNSIGNED),
-                    0
-                ) ASC
-            ")->paginate(20)->through(function ($quotation) {
-                $customer = $quotation->customer;
-                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+            $quotations = $quotationsQuery->orderBy('quotation_number', 'ASC')
+                ->orderBy('version', 'ASC') // Sort by version
+                ->paginate(20)->through(function ($quotation) {
+                    $customer = $quotation->customer;
+                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                        return [
+                            'sparepart_id' => $detail->sparepart->id ?? '',
+                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                            'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                            'stock' => $detail->is_indent
+                        ];
+                    });
+
                     return [
-                        'sparepart_id' => $detail->sparepart->id ?? '',
-                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                        'quantity' => $detail->quantity ?? 0,
-                        'unit_price_sell' => $detail->unit_price ?? 0,
-                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                        'stock' => $detail->is_indent
+                        'id' => (string) $quotation->id,
+                        'slug' => $quotation->slug,
+                        'quotation_number' => $quotation->quotation_number,
+                        'version' => $quotation->version, // Include version
+                        'customer' => [
+                            'company_name' => $customer->company_name ?? '',
+                            'address' => $customer->address ?? '',
+                            'city' => $customer->city ?? '',
+                            'province' => $customer->province ?? '',
+                            'office' => $customer->office ?? '',
+                            'urban' => $customer->urban ?? '',
+                            'subdistrict' => $customer->subdistrict ?? '',
+                            'postal_code' => $customer->postal_code ?? ''
+                        ],
+                        'project' => [
+                            'quotation_number' => $quotation->quotation_number,
+                            'type' => $quotation->type,
+                            'date' => $quotation->date
+                        ],
+                        'price' => [
+                            'amount' => $quotation->amount,
+                            'discount' => $quotation->discount,
+                            'subtotal' => $quotation->subtotal,
+                            'ppn' => $quotation->ppn,
+                            'grandTotal' => $quotation->grand_total
+                        ],
+                        'current_status' => $quotation->current_status,
+                        'status' => $quotation->status,
+                        'notes' => $quotation->notes,
+                        'spareparts' => $spareParts
                     ];
                 });
-
-                return [
-                    'id' => (string) $quotation->id,
-                    'slug' => $quotation->slug,
-                    'customer' => [
-                        'company_name' => $customer->company_name ?? '',
-                        'address' => $customer->address ?? '',
-                        'city' => $customer->city ?? '',
-                        'province' => $customer->province ?? '',
-                        'office' => $customer->office ?? '',
-                        'urban' => $customer->urban ?? '',
-                        'subdistrict' => $customer->subdistrict ?? '',
-                        'postal_code' => $customer->postal_code ?? ''
-                    ],
-                    'project' => [
-                        'quotation_number' => $quotation->quotation_number,
-                        'type' => $quotation->type,
-                        'date' => $quotation->date
-                    ],
-                    'price' => [
-                        'amount' => $quotation->amount,
-                        'discount' => $quotation->discount,
-                        'subtotal' => $quotation->subtotal,
-                        'ppn' => $quotation->ppn,
-                        'grandTotal' => $quotation->grand_total
-                    ],
-                    'current_status' => $quotation->current_status,
-                    'status' =>  $quotation->status,
-                    'notes' => $quotation->notes,
-                    'spareparts' => $spareParts
-                ];
-            });
 
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
@@ -736,7 +735,6 @@ class QuotationController extends Controller
                 $timestamp = now()->format('YmdHis'); // Unique identifier
                 $purchaseOrderNumber = "PO-IN/{$timestamp}/{$romanMonth}/{$year}";
             }
-
 
             $purchaseOrder = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
@@ -838,57 +836,54 @@ class QuotationController extends Controller
             }
 
             // Paginate the results
-            $quotations = $quotationNeedReview->orderByRaw("
-                REGEXP_REPLACE(quotation_number, '-v[0-9]+$', '') ASC,
-                COALESCE(
-                    CAST(NULLIF(REGEXP_SUBSTR(quotation_number, '-v([0-9]+)$'), '') AS UNSIGNED),
-                    0
-                ) ASC
-            ")->paginate(20)->through(function ($quotation) {
-                $customer = $quotation->customer;
-                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+            $quotations = $quotationNeedReview->orderBy('quotation_number', 'ASC')
+                ->orderBy('version', 'ASC') // Sort by version
+                ->paginate(20)->through(function ($quotation) {
+                    $customer = $quotation->customer;
+                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                        return [
+                            'sparepart_id' => $detail->sparepart->id ?? '',
+                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                            'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                            'stock' => $detail->is_indent
+                        ];
+                    });
+
                     return [
-                        'sparepart_id' => $detail->sparepart->id ?? '',
-                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                        'quantity' => $detail->quantity ?? 0,
-                        'unit_price_sell' => $detail->unit_price ?? 0,
-                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                        'stock' => $detail->is_indent
+                        'id' => (string) $quotation->id,
+                        'slug' => $quotation->slug,
+                        'quotation_number' => $quotation->quotation_number,
+                        'version' => $quotation->version, // Include version
+                        'customer' => [
+                            'company_name' => $customer->company_name ?? '',
+                            'address' => $customer->address ?? '',
+                            'city' => $customer->city ?? '',
+                            'province' => $customer->province ?? '',
+                            'office' => $customer->office ?? '',
+                            'urban' => $customer->urban ?? '',
+                            'subdistrict' => $customer->subdistrict ?? '',
+                            'postal_code' => $customer->postal_code ?? ''
+                        ],
+                        'project' => [
+                            'quotation_number' => $quotation->quotation_number,
+                            'type' => $quotation->type,
+                            'date' => $quotation->date
+                        ],
+                        'price' => [
+                            'subtotal' => $quotation->subtotal,
+                            'ppn' => $quotation->ppn,
+                            'grand_total' => $quotation->grand_total
+                        ],
+                        'current_status' => $quotation->current_status,
+                        'status' => $quotation->status,
+                        'notes' => $quotation->notes,
+                        'spareparts' => $spareParts,
+                        'date' => $quotation->date
                     ];
                 });
-
-                return [
-                    'id' => (string) $quotation->id,
-                    'slug' => $quotation->slug,
-                    'quotation_number' => $quotation->quotation_number,
-                    'customer' => [
-                        'company_name' => $customer->company_name ?? '',
-                        'address' => $customer->address ?? '',
-                        'city' => $customer->city ?? '',
-                        'province' => $customer->province ?? '',
-                        'office' => $customer->office ?? '',
-                        'urban' => $customer->urban ?? '',
-                        'subdistrict' => $customer->subdistrict ?? '',
-                        'postal_code' => $customer->postal_code ?? ''
-                    ],
-                    'project' => [
-                        'quotation_number' => $quotation->quotation_number,
-                        'type' => $quotation->type,
-                        'date' => $quotation->date
-                    ],
-                    'price' => [
-                        'subtotal' => $quotation->subtotal,
-                        'ppn' => $quotation->ppn,
-                        'grand_total' => $quotation->grand_total
-                    ],
-                    'current_status' => $quotation->current_status,
-                    'status' => $quotation->status,
-                    'notes' => $quotation->notes,
-                    'spareparts' => $spareParts,
-                    'date' => $quotation->date
-                ];
-            });
 
             // Return the response with transformed data and pagination details
             return response()->json([
@@ -929,58 +924,55 @@ class QuotationController extends Controller
             }
 
             // Paginate the results
-            $quotations = $quotationNeedReturn->orderByRaw("
-                REGEXP_REPLACE(quotation_number, '-v[0-9]+$', '') ASC,
-                COALESCE(
-                    CAST(NULLIF(REGEXP_SUBSTR(quotation_number, '-v([0-9]+)$'), '') AS UNSIGNED),
-                    0
-                ) ASC
-            ")->paginate(20)->through(function ($quotation) {
-                $customer = $quotation->customer;
-                $spareParts = $quotation->detailQuotations->map(function ($detail) {
+            $quotations = $quotationNeedReturn->orderBy('quotation_number', 'ASC')
+                ->orderBy('version', 'ASC') // Sort by version
+                ->paginate(20)->through(function ($quotation) {
+                    $customer = $quotation->customer;
+                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
+                        return [
+                            'sparepart_id' => $detail->sparepart->id ?? '',
+                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                            'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'is_return' => $detail->is_return ?? 0,
+                            'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                            'stock' => $detail->is_indent
+                        ];
+                    });
+
                     return [
-                        'sparepart_id' => $detail->sparepart->id ?? '',
-                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                        'quantity' => $detail->quantity ?? 0,
-                        'unit_price_sell' => $detail->unit_price ?? 0,
-                        'is_return' => $detail->is_return ?? 0,
-                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                        'stock' => $detail->is_indent
+                        'id' => (string) $quotation->id,
+                        'slug' => $quotation->slug,
+                        'quotation_number' => $quotation->quotation_number,
+                        'version' => $quotation->version, // Include version
+                        'customer' => [
+                            'company_name' => $customer->company_name ?? '',
+                            'address' => $customer->address ?? '',
+                            'city' => $customer->city ?? '',
+                            'province' => $customer->province ?? '',
+                            'office' => $customer->office ?? '',
+                            'urban' => $customer->urban ?? '',
+                            'subdistrict' => $customer->subdistrict ?? '',
+                            'postal_code' => $customer->postal_code ?? ''
+                        ],
+                        'project' => [
+                            'quotation_number' => $quotation->quotation_number,
+                            'type' => $quotation->type,
+                            'date' => $quotation->date
+                        ],
+                        'price' => [
+                            'subtotal' => $quotation->subtotal,
+                            'ppn' => $quotation->ppn,
+                            'grand_total' => $quotation->grand_total
+                        ],
+                        'current_status' => $quotation->current_status,
+                        'status' => $quotation->status,
+                        'notes' => $quotation->notes,
+                        'spareparts' => $spareParts,
+                        'date' => $quotation->date
                     ];
                 });
-
-                return [
-                    'id' => (string) $quotation->id,
-                    'slug' => $quotation->slug,
-                    'quotation_number' => $quotation->quotation_number,
-                    'customer' => [
-                        'company_name' => $customer->company_name ?? '',
-                        'address' => $customer->address ?? '',
-                        'city' => $customer->city ?? '',
-                        'province' => $customer->province ?? '',
-                        'office' => $customer->office ?? '',
-                        'urban' => $customer->urban ?? '',
-                        'subdistrict' => $customer->subdistrict ?? '',
-                        'postal_code' => $customer->postal_code ?? ''
-                    ],
-                    'project' => [
-                        'quotation_number' => $quotation->quotation_number,
-                        'type' => $quotation->type,
-                        'date' => $quotation->date
-                    ],
-                    'price' => [
-                        'subtotal' => $quotation->subtotal,
-                        'ppn' => $quotation->ppn,
-                        'grand_total' => $quotation->grand_total
-                    ],
-                    'current_status' => $quotation->current_status,
-                    'status' => $quotation->status,
-                    'notes' => $quotation->notes,
-                    'spareparts' => $spareParts,
-                    'date' => $quotation->date
-                ];
-            });
 
             // Return the response with transformed data and pagination details
             return response()->json([
@@ -1337,6 +1329,7 @@ class QuotationController extends Controller
                 'id' => (string) $quotation->id,
                 'slug' => $quotation->slug,
                 'quotation_number' => $quotation->quotation_number,
+                'version' => $quotation->version, // Include version
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
                     'address' => $customer->address ?? '',
@@ -1416,9 +1409,9 @@ class QuotationController extends Controller
             // Update quotation with new status, review, and is_return
             $quotation->update([
                 'status' => $status,
-                'review' => true, // Mark review as true to indicate return process already reviewed
-                'current_status' => self::DECLINED, // Update current_status to Declined
-                'is_return' => false, // Reset is_return to false
+                'review' => true,
+                'current_status' => self::DECLINED,
+                'is_return' => false,
             ]);
 
             // Reset is_return in DetailQuotation entries for this quotation
@@ -1444,6 +1437,7 @@ class QuotationController extends Controller
                 'id' => (string) $quotation->id,
                 'slug' => $quotation->slug,
                 'quotation_number' => $quotation->quotation_number,
+                'version' => $quotation->version, // Include version
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
                     'address' => $customer->address ?? '',
@@ -1546,6 +1540,7 @@ class QuotationController extends Controller
                 'id' => (string) $quotation->id,
                 'slug' => $quotation->slug,
                 'quotation_number' => $quotation->quotation_number,
+                'version' => $quotation->version,
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
                     'address' => $customer->address ?? '',
@@ -1567,7 +1562,7 @@ class QuotationController extends Controller
                     'grand_total' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
-                'status' => $quotation->status,
+                'status' => $status,
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
                 'date' => $quotation->date
@@ -1576,15 +1571,15 @@ class QuotationController extends Controller
             // Commit the transaction
             DB::commit();
 
-            // Return the response with transformed data
+            // Return a success response with transformed data
             return response()->json([
-                'message' => 'Success decline return process for the quotation',
+                'message' => 'Success approve return process for the quotation',
                 'data' => $formattedQuotation,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
-            return $this->handleError($th, 'Failed to decline return process for the quotation');
+            return $this->handleError($th, 'Failed to approve return process for the quotation');
         }
     }
     // Helper function to secure special access for function in this class

@@ -11,6 +11,7 @@ class Quotation extends Model
 
     protected $fillable = [
         'quotation_number',
+        'version', // Added version field
         'slug',
         'customer_id',
         'project',
@@ -24,7 +25,7 @@ class Quotation extends Model
         'notes',
         'employee_id',
         'current_status',
-        'status', // Added status to fillable
+        'status',
         'is_return',
         'review'
     ];

@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Create the quotations table
         Schema::create('quotations', function (Blueprint $table) {
             $table->id();
             $table->string('quotation_number');
+            $table->integer('version')->default(1); // Positioned after quotation_number
             $table->string('slug');
             $table->foreignId('customer_id')->constrained('customers');
             $table->string('project');
@@ -26,7 +28,7 @@ return new class extends Migration
             $table->decimal('grand_total', 15, 2);
             $table->text('notes')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
-            $table->text('current_status')->nullable();
+            $table->string('current_status')->nullable();
             $table->json('status')->nullable();
             $table->boolean('review');
             $table->boolean('is_return')->nullable();

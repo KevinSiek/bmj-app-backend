@@ -28,6 +28,7 @@ class QuotationSeeder extends Seeder
                     strtoupper(fake()->monthName()),
                     now()->year
                 ),
+                'version' => 1, // Set default version
                 'notes' => fn() => fake()->randomElement([
                     'Pemasangan generator di lokasi pelanggan',
                     'Perbaikan sistem kelistrikan generator',
@@ -48,7 +49,7 @@ class QuotationSeeder extends Seeder
                     'Ready',
                     'Not ready',
                 ]),
-                'status' => fn() => [
+                'status' => [
                     [
                         'state' => 'Po',
                         'timestamp' => now()->format('d/m/Y'),

@@ -25,6 +25,7 @@ class QuotationFactory extends Factory
 
         return [
             'quotation_number' => Str::random(10),
+            'version' => 1, // Set default version to 1
             'slug' => Str::slug($project) . '-' . Str::random(6), // Generate a unique slug
             'customer_id' => Customer::factory(),
             'project' => $project,
