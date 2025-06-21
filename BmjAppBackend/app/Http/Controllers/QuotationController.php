@@ -45,7 +45,7 @@ class QuotationController extends Controller
     const PAID = 'Paid';
     const DP_PAID = 'DP Paid';
     const FULL_PAID = 'Full Paid';
-    const SENT = 'Sent';
+    const RELEASE = 'Release';
     const RETURN = 'Return';
     const DECLINED = "Declined";
     const APPROVED = "Approved";
@@ -1170,7 +1170,7 @@ class QuotationController extends Controller
         }
     }
 
-    public function changeStatusToSent(Request $request, $quotation)
+    public function changeStatusToRelease(Request $request, $quotation)
     {
         // Start a database transaction
         DB::beginTransaction();
@@ -1189,7 +1189,7 @@ class QuotationController extends Controller
 
             // Append new status entry
             $currentStatus[] = [
-                'state' => self::SENT,
+                'state' => self::RELEASE,
                 'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
@@ -1204,13 +1204,13 @@ class QuotationController extends Controller
 
             // Return the response with transformed data
             return response()->json([
-                'message' => 'Success update status of the quotation to Sent',
+                'message' => 'Success update status of the quotation to Release',
                 'data' => $quotation,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
-            return $this->handleError($th, 'Failed to update quotation status to Sent');
+            return $this->handleError($th, 'Failed to update quotation status to Release');
         }
     }
     public function changeStatusToDone(Request $request, $slug)

@@ -201,7 +201,7 @@ class ProformaInvoiceController extends Controller
                 return $this->handleNotFound('Proforma invoice not found');
             }
 
-            if ($proformaInvoice->invoices->isNotEmpty()) {
+            if ($proformaInvoice->invoices) {
                 return response()->json([
                     'message' => 'Proforma invoice already has an invoice'
                 ], Response::HTTP_BAD_REQUEST);

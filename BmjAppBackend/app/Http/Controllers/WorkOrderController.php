@@ -291,7 +291,7 @@ class WorkOrderController extends Controller
             ]);
 
             $quotation = $workOrder->quotation;
-            $this->quotationController->changeStatusToSent($request, $quotation);
+            $this->quotationController->changeStatusToRelease($request, $quotation);
 
             return response()->json([
                 'message' => 'Work order processed successfully',

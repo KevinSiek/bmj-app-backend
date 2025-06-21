@@ -37,7 +37,7 @@ class PurchaseOrderController extends Controller
 
             $quotation = $purchaseOrder->quotation;
             $customer = $quotation ? $quotation->customer : null;
-            $proformaInvoice = $purchaseOrder->proformaInvoice->first();
+            $proformaInvoice = $purchaseOrder->proformaInvoice ? $purchaseOrder->proformaInvoice : null;
 
             $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
                 $sparepart = $detail->sparepart;
@@ -142,7 +142,7 @@ class PurchaseOrderController extends Controller
                 ->paginate(20)->through(function ($po) {
                     $quotation = $po->quotation;
                     $customer = $quotation ? $quotation->customer : null;
-                    $proformaInvoice = $po->proformaInvoice->first();
+                    $proformaInvoice = $po->proformaInvoice ? $po->proformaInvoice : null;
 
                     $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
                         $sparepart = $detail->sparepart;
@@ -243,7 +243,7 @@ class PurchaseOrderController extends Controller
                 return $this->handleNotFound('Purchase order not found');
             }
 
-            if ($purchaseOrder->proformaInvoice->isNotEmpty()) {
+            if ($purchaseOrder->proformaInvoice) {
                 return response()->json([
                     'message' => 'Purchase order already has a proforma invoice'
                 ], Response::HTTP_BAD_REQUEST);
