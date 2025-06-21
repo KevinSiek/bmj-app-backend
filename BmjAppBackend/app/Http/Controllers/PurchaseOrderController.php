@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PurchaseOrderController extends Controller
 {
@@ -431,6 +432,137 @@ class PurchaseOrderController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to release purchase order');
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->findOrFail($id);
+
+            // Define validation rules, all fields are nullable
+            $validator = Validator::make($request->all(), [
+                'quotation_id' => 'nullable|exists:quotations,id',
+                'purchase_order_number' => ['nullable', 'string', 'max:255', Rule::unique('purchase_orders')->ignore($id)],
+                'purchase_order_date' => 'nullable|date',
+                'payment_due' => 'nullable|date',
+                'employee_id' => 'nullable|exists:employees,id',
+                'current_status' => ['nullable', Rule::in([self::BO, self::PREPARE, self::READY, self::RELEASE, self::FINISHED, self::RETURNED, self::PAID])],
+                'notes' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Prepare update data, only include fields that are provided and not null
+            $updateData = [];
+
+            if ($request->filled('quotation_id')) {
+                $updateData['quotation_id'] = $request->input('quotation_id');
+            }
+            if ($request->filled('purchase_order_number')) {
+                $updateData['purchase_order_number'] = $request->input('purchase_order_number');
+            }
+            if ($request->filled('purchase_order_date')) {
+                $updateData['purchase_order_date'] = $request->input('purchase_order_date');
+            }
+            if ($request->has('payment_due')) {
+                $updateData['payment_due'] = $request->input('payment_due');
+            }
+            if ($request->has('employee_id')) {
+                $updateData['employee_id'] = $request->input('employee_id');
+            }
+            if ($request->filled('current_status')) {
+                $updateData['current_status'] = $request->input('current_status');
+            }
+            if ($request->has('notes')) {
+                $updateData['notes'] = $request->input('notes');
+            }
+
+            // Update the purchase order if there are changes
+            if (!empty($updateData)) {
+                $purchaseOrder->update($updateData);
+            }
+
+            // Commit the transaction
+            DB::commit();
+
+            // Fetch the updated purchase order with related data for response
+            $updatedPurchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee'])
+                ->findOrFail($id);
+
+            $quotation = $updatedPurchaseOrder->quotation;
+            $customer = $quotation ? $quotation->customer : null;
+            $proformaInvoice = $updatedPurchaseOrder->proformaInvoice ? $updatedPurchaseOrder->proformaInvoice : null;
+
+            $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
+                $sparepart = $detail->sparepart;
+                return [
+                    'sparepart_id' => $sparepart ? $sparepart->id : '',
+                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                    'quantity' => $detail->quantity ?? 0,
+                    'unit_price_sell' => $detail->unit_price ?? 0,
+                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                    'stock' => $detail->is_indent ? 'indent' : 'available'
+                ];
+            })->toArray() : [];
+
+            $formattedPurchaseOrder = [
+                'id' => (string)($updatedPurchaseOrder->id ?? ''),
+                'purchase_order' => [
+                    'purchase_order_number' => $updatedPurchaseOrder->purchase_order_number ?? '',
+                    'purchase_order_date' => $updatedPurchaseOrder->purchase_order_date ?? '',
+                    'type' => $quotation ? $quotation->type : ''
+                ],
+                'proforma_invoice' => [
+                    'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
+                    'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : '',
+                    'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : '',
+                    'is_full_paid' => $proformaInvoice ? $proformaInvoice->is_full_paid : ''
+                ],
+                'customer' => [
+                    'company_name' => $customer ? $customer->company_name : '',
+                    'address' => $customer ? $customer->address : '',
+                    'city' => $customer ? $customer->city : '',
+                    'province' => $customer ? $customer->province : '',
+                    'office' => $customer ? $customer->office : '',
+                    'urban' => $customer ? $customer->urban : '',
+                    'subdistrict' => $customer ? $customer->subdistrict : '',
+                    'postal_code' => $customer ? $customer->postal_code : ''
+                ],
+                'price' => [
+                    'amount' => $quotation ? $quotation->amount : 0,
+                    'discount' => $quotation ? $quotation->discount : 0,
+                    'subtotal' => $quotation ? $quotation->subtotal : 0,
+                    'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                    'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
+                    'ppn' => $quotation ? $quotation->ppn : 0,
+                    'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
+                ],
+                'notes' => $updatedPurchaseOrder->notes ?? '',
+                'current_status' => $updatedPurchaseOrder->current_status ?? '',
+                'status' => $quotation->status ?? [],
+                'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                'quotationn_number' => $quotation ? $quotation->quotation_number : '',
+                'spareparts' => $spareParts
+            ];
+
+            return response()->json([
+                'message' => 'Purchase order updated successfully',
+                'data' => $formattedPurchaseOrder
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to update purchase order');
         }
     }
 
