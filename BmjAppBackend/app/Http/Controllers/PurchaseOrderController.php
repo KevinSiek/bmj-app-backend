@@ -290,6 +290,37 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    public function release(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)->find($id);
+
+            if (!$purchaseOrder) {
+                return $this->handleNotFound('Purchase order not found');
+            }
+
+            $quotation = $purchaseOrder->quotation;
+            $quotation->update([
+                'current_status' => QuotationController::RELEASE
+            ]);
+            $this->quotationController->changeStatusToRelease($request, $quotation);
+
+            //TODO: Need to create WO if type is service
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase order released successfully',
+                'data' => $purchaseOrder
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to release purchase order');
+        }
+    }
+
     public function updateStatus(Request $request, $id)
     {
         DB::beginTransaction();

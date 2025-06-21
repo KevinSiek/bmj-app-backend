@@ -44,7 +44,7 @@ class QuotationController extends Controller
     const Inventory = 'Inventory';
     const DP_PAID = 'DP Paid';
     const FULL_PAID = 'Full Paid';
-    const SENT = 'Sent';
+    const RELEASE = 'Release';
     const RETURN = 'Return';
     const DECLINED = "Declined";
     const APPROVED = "Approved";
@@ -1155,7 +1155,7 @@ class QuotationController extends Controller
         }
     }
 
-    public function changeStatusToPaid(Request $request, $quotation)
+    public function changeStatusToDpPaid(Request $request, $quotation)
     {
         // Start a database transaction
         DB::beginTransaction();
@@ -1174,7 +1174,7 @@ class QuotationController extends Controller
 
             // Append new status entry
             $currentStatus[] = [
-                'state' => self::PAID,
+                'state' => self::DP_PAID,
                 'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
@@ -1199,7 +1199,7 @@ class QuotationController extends Controller
         }
     }
 
-    public function changeStatusToSent(Request $request, $quotation)
+    public function changeStatusToRelease(Request $request, $quotation)
     {
         // Start a database transaction
         DB::beginTransaction();
@@ -1218,7 +1218,7 @@ class QuotationController extends Controller
 
             // Append new status entry
             $currentStatus[] = [
-                'state' => self::SENT,
+                'state' => self::RELEASE,
                 'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
