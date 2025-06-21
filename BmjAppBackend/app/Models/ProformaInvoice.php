@@ -17,8 +17,15 @@ class ProformaInvoice extends Model
         'grand_total',
         'total_amount',
         'is_dp_paid',
+        'is_full_paid',
         'total_amount_text',
         'employee_id'
+    ];
+
+    protected $casts = [
+        'is_dp_paid' => 'boolean',
+        'is_full_paid' => 'boolean',
+        'proforma_invoice_date' => 'date',
     ];
 
     public function purchaseOrder()
