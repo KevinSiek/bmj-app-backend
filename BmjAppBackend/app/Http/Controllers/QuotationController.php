@@ -766,13 +766,13 @@ class QuotationController extends Controller
             $isNeedReview = $quotation->review;
             $isApproved = $quotation->current_status == QuotationController::APPROVE;
 
-            // $latestVersion = $quotations->where('quotation_number', $quotation->quotation_number)
-            //     ->max('version');
+            $latestVersion = $this->getAccessedQuotation($request)->where('quotation_number', $quotation->quotation_number)
+                ->max('version');
 
-            // // Allow update only if this is the latest version
-            // if ($quotation->version < $latestVersion) {
-            //     return $this->handleNotFound('Only the latest version can be updated.');
-            // }
+            // Allow update only if this is the latest version
+            if ($quotation->version < $latestVersion) {
+                return $this->handleNotFound('Only the latest version can be updated');
+            }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
