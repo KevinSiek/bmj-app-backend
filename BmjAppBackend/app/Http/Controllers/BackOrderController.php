@@ -151,12 +151,11 @@ class BackOrderController extends Controller
             'notes' => $backOrder->notes ?? '',
             'spareparts' => $backOrder->detailBackOrders->map(function ($detail) {
                 return [
-                    'sparepart_name' => $detail->sparepart?->name ?? '',
-                    'sparepart_number' => $detail->sparepart?->part_number ?? '',
-                    'quantity' => $detail->quantity ?? 1, // Assuming quantity is in DetailBackOrder
+                    'sparepart_name' => $detail->sparepart?->sparepart_name ?? '',
+                    'sparepart_number' => $detail->sparepart?->sparepart_number ?? '',
                     'unit_price_sell' => $detail->sparepart?->unit_price_sell ?? 0, // Assuming in Sparepart
                     'total_price' => ($detail->quantity ?? 1) * ($detail->sparepart?->unit_price_sell ?? 0),
-                    'stock' => $detail->sparepart?->stock ?? 0, // Assuming in Sparepart
+                    'total_unit' => $detail->sparepart?->total_unit ?? 0, // Assuming total unit in Sparepart
                     'order' => $detail->number_back_order ?? '',
                     'delivery_order' => $detail->number_delivery_order ?? '',
                     'back_order' => $detail->number_back_order ?? '',
