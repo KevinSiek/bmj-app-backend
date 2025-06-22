@@ -626,60 +626,131 @@ class QuotationController extends Controller
                 }
             }
 
-            $quotations = $quotationsQuery->orderBy('quotation_number', 'ASC')
-                ->orderBy('version', 'ASC') // Sort by version
-                ->paginate(20)->through(function ($quotation) {
-                    $customer = $quotation->customer;
-                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                        return [
-                            'sparepart_id' => $detail->sparepart->id ?? '',
-                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                            'quantity' => $detail->quantity ?? 0,
-                            'unit_price_sell' => $detail->unit_price ?? 0,
-                            'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                            'stock' => $detail->is_indent
-                        ];
-                    });
+            $paginated = $quotationsQuery
+                ->orderBy('quotation_number', 'ASC')
+                ->orderBy('version', 'ASC')
+                ->paginate(20);
 
+            $grouped = collect($paginated->items())->map(function ($quotation) {
+                $customer = $quotation->customer;
+                $spareParts = $quotation->detailQuotations->map(function ($detail) {
                     return [
-                        'id' => (string) $quotation->id,
-                        'slug' => $quotation->slug,
-                        'quotation_number' => $quotation->quotation_number,
-                        'version' => $quotation->version, // Include version
-                        'customer' => [
-                            'company_name' => $customer->company_name ?? '',
-                            'address' => $customer->address ?? '',
-                            'city' => $customer->city ?? '',
-                            'province' => $customer->province ?? '',
-                            'office' => $customer->office ?? '',
-                            'urban' => $customer->urban ?? '',
-                            'subdistrict' => $customer->subdistrict ?? '',
-                            'postal_code' => $customer->postal_code ?? ''
-                        ],
-                        'project' => [
-                            'quotation_number' => $quotation->quotation_number,
-                            'type' => $quotation->type,
-                            'date' => $quotation->date
-                        ],
-                        'price' => [
-                            'amount' => $quotation->amount,
-                            'discount' => $quotation->discount,
-                            'subtotal' => $quotation->subtotal,
-                            'ppn' => $quotation->ppn,
-                            'grandTotal' => $quotation->grand_total
-                        ],
-                        'current_status' => $quotation->current_status,
-                        'status' => $quotation->status,
-                        'notes' => $quotation->notes,
-                        'spareparts' => $spareParts
+                        'sparepart_id' => $detail->sparepart->id ?? '',
+                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+                        'quantity' => $detail->quantity ?? 0,
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+                        'stock' => $detail->is_indent
                     ];
                 });
 
+                return [
+                    'quotation_number' => $quotation->quotation_number,
+                    'version' => $quotation->version,
+                    'slug' => $quotation->slug,
+                    'current_status' => $quotation->current_status,
+                    'status' => $quotation->status,
+                    'notes' => $quotation->notes,
+                    'project' => [
+                        'quotation_number' => $quotation->quotation_number,
+                        'type' => $quotation->type,
+                        'date' => $quotation->date
+                    ],
+                    'price' => [
+                        'amount' => $quotation->amount,
+                        'discount' => $quotation->discount,
+                        'subtotal' => $quotation->subtotal,
+                        'ppn' => $quotation->ppn,
+                        'grandTotal' => $quotation->grand_total
+                    ],
+                    'customer' => [
+                        'company_name' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postal_code' => $customer->postal_code ?? ''
+                    ],
+                    'spareparts' => $spareParts
+                ];
+            })->groupBy('quotation_number')->map(function ($group, $quotationNumber) {
+                return [
+                    'quotation_number' => $quotationNumber,
+                    'versions' => $group->values() // reset index for frontend
+                ];
+            })->values();
+
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
-                'data' => $quotations
+                'data' => [
+                    'data' => $grouped,
+                    'from' => $paginated->firstItem(),
+                    'to' => $paginated->lastItem(),
+                    'total' => $paginated->total(),
+                    'per_page' => $paginated->perPage(),
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                ]
             ], Response::HTTP_OK);
+
+            // $quotations = $quotationsQuery->orderBy('quotation_number', 'ASC')
+            //     ->orderBy('version', 'ASC') // Sort by version
+            //     ->paginate(20)->through(function ($quotation) {
+            //         $customer = $quotation->customer;
+            //         $spareParts = $quotation->detailQuotations->map(function ($detail) {
+            //             return [
+            //                 'sparepart_id' => $detail->sparepart->id ?? '',
+            //                 'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
+            //                 'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
+            //                 'quantity' => $detail->quantity ?? 0,
+            //                 'unit_price_sell' => $detail->unit_price ?? 0,
+            //                 'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
+            //                 'stock' => $detail->is_indent
+            //             ];
+            //         });
+
+            //         return [
+            //             'id' => (string) $quotation->id,
+            //             'slug' => $quotation->slug,
+            //             'quotation_number' => $quotation->quotation_number,
+            //             'version' => $quotation->version, // Include version
+            //             'customer' => [
+            //                 'company_name' => $customer->company_name ?? '',
+            //                 'address' => $customer->address ?? '',
+            //                 'city' => $customer->city ?? '',
+            //                 'province' => $customer->province ?? '',
+            //                 'office' => $customer->office ?? '',
+            //                 'urban' => $customer->urban ?? '',
+            //                 'subdistrict' => $customer->subdistrict ?? '',
+            //                 'postal_code' => $customer->postal_code ?? ''
+            //             ],
+            //             'project' => [
+            //                 'quotation_number' => $quotation->quotation_number,
+            //                 'type' => $quotation->type,
+            //                 'date' => $quotation->date
+            //             ],
+            //             'price' => [
+            //                 'amount' => $quotation->amount,
+            //                 'discount' => $quotation->discount,
+            //                 'subtotal' => $quotation->subtotal,
+            //                 'ppn' => $quotation->ppn,
+            //                 'grandTotal' => $quotation->grand_total
+            //             ],
+            //             'current_status' => $quotation->current_status,
+            //             'status' => $quotation->status,
+            //             'notes' => $quotation->notes,
+            //             'spareparts' => $spareParts
+            //         ];
+            //     });
+
+
+            // return response()->json([
+            //     'message' => 'List of all quotations retrieved successfully',
+            //     'data' => $quotations
+            // ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
@@ -690,10 +761,18 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->first();
+            $quotations = $this->getAccessedQuotation($request);
+            $quotation = $quotations->where('slug', $slug)->first();
             $isNeedReview = $quotation->review;
             $isApproved = $quotation->current_status == QuotationController::APPROVE;
+
+            // $latestVersion = $quotations->where('quotation_number', $quotation->quotation_number)
+            //     ->max('version');
+
+            // // Allow update only if this is the latest version
+            // if ($quotation->version < $latestVersion) {
+            //     return $this->handleNotFound('Only the latest version can be updated.');
+            // }
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
