@@ -338,9 +338,9 @@ class PurchaseOrderController extends Controller
 
             // Validate request input
             $validator = Validator::make($request->all(), [
-                'receivedBy' => 'required|exists:employees,id',
-                'compiled' => 'required|exists:employees,id',
-                'approver' => 'required|exists:employees,id',
+                'receivedBy' => 'required|string',
+                'compiled' => 'required|string',
+                'approver' => 'required|string',
                 'spareparts' => 'required|array|min:1',
                 'spareparts.*' => 'string|max:255',
                 'backupSparepart' => 'nullable|array',
