@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('wo_units', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_wo')->constrained('work_orders')->onDelete('cascade');
-            $table->string('job_description')->nullable();
+            $table->string('job_descriptions')->nullable();
             $table->string('unit_type')->nullable();
             $table->integer('quantity')->nullable();
             $table->timestamps();

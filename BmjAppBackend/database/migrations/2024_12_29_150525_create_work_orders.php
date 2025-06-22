@@ -17,12 +17,11 @@ return new class extends Migration
             $table->string('work_order_number');
             $table->string('received_by')->nullable();
             $table->integer('expected_days')->nullable();
-            $table->date('expected_start_date')->nullable();
-            $table->date('expected_end_date')->nullable();
-            $table->date('start_date')->nullable();
-            $table->date('end_date')->nullable();
+            $table->string('expected_start_date')->nullable();
+            $table->string('expected_end_date')->nullable();
+            $table->string('start_date')->nullable();
+            $table->string('end_date')->nullable();
             $table->string('current_status')->nullable();
-            $table->string('job_descriptions')->nullable();
             $table->string('worker')->nullable();
             $table->string('compiled')->nullable();
             $table->string('head_of_service')->nullable();
@@ -34,6 +33,8 @@ return new class extends Migration
             $table->string('vaccine')->nullable();
             $table->string('apd')->nullable();
             $table->string('peduli_lindungi')->nullable();
+            $table->string('executionTime')->nullable();
+            $table->string('notes')->nullable();
             $table->timestamps();
         });
     }

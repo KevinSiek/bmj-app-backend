@@ -21,7 +21,7 @@ class WoUnitFactory extends Factory
     {
         return [
             'id_wo' => WorkOrder::inRandomOrder()->first()->id,
-            'job_description' => $this->faker->sentence,
+            'job_descriptions' => $this->faker->sentence,
             'unit_type' => $this->faker->randomElement(['Type A', 'Type B', 'Type C', '']),
             'quantity' => $this->faker->numberBetween(1, 10),
         ];

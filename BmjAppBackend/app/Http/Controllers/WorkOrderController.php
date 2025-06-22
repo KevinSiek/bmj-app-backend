@@ -77,11 +77,12 @@ class WorkOrderController extends Controller
                     'vaccine' => $workOrder->vaccine,
                     'apd' => $workOrder->apd,
                     'execution_time' => $workOrder->expected_days,
+                    'peduli_lindungi' => $workOrder->peduli_lindungi
                 ],
                 'units' => $workOrder->woUnits->map(function ($woUnit) {
                     return [
                         'id' => (string) $woUnit->id,
-                        'job_description' => $woUnit->job_description,
+                        'job_descriptions' => $woUnit->job_descriptions,
                         'unit_type' => $woUnit->unit_type,
                         'quantity' => $woUnit->quantity,
                     ];
@@ -188,11 +189,12 @@ class WorkOrderController extends Controller
                         'vaccine' => $wo->vaccine,
                         'apd' => $wo->apd,
                         'execution_time' => $wo->expected_days,
+                        'peduliLindungi' => $wo->peduli_lindungi
                     ],
                     'units' => $wo->woUnits->map(function ($woUnit) {
                         return [
                             'id' => (string) $woUnit->id,
-                            'job_description' => $woUnit->job_description,
+                            'job_descriptions' => $woUnit->job_descriptions,
                             'unit_type' => $woUnit->unit_type,
                             'quantity' => $woUnit->quantity,
                         ];

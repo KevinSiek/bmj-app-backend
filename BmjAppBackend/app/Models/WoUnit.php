@@ -11,7 +11,7 @@ class WoUnit extends Model
 
     protected $fillable = [
         'id_wo',
-        'job_description',
+        'job_descriptions',
         'unit_type',
         'quantity',
     ];
