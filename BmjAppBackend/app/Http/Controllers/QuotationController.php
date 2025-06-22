@@ -241,9 +241,19 @@ class QuotationController extends Controller
             $quotation = $quotations->where('slug', $slug)->firstOrFail();
             $po = $quotation->purchaseOrder;
 
+            $latestVersion = $this->getAccessedQuotation($request)->where('quotation_number', $quotation->quotation_number)
+                ->max('version');
+
+            // Allow update only if this is the latest version
+            if ($quotation->version < $latestVersion) {
+                return response()->json([
+                    'message' => 'Only the latest version can be updated'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             if ($po) {
                 return response()->json([
-                    'message' => 'Quotation already in purchase order.'
+                    'message' => 'Quotation already in purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -771,7 +781,9 @@ class QuotationController extends Controller
 
             // Allow update only if this is the latest version
             if ($quotation->version < $latestVersion) {
-                return $this->handleNotFound('Only the latest version can be updated');
+                return response()->json([
+                    'message' => 'Only the latest version can be updated',
+                ], Response::HTTP_BAD_REQUEST);
             }
 
             if (!$quotation) {
