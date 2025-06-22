@@ -338,30 +338,31 @@ class PurchaseOrderController extends Controller
 
             // Validate request input
             $validator = Validator::make($request->all(), [
-                'receivedBy' => 'required|string',
-                'compiled' => 'required|string',
-                'approver' => 'required|string',
-                'spareparts' => 'required|array|min:1',
-                'spareparts.*' => 'string|max:255',
-                'backupSparepart' => 'nullable|array',
-                'backupSparepart.*' => 'string|max:255',
-                'jobDescriptions' => 'nullable|string',
-                'worker' => 'nullable|array',
-                'worker.*' => 'string|max:255',
-                'headOfService' => 'nullable|string',
-                'scope' => 'nullable|string',
-                'vaccine' => 'nullable|string',
-                'apd' => 'nullable|string',
-                'peduliLindungi' => 'nullable|string',
-                'expectedDays' => 'nullable|integer|min:1',
-                'expectedStartDate' => 'nullable|date',
-                'expectedEndDate' => 'nullable|date|after_or_equal:expectedStartDate'
+                'serviceOrder.receivedBy' => 'required|string',
+                'serviceOrder.startDate' => 'nullable|string',
+                'serviceOrder.endDate' => 'nullable|string',
+                'poc.compiled' => 'required|string',
+                'poc.approver' => 'required|string',
+                'poc.headOfService' => 'required|string',
+                'poc.worker' => 'nullable|string',
+                'additional.spareparts' => 'nullable',
+                'additional.backupSparepart' => 'nullable',
+                'additional.scope' => 'nullable|string',
+                'additional.vaccine' => 'nullable|string',
+                'additional.apd' => 'nullable|string',
+                'additional.peduliLindungi' => 'nullable|string',
+                'additional.executionTime' => 'nullable|string',
+                'units.jobDescriptions' => 'nullable|string',
+                'units.unitType' => 'nullable|string',
+                'units.quantity' => 'nullable|string',
+                'date.startDate' => 'nullable|string',
+                'date.endDate' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'error' => $validator->errors()
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -393,25 +394,24 @@ class PurchaseOrderController extends Controller
             $workOrder = WorkOrder::create([
                 'quotation_id' => $quotation->id,
                 'work_order_number' => $workOrderNumber,
-                'received_by' => $request->receivedBy,
-                'expected_days' => $request->expectedDays,
-                'expected_start_date' => $request->expectedStartDate,
-                'expected_end_date' => $request->expectedEndDate,
-                'start_date' => now(),
-                'end_date' => null,
+                'received_by' => $request->input('serviceOrder.receivedBy'),
+                'expected_start_date' => $request->input('serviceOrder.startDate'),
+                'expected_end_date' => $request->input('serviceOrder.endDate'),
+                'start_date' => $request->input('date.startDate'),
+                'end_date' => $request->input('date.endDate'),
                 'current_status' => WorkOrderController::ON_PROGRESS,
-                'job_descriptions' => $request->jobDescriptions,
-                'worker' => $request->worker ? json_encode($request->worker) : null,
-                'compiled' => $request->compiled,
-                'head_of_service' => $request->headOfService,
-                'approver' => $request->approver,
+                'worker' => $request->input('poc.worker'),
+                'compiled' => $request->input('poc.compiled'),
+                'head_of_service' => $request->input('poc.headOfService'),
+                'approver' => $request->input('poc.approver'),
                 'is_done' => false,
-                'spareparts' => json_encode($request->spareparts),
-                'backup_sparepart' => $request->backupSparepart ? json_encode($request->backupSparepart) : null,
-                'scope' => $request->scope,
-                'vaccine' => $request->vaccine,
-                'apd' => $request->apd,
-                'peduli_lindungi' => $request->peduliLindungi,
+                'spareparts' => json_encode($request->input('additional.spareparts')),
+                'backup_sparepart' => $request->input('additional.backupSparepart') ? json_encode($request->input('additional.backupSparepart')) : null,
+                'scope' => $request->input('additional.scope'),
+                'vaccine' => $request->input('additional.vaccine'),
+                'apd' => $request->input('additional.apd'),
+                'peduli_lindungi' => $request->input('additional.peduliLindungi'),
+                'execution_time' => $request->input('additional.executionTime')
             ]);
 
             // Update purchase order status
