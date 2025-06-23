@@ -30,7 +30,7 @@ class WorkOrder extends Model
         'vaccine',
         'apd',
         'peduli_lindungi',
-        'executionTime',
+        'execution_time',
         'notes'
     ];
 

@@ -23,7 +23,7 @@ class SparepartController extends Controller
     {
         try {
             $spareparts = $this->getAccessedSparepart($request);
-            $sparepart = $spareparts->with('detailBuys')->findOrFail($id);
+            $sparepart = $spareparts->findOrFail($id);
 
             $formattedSparepart = [
                 'id' => $sparepart->id ?? '',

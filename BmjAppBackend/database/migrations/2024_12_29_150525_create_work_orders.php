@@ -33,7 +33,7 @@ return new class extends Migration
             $table->string('vaccine')->nullable();
             $table->string('apd')->nullable();
             $table->string('peduli_lindungi')->nullable();
-            $table->string('executionTime')->nullable();
+            $table->string('execution_time')->nullable();
             $table->string('notes')->nullable();
             $table->timestamps();
         });

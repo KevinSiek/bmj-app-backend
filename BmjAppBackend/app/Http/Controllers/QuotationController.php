@@ -638,7 +638,7 @@ class QuotationController extends Controller
             }
 
             $paginated = $quotationsQuery
-                ->orderBy('quotation_number', 'ASC')
+                ->orderBy('date', 'DESC')
                 ->orderBy('version', 'ASC')
                 ->paginate(20);
 

@@ -24,7 +24,7 @@ class ProformaInvoiceController extends Controller
             $query = $this->getAccessedProformaInvoice($request)
                 ->with([
                     'purchaseOrder.quotation.customer',
-                    'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys',
+                    // 'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys', // we might want to change "detailBuys" to "detailSpareparts"
                     'employee'
                 ]);
 
@@ -123,7 +123,7 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice = $this->getAccessedProformaInvoice($request)
                 ->with([
                     'purchaseOrder.quotation.customer',
-                    'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys',
+                    // 'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys',  // we might want to change "detailBuys" to "detailSpareparts"
                     'employee'
                 ])
                 ->findOrFail($id);

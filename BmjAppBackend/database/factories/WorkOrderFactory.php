@@ -84,7 +84,7 @@ class WorkOrderFactory extends Factory
             'vaccine' => $this->faker->randomElement(['Fully Vaccinated', 'Booster', 'None']),
             'apd' => $this->faker->randomElement(['Helmet, Gloves', 'Safety Boots', 'Mask, Goggles']),
             'peduli_lindungi' => $this->faker->randomElement(['Certified', 'Pending', 'None']),
-            'executionTime' => '1',
+            'execution_time' => '1',
             'notes' => 'notes'
         ];
     }
