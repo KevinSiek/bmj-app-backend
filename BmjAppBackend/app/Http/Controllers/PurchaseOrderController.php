@@ -319,6 +319,36 @@ class PurchaseOrderController extends Controller
             return $this->handleError($th, 'Failed to update purchase order status to' . $status);
         }
     }
+    public function ready(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->findOrFail($id);
+
+            // Update purchase order status
+            $purchaseOrder->current_status = self::READY;
+            $purchaseOrder->save();
+
+            // Update status quotation for tracking
+            $quotation = $purchaseOrder->quotation;
+            $this->quotationController->changeStatusToReady($request, $quotation);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return a success response
+            return response()->json([
+                'message' => 'Purchase order is ready',
+                'data' => [
+                    'purchase_order' => $purchaseOrder,
+                ]
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to release purchase order');
+        }
+    }
 
     public function release(Request $request, $id)
     {

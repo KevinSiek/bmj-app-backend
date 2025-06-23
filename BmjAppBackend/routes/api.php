@@ -67,6 +67,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/{id}', [PurchaseOrderController::class, 'get']);
         Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
         Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
+        Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
         Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
         Route::put('/{id}', [PurchaseOrderController::class, 'update']);
     });
