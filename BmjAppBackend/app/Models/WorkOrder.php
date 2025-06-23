@@ -18,7 +18,6 @@ class WorkOrder extends Model
         'expected_end_date',
         'start_date',
         'end_date',
-        'job_descriptions',
         'current_status',
         'worker',
         'compiled',
@@ -30,7 +29,9 @@ class WorkOrder extends Model
         'scope',
         'vaccine',
         'apd',
-        'peduli_lindungi'
+        'peduli_lindungi',
+        'executionTime',
+        'notes'
     ];
 
     public function quotation()

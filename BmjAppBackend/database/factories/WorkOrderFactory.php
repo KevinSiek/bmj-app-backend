@@ -59,7 +59,6 @@ class WorkOrderFactory extends Factory
             'start_date' => $startDate,
             'end_date' => $endDate,
             'current_status' => $status,
-            'job_descriptions' => $this->faker->paragraph,
             'worker' => implode(', ', $this->faker->randomElements([
                 'John Doe',
                 'Jane Smith',
@@ -85,6 +84,7 @@ class WorkOrderFactory extends Factory
             'vaccine' => $this->faker->randomElement(['Fully Vaccinated', 'Booster', 'None']),
             'apd' => $this->faker->randomElement(['Helmet, Gloves', 'Safety Boots', 'Mask, Goggles']),
             'peduli_lindungi' => $this->faker->randomElement(['Certified', 'Pending', 'None']),
+            'executionTime' => '1',
             'notes' => 'notes'
         ];
     }
