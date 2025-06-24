@@ -31,4 +31,10 @@ class Sparepart extends Model
     {
         return $this->hasMany(DetailBackOrder::class);
     }
+
+    // New relation to detailSparepart for seller prices
+    public function detailSpareparts()
+    {
+        return $this->hasMany(DetailSparepart::class);
+    }
 }

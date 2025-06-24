@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ProformaInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\WorkOrder;
+use App\Models\WoUnit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -139,7 +140,7 @@ class PurchaseOrderController extends Controller
             }
 
             // Paginate the results
-            $purchaseOrders = $query->orderBy('purchase_order_date', 'desc')
+            $purchaseOrders = $query->orderBy('purchase_order_date', 'DESC')
                 ->paginate(20)->through(function ($po) {
                     $quotation = $po->quotation;
                     $customer = $quotation ? $quotation->customer : null;
@@ -382,9 +383,10 @@ class PurchaseOrderController extends Controller
                 'additional.apd' => 'nullable|string',
                 'additional.peduliLindungi' => 'nullable|string',
                 'additional.executionTime' => 'nullable|string',
-                'units.jobDescriptions' => 'nullable|string',
-                'units.unitType' => 'nullable|string',
-                'units.quantity' => 'nullable|string',
+                'units' => 'required|array',
+                'units.*.jobDescriptions' => 'nullable|string',
+                'units.*.unitType' => 'nullable|string',
+                'units.*.quantity' => 'nullable|integer|min:1',
                 'date.startDate' => 'nullable|string',
                 'date.endDate' => 'nullable|string',
             ]);
@@ -444,6 +446,17 @@ class PurchaseOrderController extends Controller
                 'execution_time' => $request->input('additional.executionTime')
             ]);
 
+            // Create wo_units from the units array
+            $unitsData = $request->input('units', []);
+            foreach ($unitsData as $unit) {
+                WoUnit::create([
+                    'id_wo' => $workOrder->id,
+                    'job_descriptions' => $unit['jobDescriptions'] ?? null,
+                    'unit_type' => $unit['unitType'] ?? null,
+                    'quantity' => $unit['quantity'] ?? null,
+                ]);
+            }
+
             // Update purchase order status
             $purchaseOrder->current_status = self::RELEASE;
             $purchaseOrder->save();
@@ -456,7 +469,7 @@ class PurchaseOrderController extends Controller
                 'message' => 'Purchase order released and work order created successfully',
                 'data' => [
                     'purchase_order' => $purchaseOrder,
-                    'work_order' => $workOrder
+                    'work_order' => $workOrder->load('woUnits')
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {

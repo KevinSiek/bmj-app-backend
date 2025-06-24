@@ -80,7 +80,6 @@ class BuyController extends Controller
                     'sparepart_id' => $sparepartsId,
                     'quantity' => $quantityOrderSparepart,
                     'unit_price' => $sparepartsUnitPrice,
-                    'seller_id' => 1,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -116,8 +115,6 @@ class BuyController extends Controller
                 'backOrderId' => 'sometimes|exists:back_orders,id',
                 // Sparepart validation
                 'spareparts' => 'sometimes|array',
-                'spareparts.*.sellerName' => 'required_with:spareparts|string|max:255',
-                'spareparts.*.sellerType' => 'required_with:spareparts|string',
                 'spareparts.*.sparepartId' => 'required_with:spareparts|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required_with:spareparts|integer|min:1',
                 'spareparts.*.unitPrice' => 'required_with:spareparts|numeric|min:1',
@@ -164,8 +161,6 @@ class BuyController extends Controller
                 // Create new detail_buys
                 foreach ($request->input('spareparts') as $sparepart) {
                     $sparepartValidator = Validator::make($sparepart, [
-                        'sellerName' => 'required|string|max:255',
-                        'sellerType' => 'required|string',
                         'sparepartId' => 'required|exists:spareparts,id',
                         'quantity' => 'required|integer|min:1',
                         'unitPrice' => 'required|numeric|min:1',
@@ -175,21 +170,12 @@ class BuyController extends Controller
                         throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
                     }
 
-                    // Find or create seller
-                    $seller = Seller::firstOrCreate(
-                        [
-                            'name' => $sparepart['sellerName'],
-                            'type' => $sparepart['sellerType'],
-                        ]
-                    );
-
                     // Insert into detail_buys
                     DB::table('detail_buys')->insert([
                         'buy_id' => $buy->id,
                         'sparepart_id' => $sparepart['sparepartId'],
                         'quantity' => $sparepart['quantity'],
                         'unit_price' => $sparepart['unitPrice'],
-                        'seller_id' => $seller->id,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
@@ -197,7 +183,7 @@ class BuyController extends Controller
             }
 
             // Fetch updated buy with relations for response
-            $updatedBuy = Buy::with('detailBuys.sparepart', 'detailBuys.seller')->findOrFail($buy->id);
+            $updatedBuy = Buy::with('detailBuys.sparepart')->findOrFail($buy->id);
 
             // Calculate total purchase amount
             $totalPurchase = $updatedBuy->detailBuys->sum(function ($detail) {
@@ -211,8 +197,6 @@ class BuyController extends Controller
                     'sparepart_number' => $detail->sparepart->sparepart_number,
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price,
-                    'seller_name' => $detail->seller->name ?? '',
-                    'seller_type' => $detail->seller->type ?? '',
                     'total_price' => $detail->quantity * $detail->unit_price,
                 ];
             });
@@ -261,7 +245,7 @@ class BuyController extends Controller
     public function get($id)
     {
         try {
-            $buy = Buy::with('detailBuys.sparepart', 'detailBuys.seller')
+            $buy = Buy::with('detailBuys.sparepart')
                 ->findOrFail($id);
 
             // Calculate total purchase amount
@@ -276,8 +260,6 @@ class BuyController extends Controller
                     'sparepart_number' => $detail->sparepart->sparepart_number,
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price,
-                    'seller_name' => $detail->seller->name ?? '',
-                    'seller_type' => $detail->seller->type ?? '',
                     'total_price' => $detail->quantity * $detail->unit_price,
                 ];
             });
@@ -304,7 +286,7 @@ class BuyController extends Controller
     public function getAll()
     {
         try {
-            $buys = Buy::with('detailBuys.sparepart', 'detailBuys.seller')
+            $buys = Buy::with('detailBuys.sparepart')
                 ->paginate(20)
                 ->through(function ($buy) {
                     // Calculate total purchase amount
@@ -319,8 +301,6 @@ class BuyController extends Controller
                             'sparepart_number' => $detail->sparepart->sparepart_number,
                             'quantity' => $detail->quantity,
                             'unit_price' => $detail->unit_price,
-                            'seller_name' => $detail->seller->name ?? '',
-                            'seller_type' => $detail->seller->type ?? '',
                             'total_price' => $detail->quantity * $detail->unit_price,
                         ];
                     });

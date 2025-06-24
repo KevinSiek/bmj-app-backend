@@ -218,12 +218,12 @@ class BackOrderController extends Controller
                     continue;
                 }
 
-                // Find the DetailBuy with the lowest unit_price for this sparepart
-                $cheapestDetailBuy = DetailBuy::where('sparepart_id', $sparepart->id)
+                // Find the DetailSparepart with the lowest unit_price for this sparepart and seller
+                $cheapestDetailSparepart = $sparepart->detailSpareparts()
                     ->orderBy('unit_price', 'asc')
                     ->first();
 
-                if (!$cheapestDetailBuy) {
+                if (!$cheapestDetailSparepart) {
                     DB::rollBack();
                     return response()->json([
                         'message' => 'No purchase history found for sparepart #' . $sparepart->sparepart_number
@@ -232,14 +232,13 @@ class BackOrderController extends Controller
 
                 // Create DetailBuy record
                 $quantity = $detailBackOrder->number_back_order;
-                $unitPrice = $cheapestDetailBuy->unit_price;
+                $unitPrice = $cheapestDetailSparepart->unit_price;
                 $subtotal = $quantity * $unitPrice;
 
                 DetailBuy::create([
                     'buy_id' => $buy->id,
                     'sparepart_id' => $sparepart->id,
                     'quantity' => $quantity,
-                    'seller_id' => $cheapestDetailBuy->seller_id,
                     'unit_price' => $unitPrice,
                 ]);
 

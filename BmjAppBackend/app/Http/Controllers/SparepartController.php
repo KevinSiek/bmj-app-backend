@@ -23,7 +23,7 @@ class SparepartController extends Controller
     {
         try {
             $spareparts = $this->getAccessedSparepart($request);
-            $sparepart = $spareparts->findOrFail($id);
+            $sparepart = $spareparts->with('detailSpareparts.seller')->findOrFail($id);
 
             $formattedSparepart = [
                 'id' => $sparepart->id ?? '',
@@ -32,10 +32,10 @@ class SparepartController extends Controller
                 'sparepart_name' => $sparepart->sparepart_name ?? '',
                 'totalUnit' => $sparepart->total_unit,
                 'unit_price_sell' => $sparepart->unit_price_sell,
-                'unit_price_buy' => $sparepart->detailBuys->map(function ($buy) {
+                'unit_price_buy' => $sparepart->detailSpareparts->map(function ($detail) {
                     return [
-                        'seller' => $buy->seller ?? '',
-                        'price' => $buy->unit_price ?? 0,
+                        'seller' => $detail->seller->name ?? '',
+                        'price' => $detail->unit_price ?? 0,
                     ];
                 })->toArray(),
             ];
@@ -60,7 +60,7 @@ class SparepartController extends Controller
             $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
                 $query->where('sparepart_name', 'like', "%$q%")
                     ->orWhere('sparepart_number', 'like', "%$q%");
-            })->with('detailBuys'); // Eager load detailBuys for unitPriceBuy
+            })->with('detailSpareparts.seller'); // Eager load detailSpareparts for unitPriceBuy
 
             // Paginate the results and transform to match API contract
             $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) {
@@ -71,10 +71,10 @@ class SparepartController extends Controller
                     'sparepart_name' => $data->sparepart_name ?? '',
                     'totalUnit' => $data->total_unit,
                     'unit_price_sell' => $data->unit_price_sell,
-                    'unit_price_buy' => $data->detailBuys->map(function ($buy) {
+                    'unit_price_buy' => $data->detailSpareparts->map(function ($detail) {
                         return [
-                            'seller' => $buy->seller ?? '',
-                            'price' => $buy->unit_price ?? 0,
+                            'seller' => $detail->seller->name ?? '',
+                            'price' => $detail->unit_price ?? 0,
                         ];
                     })->toArray(),
                 ];

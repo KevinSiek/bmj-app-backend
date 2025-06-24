@@ -313,12 +313,13 @@ class ProformaInvoiceController extends Controller
         }
     }
 
-    public function fullPaid(Request $request, $id)
+    public function fullPaid(Request $request)
     {
         DB::beginTransaction();
+        $piNumber =  $request->input('proformaInvoiceNumber');
 
         try {
-            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->where('proforma_invoice_number', $piNumber)->first();
 
             if (!$proformaInvoice) {
                 return $this->handleNotFound('Proforma invoice not found');
