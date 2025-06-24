@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('sparepart_name');
             $table->decimal('unit_price_sell', 15, 2);
             $table->integer('total_unit');
+            $table->integer('version')->default(1);
             $table->timestamps();
         });
     }

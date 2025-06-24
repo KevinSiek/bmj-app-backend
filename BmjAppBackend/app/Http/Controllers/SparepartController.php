@@ -16,14 +16,70 @@ class SparepartController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function updateAllData(Request $request) {}
+    public function updateAllData(Request $request)
+    {
+        try {
+            // Validate file upload
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|mimes:xlsx,xls,csv|max:2048',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors(),
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $import = new \App\Imports\SparepartImport();
+
+            // Start transaction
+            \DB::beginTransaction();
+
+            try {
+                \Excel::import($import, $request->file('file'));
+                \DB::commit();
+
+                return response()->json([
+                    'message' => 'Spareparts data updated successfully',
+                    'data' => [
+                        'new_records' => $import->getSuccessCount(),
+                        'updated_records' => $import->getUpdateCount(),
+                    ],
+                ], Response::HTTP_OK);
+            } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+                \DB::rollBack();
+                return response()->json([
+                    'message' => 'Validation error in Excel file',
+                    'errors' => $e->failures(),
+                ], Response::HTTP_BAD_REQUEST);
+            } catch (\Exception $e) {
+                \DB::rollBack();
+                throw $e;
+            }
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Error processing spareparts data');
+        }
+    }
 
     // Extra function
     public function get(Request $request, $id)
     {
         try {
             $spareparts = $this->getAccessedSparepart($request);
-            $sparepart = $spareparts->with('detailSpareparts.seller')->findOrFail($id);
+            // Only get the latest version for the given id
+            $sparepart = $spareparts->with('detailSpareparts.seller')
+                ->where('id', $id)
+                ->orderByDesc('version')
+                ->firstOrFail();
+
+            // Check if this is the latest version for the sparepart_number
+            $latest = Sparepart::where('sparepart_number', $sparepart->sparepart_number)
+                ->orderByDesc('version')
+                ->first();
+            if ($sparepart->id !== $latest->id) {
+                $sparepart = $latest;
+            }
 
             $formattedSparepart = [
                 'id' => $sparepart->id ?? '',
@@ -38,6 +94,7 @@ class SparepartController extends Controller
                         'price' => $detail->unit_price ?? 0,
                     ];
                 })->toArray(),
+                'version' => $sparepart->version,
             ];
 
             return response()->json([
@@ -56,13 +113,17 @@ class SparepartController extends Controller
             $q = $request->query('search');
             $spareparts = $this->getAccessedSparepart($request);
 
-            // Build the query with search functionality
-            $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
-                $query->where('sparepart_name', 'like', "%$q%")
-                    ->orWhere('sparepart_number', 'like', "%$q%");
-            })->with('detailSpareparts.seller'); // Eager load detailSpareparts for unitPriceBuy
+            // Subquery to get only the latest version for each sparepart_number
+            $latestIds = Sparepart::selectRaw('MAX(id) as id')
+                ->groupBy('sparepart_number');
 
-            // Paginate the results and transform to match API contract
+            $sparepartsQuery = $spareparts->whereIn('id', $latestIds)
+                ->where(function ($query) use ($q) {
+                    $query->where('sparepart_name', 'like', "%$q%")
+                        ->orWhere('sparepart_number', 'like', "%$q%");
+                })
+                ->with('detailSpareparts.seller');
+
             $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) {
                 return [
                     'id' => $data->id ?? '',
@@ -77,6 +138,7 @@ class SparepartController extends Controller
                             'price' => $detail->unit_price ?? 0,
                         ];
                     })->toArray(),
+                    'version' => $data->version,
                 ];
             });
 
