@@ -51,7 +51,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
         Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
         Route::get('/return/{isNeedReturn}', [QuotationController::class, 'isNeedReturn']);
-        Route::get('/needChange/{slug}', [QuotationController::class, 'needChange']);
+        Route::post('/needChange/{slug}', [QuotationController::class, 'needChange']);
         Route::post('/approve/{slug}', [QuotationController::class, 'approve']);
         Route::post('/reject/{slug}', [QuotationController::class, 'decline']);
 
