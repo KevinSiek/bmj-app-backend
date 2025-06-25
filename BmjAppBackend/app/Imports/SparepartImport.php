@@ -7,64 +7,63 @@ use App\Models\DetailSparepart;
 use App\Models\Seller;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithValidation;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Maatwebsite\Excel\Concerns\WithEvents;
-use Maatwebsite\Excel\Events\BeforeImport;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
-class SparepartImport implements ToModel, WithHeadingRow, WithValidation, WithEvents
+class SparepartImport implements ToModel, WithHeadingRow
 {
     private $successCount = 0;
     private $updateCount = 0;
-    private $sellerHeaders = [];
-
-    /**
-     * Register events to capture headers before import.
-     *
-     * @return array
-     */
-    public function registerEvents(): array
-    {
-        return [
-            BeforeImport::class => function (BeforeImport $event) {
-                $worksheet = $event->reader->getActiveSheet();
-                $highestColumn = $worksheet->getHighestColumn();
-                $headers = $worksheet->rangeToArray("A1:{$highestColumn}1")[0];
-
-                // Log headers for debugging
-                \Log::info('Excel Headers: ' . json_encode($headers));
-
-                $this->sellerHeaders = array_filter($headers, function ($header) {
-                    return Str::startsWith($header, 'seller_') && (
-                        Str::endsWith($header, '_name') ||
-                        Str::endsWith($header, '_price') ||
-                        Str::endsWith($header, '_quantity')
-                    );
-                });
-            },
-        ];
-    }
 
     /**
      * @param array $row
      *
-     * @return \Illuminate\Database\Eloquent\Model
+     * @return \Illuminate\Database\Eloquent\Model|null
      */
     public function model(array $row)
     {
-        // Find existing sparepart by sparepart_number
-        $existingSparepart = Sparepart::where('sparepart_number', $row['sparepart_number'])
+        // Check if the row is empty (all relevant fields are null or empty)
+        $relevantFields = ['part_number', 'sparepart_name', 'purchase_price', 'seller'];
+        $isEmpty = true;
+        foreach ($relevantFields as $field) {
+            if (!empty($row[$field])) {
+                $isEmpty = false;
+                break;
+            }
+        }
+
+        if ($isEmpty) {
+            Log::info("Skipping empty row: " . json_encode($row));
+            return null; // Skip empty rows
+        }
+
+        // Validate the row manually
+        $validator = Validator::make($row, [
+            'part_number' => 'required|string',
+            'sparepart_name' => 'required|string',
+            'purchase_price' => 'nullable|numeric|min:0',
+            'seller' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning("Skipping invalid row: " . json_encode($row) . " Errors: " . json_encode($validator->errors()->all()));
+            return null; // Skip invalid rows
+        }
+
+        // Find existing sparepart by part_number (mapped to sparepart_number)
+        $existingSparepart = Sparepart::where('sparepart_number', $row['part_number'])
             ->orderByDesc('version')
             ->first();
 
         // Prepare sparepart data
         $sparepartData = [
-            'slug' => Str::slug($row['sparepart_number'] . '-' . $row['sparepart_name']),
-            'sparepart_number' => $row['sparepart_number'],
+            'slug' => Str::slug($row['part_number'] . '-' . $row['sparepart_name']),
+            'sparepart_number' => $row['part_number'],
             'sparepart_name' => $row['sparepart_name'],
-            'unit_price_sell' => $row['unit_price_sell'],
-            'total_unit' => $row['total_unit'],
+            'unit_price_sell' => isset($row['purchase_price']) ? $row['purchase_price'] : null,
+            'total_unit' => 0, // Default to 0 since not provided
             'version' => $existingSparepart ? $existingSparepart->version + 1 : 1,
         ];
 
@@ -82,42 +81,25 @@ class SparepartImport implements ToModel, WithHeadingRow, WithValidation, WithEv
         DB::transaction(function () use ($sparepart, $row) {
             $sparepart->save();
 
-            // Group seller headers by their index (e.g., seller_1_name, seller_1_price, seller_1_quantity)
-            $sellerGroups = [];
-            foreach ($this->sellerHeaders as $header) {
-                if (preg_match('/seller_(\d+)_(\w+)/', $header, $matches)) {
-                    $index = $matches[1];
-                    $type = $matches[2];
-                    $sellerGroups[$index][$type] = $header;
-                }
-            }
+            // Handle single seller (seller column contains seller name)
+            if (!empty($row['seller'])) {
+                // Find or create seller by name
+                $seller = Seller::firstOrCreate(
+                    ['name' => $row['seller']],
+                    ['type' => 'Supplier'] // Default type for new sellers
+                );
 
-            // Process each seller group
-            foreach ($sellerGroups as $index => $fields) {
-                $nameKey = $fields['name'] ?? null;
-                $priceKey = $fields['price'] ?? null;
-                $quantityKey = $fields['quantity'] ?? null;
-
-                // Check if all required seller fields exist and are non-empty
-                if ($nameKey && $priceKey && $quantityKey && !empty($row[$nameKey]) && isset($row[$priceKey]) && isset($row[$quantityKey])) {
-                    // Find or create seller by name
-                    $seller = Seller::firstOrCreate(
-                        ['name' => $row[$nameKey]],
-                        ['type' => 'Supplier'] // Default type for new sellers
-                    );
-
-                    // Create or update DetailSparepart
-                    DetailSparepart::updateOrCreate(
-                        [
-                            'sparepart_id' => $sparepart->id,
-                            'seller_id' => $seller->id,
-                        ],
-                        [
-                            'unit_price' => $row[$priceKey],
-                            'quantity' => $row[$quantityKey],
-                        ]
-                    );
-                }
+                // Create or update DetailSparepart
+                DetailSparepart::updateOrCreate(
+                    [
+                        'sparepart_id' => $sparepart->id,
+                        'seller_id' => $seller->id,
+                    ],
+                    [
+                        'unit_price' => isset($row['purchase_price']) ? $row['purchase_price'] : 0,
+                        'quantity' => 0, // Default to 0 since not provided
+                    ]
+                );
             }
         });
 
@@ -129,26 +111,8 @@ class SparepartImport implements ToModel, WithHeadingRow, WithValidation, WithEv
      */
     public function rules(): array
     {
-        // Core sparepart validation rules
-        $rules = [
-            'sparepart_number' => 'required|string',
-            'sparepart_name' => 'required|string',
-            'unit_price_sell' => 'required|numeric|min:0',
-            'total_unit' => 'required|integer|min:0',
-        ];
-
-        // Dynamically add validation rules for seller headers
-        foreach ($this->sellerHeaders as $header) {
-            if (Str::endsWith($header, '_name')) {
-                $rules[$header] = 'nullable|string';
-            } elseif (Str::endsWith($header, '_price')) {
-                $rules[$header] = 'nullable|numeric|min:0';
-            } elseif (Str::endsWith($header, '_quantity')) {
-                $rules[$header] = 'nullable|integer|min:0';
-            }
-        }
-
-        return $rules;
+        // Return empty rules to disable default validation
+        return [];
     }
 
     public function getSuccessCount()

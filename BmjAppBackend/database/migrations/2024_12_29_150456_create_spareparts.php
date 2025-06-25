@@ -16,8 +16,8 @@ return new class extends Migration
             $table->string('slug');
             $table->string('sparepart_number');
             $table->string('sparepart_name');
-            $table->decimal('unit_price_sell', 15, 2);
-            $table->integer('total_unit');
+            $table->decimal('unit_price_sell', 15, 2)->nullable();
+            $table->integer('total_unit')->nullable();
             $table->integer('version')->default(1);
             $table->timestamps();
         });

@@ -21,7 +21,7 @@ class SparepartController extends Controller
         try {
             // Validate file upload
             $validator = Validator::make($request->all(), [
-                'file' => 'required|mimes:xlsx,xls,csv|max:2048',
+                'file' => 'required|mimes:xlsx,xls,csv',
             ]);
 
             if ($validator->fails()) {
