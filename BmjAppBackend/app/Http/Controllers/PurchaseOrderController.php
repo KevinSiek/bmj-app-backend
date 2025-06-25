@@ -7,6 +7,7 @@ use App\Models\ProformaInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\WorkOrder;
 use App\Models\WoUnit;
+use App\Models\DeliveryOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -320,6 +321,7 @@ class PurchaseOrderController extends Controller
             return $this->handleError($th, 'Failed to update purchase order status to' . $status);
         }
     }
+
     public function ready(Request $request, $id)
     {
         DB::beginTransaction();
@@ -360,118 +362,163 @@ class PurchaseOrderController extends Controller
 
             $quotation = $purchaseOrder->quotation;
 
-            // Check if this quotation is Service
-            if ($quotation->type !== QuotationController::SERVICE) {
+            // Check if quotation exists
+            if (!$quotation) {
                 return response()->json([
-                    'message' => 'Only SERVICE type quotations can be released to work order'
+                    'message' => 'Quotation not found for this purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            // Validate request input
-            $validator = Validator::make($request->all(), [
-                'serviceOrder.receivedBy' => 'required|string',
-                'serviceOrder.startDate' => 'nullable|string',
-                'serviceOrder.endDate' => 'nullable|string',
-                'poc.compiled' => 'required|string',
-                'poc.approver' => 'required|string',
-                'poc.headOfService' => 'required|string',
-                'poc.worker' => 'nullable|string',
-                'additional.spareparts' => 'nullable',
-                'additional.backupSparepart' => 'nullable',
-                'additional.scope' => 'nullable|string',
-                'additional.vaccine' => 'nullable|string',
-                'additional.apd' => 'nullable|string',
-                'additional.peduliLindungi' => 'nullable|string',
-                'additional.executionTime' => 'nullable|string',
-                'units' => 'required|array',
-                'units.*.jobDescriptions' => 'nullable|string',
-                'units.*.unitType' => 'nullable|string',
-                'units.*.quantity' => 'nullable|integer|min:1',
-                'date.startDate' => 'nullable|string',
-                'date.endDate' => 'nullable|string',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Validation failed',
-                    'error' => $validator->errors()
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
-            // Check if work order already exists
-            if ($quotation->workOrder) {
-                return response()->json([
-                    'message' => 'Work order already exists for this quotation'
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
-            // Check if quotation already have PI that has DP_PAID
-            $proformaInvoice = $purchaseOrder->proformaInvoice;
-            $isDpPaid = $proformaInvoice->is_dp_paid;
-            if (!$proformaInvoice && $isDpPaid) {
-                return response()->json([
-                    'message' => 'PI must be made in advance and down payment must be paid'
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
-            // Generate work order number
-            $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
-            $randomString1 = strtoupper(Str::random(3));
-            $randomString2 = strtoupper(Str::random(3));
-            $monthRoman = $this->getRomanMonth(now()->month);
-            $year = now()->year;
-            $workOrderNumber = "WO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
-
-            // Create work order
-            $workOrder = WorkOrder::create([
-                'quotation_id' => $quotation->id,
-                'work_order_number' => $workOrderNumber,
-                'received_by' => $request->input('serviceOrder.receivedBy'),
-                'expected_start_date' => $request->input('serviceOrder.startDate'),
-                'expected_end_date' => $request->input('serviceOrder.endDate'),
-                'start_date' => $request->input('date.startDate'),
-                'end_date' => $request->input('date.endDate'),
-                'current_status' => WorkOrderController::ON_PROGRESS,
-                'worker' => $request->input('poc.worker'),
-                'compiled' => $request->input('poc.compiled'),
-                'head_of_service' => $request->input('poc.headOfService'),
-                'approver' => $request->input('poc.approver'),
-                'is_done' => false,
-                'spareparts' => json_encode($request->input('additional.spareparts')),
-                'backup_sparepart' => $request->input('additional.backupSparepart') ? json_encode($request->input('additional.backupSparepart')) : null,
-                'scope' => $request->input('additional.scope'),
-                'vaccine' => $request->input('additional.vaccine'),
-                'apd' => $request->input('additional.apd'),
-                'peduli_lindungi' => $request->input('additional.peduliLindungi'),
-                'execution_time' => $request->input('additional.executionTime')
-            ]);
-
-            // Create wo_units from the units array
-            $unitsData = $request->input('units', []);
-            foreach ($unitsData as $unit) {
-                WoUnit::create([
-                    'id_wo' => $workOrder->id,
-                    'job_descriptions' => $unit['jobDescriptions'] ?? null,
-                    'unit_type' => $unit['unitType'] ?? null,
-                    'quantity' => $unit['quantity'] ?? null,
+            // Handle Service type quotations
+            if ($quotation->type === QuotationController::SERVICE) {
+                // Validate request input for service type
+                $validator = Validator::make($request->all(), [
+                    'serviceOrder.receivedBy' => 'required|string',
+                    'serviceOrder.startDate' => 'nullable|string',
+                    'serviceOrder.endDate' => 'nullable|string',
+                    'poc.compiled' => 'required|string',
+                    'poc.approver' => 'required|string',
+                    'poc.headOfService' => 'required|string',
+                    'poc.worker' => 'nullable|string',
+                    'additional.spareparts' => 'nullable',
+                    'additional.backupSparepart' => 'nullable',
+                    'additional.scope' => 'nullable|string',
+                    'additional.vaccine' => 'nullable|string',
+                    'additional.apd' => 'nullable|string',
+                    'additional.peduliLindungi' => 'nullable|string',
+                    'additional.executionTime' => 'nullable|string',
+                    'units' => 'required|array',
+                    'units.*.jobDescriptions' => 'nullable|string',
+                    'units.*.unitType' => 'nullable|string',
+                    'units.*.quantity' => 'nullable|integer|min:1',
+                    'date.startDate' => 'nullable|string',
+                    'date.endDate' => 'nullable|string',
                 ]);
+
+                if ($validator->fails()) {
+                    return response()->json([
+                        'message' => 'Validation failed',
+                        'error' => $validator->errors()
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                // Check if work order already exists
+                if ($quotation->workOrder) {
+                    return response()->json([
+                        'message' => 'Work order already exists for this quotation'
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                // Check if quotation has PI with DP paid
+                $proformaInvoice = $purchaseOrder->proformaInvoice;
+                if (!$proformaInvoice || !$proformaInvoice->is_dp_paid) {
+                    return response()->json([
+                        'message' => 'Proforma invoice must exist and down payment must be paid'
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                // Generate work order number
+                $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
+                $randomString1 = strtoupper(Str::random(3));
+                $randomString2 = strtoupper(Str::random(3));
+                $monthRoman = $this->getRomanMonth(now()->month);
+                $year = now()->year;
+                $workOrderNumber = "WO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+
+                // Create work order
+                $workOrder = WorkOrder::create([
+                    'quotation_id' => $quotation->id,
+                    'work_order_number' => $workOrderNumber,
+                    'received_by' => $request->input('serviceOrder.receivedBy'),
+                    'expected_start_date' => $request->input('serviceOrder.startDate'),
+                    'expected_end_date' => $request->input('serviceOrder.endDate'),
+                    'start_date' => $request->input('date.startDate'),
+                    'end_date' => $request->input('date.endDate'),
+                    'current_status' => WorkOrderController::ON_PROGRESS,
+                    'worker' => $request->input('poc.worker'),
+                    'compiled' => $request->input('poc.compiled'),
+                    'head_of_service' => $request->input('poc.headOfService'),
+                    'approver' => $request->input('poc.approver'),
+                    'is_done' => false,
+                    'spareparts' => json_encode($request->input('additional.spareparts')),
+                    'backup_sparepart' => $request->input('additional.backupSparepart') ? json_encode($request->input('additional.backupSparepart')) : null,
+                    'scope' => $request->input('additional.scope'),
+                    'vaccine' => $request->input('additional.vaccine'),
+                    'apd' => $request->input('additional.apd'),
+                    'peduli_lindungi' => $request->input('additional.peduliLindungi'),
+                    'execution_time' => $request->input('additional.executionTime')
+                ]);
+
+                // Create wo_units
+                $unitsData = $request->input('units', []);
+                foreach ($unitsData as $unit) {
+                    WoUnit::create([
+                        'id_wo' => $workOrder->id,
+                        'job_descriptions' => $unit['jobDescriptions'] ?? null,
+                        'unit_type' => $unit['unitType'] ?? null,
+                        'quantity' => $unit['quantity'] ?? null,
+                    ]);
+                }
+
+                // Update purchase order status
+                $purchaseOrder->current_status = self::RELEASE;
+                $purchaseOrder->save();
+
+                // Commit the transaction
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'Purchase order released and work order created successfully',
+                    'data' => [
+                        'purchase_order' => $purchaseOrder,
+                        'work_order' => $workOrder->load('woUnits')
+                    ]
+                ], Response::HTTP_OK);
             }
+            // Handle Sparepart type quotations
+            else if ($quotation->type === QuotationController::SPAREPARTS) {
+                // Check if delivery order already exists
+                if ($quotation->deliveryOrder) {
+                    return response()->json([
+                        'message' => 'Delivery order already exists for this quotation'
+                    ], Response::HTTP_BAD_REQUEST);
+                }
 
-            // Update purchase order status
-            $purchaseOrder->current_status = self::RELEASE;
-            $purchaseOrder->save();
+                // Check if quotation has PI
+                $proformaInvoice = $purchaseOrder->proformaInvoice;
+                if (!$proformaInvoice) {
+                    return response()->json([
+                        'message' => 'Proforma invoice must exist for Sparepart type'
+                    ], Response::HTTP_BAD_REQUEST);
+                }
 
-            // Commit the transaction
-            DB::commit();
+                // Create delivery order
+                $deliveryOrder = DeliveryOrder::create([
+                    'quotation_id' => $quotation->id,
+                    'type' => 'Sparepart',
+                    'current_status' => 'Process',
+                    'notes' => $request->input('notes') ?? null,
+                ]);
 
-            // Return a success response
-            return response()->json([
-                'message' => 'Purchase order released and work order created successfully',
-                'data' => [
-                    'purchase_order' => $purchaseOrder,
-                    'work_order' => $workOrder->load('woUnits')
-                ]
-            ], Response::HTTP_OK);
+                // Update purchase order status
+                $purchaseOrder->current_status = self::RELEASE;
+                $purchaseOrder->save();
+
+                // Commit the transaction
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'Purchase order released and delivery order created successfully',
+                    'data' => [
+                        'purchase_order' => $purchaseOrder,
+                        'delivery_order' => $deliveryOrder
+                    ]
+                ], Response::HTTP_OK);
+            } else {
+                return response()->json([
+                    'message' => 'Invalid quotation type. Only SERVICE or Sparepart types are supported'
+                ], Response::HTTP_BAD_REQUEST);
+            }
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to release purchase order');
@@ -486,7 +533,7 @@ class PurchaseOrderController extends Controller
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->findOrFail($id);
 
-            // Map camelCase input to snake_case for validation and update
+            // Map camelCase input to snake_case for a validation and update
             $input = $request->all();
             $mappedInput = [];
             $fieldMap = [
@@ -507,7 +554,7 @@ class PurchaseOrderController extends Controller
             // Define validation rules, all fields are nullable
             $validator = Validator::make($mappedInput, [
                 'quotation_id' => 'nullable|exists:quotations,id',
-                'purchase_order_number' => ['nullable', 'string', 'max:255', Rule::unique('purchase_orders')->ignore($id)],
+                'purchase_order_number' => ['nullable', 'max:255', Rule::unique('purchase_orders')->ignore($id)],
                 'purchase_order_date' => 'nullable|date',
                 'payment_due' => 'nullable|date',
                 'employee_id' => 'nullable|exists:employees,id',
@@ -555,7 +602,7 @@ class PurchaseOrderController extends Controller
                     'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
                     'quantity' => $detail->quantity ?? 0,
                     'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                    'total_price' => ($detail->quantity * ($detail->quantity ?? 0)),
                     'stock' => $detail->is_indent ? 'indent' : 'available'
                 ];
             })->toArray() : [];
@@ -599,6 +646,7 @@ class PurchaseOrderController extends Controller
                 'quotationn_number' => $quotation ? $quotation->quotation_number : '',
                 'spareparts' => $spareParts
             ];
+
 
             return response()->json([
                 'message' => 'Purchase order updated successfully',

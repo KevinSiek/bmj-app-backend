@@ -5,6 +5,7 @@ use App\Http\Controllers\AccessesController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\DeliveryOrderController;
 use App\Http\Controllers\ProformaInvoiceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\BackOrderController;
@@ -70,6 +71,12 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
         Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
         Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+    });
+
+    Route::prefix('delivery-order')->group(function () {
+        Route::get('/', [DeliveryOrderController::class, 'getAll']);
+        Route::get('/{id}', [DeliveryOrderController::class, 'get']);
+        Route::put('/{id}', [DeliveryOrderController::class, 'update']);
     });
 
     Route::prefix('proforma-invoice')->group(function () {

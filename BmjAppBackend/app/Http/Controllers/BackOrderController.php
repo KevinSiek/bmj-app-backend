@@ -37,6 +37,11 @@ class BackOrderController extends Controller
             // Initialize the query builder
             $backOrderQuery = $this->getAccessedBackOrder($request);
 
+            // Filter BackOrders with non-zero number_back_order in detailBackOrders
+            $backOrderQuery->whereHas('detailBackOrders', function ($query) {
+                $query->where('number_back_order', '>', 0);
+            });
+
             // Apply search term filter if 'q' is provided
             if ($q) {
                 $backOrderQuery->where(function ($query) use ($q) {
@@ -96,18 +101,18 @@ class BackOrderController extends Controller
 
             // Find the back order by ID with all required relationships
             $backOrder = $backOrderQuery->with([
+                'purchaseOrder',
                 'purchaseOrder.quotation',
                 'purchaseOrder.quotation.customer',
                 'detailBackOrders.sparepart',
-            ])
-                ->findOrFail($id);
+            ])->findOrFail($id);
 
             // Format the back order to match the API contract
             $formattedBackOrder = $this->formatBackOrder($backOrder);
 
             return response()->json([
                 'message' => 'Back order retrieved successfully',
-                'data' => $formattedBackOrder,
+                'data' => $formattedBackOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

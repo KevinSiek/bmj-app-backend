@@ -58,4 +58,9 @@ class Quotation extends Model
     {
         return $this->hasOne(WorkOrder::class);
     }
+
+    public function deliveryOrder()
+    {
+        return $this->hasOne(DeliveryOrder::class);
+    }
 }

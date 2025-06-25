@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Sparepart;
-use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -23,6 +21,7 @@ class DatabaseSeeder extends Seeder
             PurchaseOrderSeeder::class,
             ProformaInvoiceSeeder::class,
             InvoiceSeeder::class,
+            DeliveryOrderSeeder::class,
             WorkOrderSeeder::class,
             BackOrderSeeder::class,
             BuySeeder::class,
