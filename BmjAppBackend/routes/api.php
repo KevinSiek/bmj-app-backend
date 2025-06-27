@@ -119,7 +119,7 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/', [WorkOrderController::class, 'getAll']);
             Route::get('/{id}', [WorkOrderController::class, 'get']);
             Route::put('/{id}', [WorkOrderController::class, 'update']);
-            Route::get('/process/{id}', [WorkOrderController::class, 'process']);
+            Route::post('/process/{id}', [WorkOrderController::class, 'process']);
         });
     });
 
