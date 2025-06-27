@@ -54,7 +54,6 @@ class SparepartImport implements ToModel, WithHeadingRow
 
         // Find existing sparepart by part_number (mapped to sparepart_number)
         $existingSparepart = Sparepart::where('sparepart_number', $row['part_number'])
-            ->orderByDesc('version')
             ->first();
 
         // Prepare sparepart data
@@ -64,7 +63,6 @@ class SparepartImport implements ToModel, WithHeadingRow
             'sparepart_name' => $row['sparepart_name'],
             'unit_price_sell' => isset($row['purchase_price']) ? $row['purchase_price'] : null,
             'total_unit' => 0, // Default to 0 since not provided
-            'version' => $existingSparepart ? $existingSparepart->version + 1 : 1,
         ];
 
         // Create or update sparepart
