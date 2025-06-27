@@ -570,7 +570,7 @@ class QuotationController extends Controller
                     'quantity' => $detail->quantity ?? 0,
                     'unit_price_sell' => $detail->unit_price ?? 0,
                     'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent
+                    'stock' => $detail->is_indent ? 'indent' : 'available'
                 ];
             });
 
@@ -652,7 +652,7 @@ class QuotationController extends Controller
                         'quantity' => $detail->quantity ?? 0,
                         'unit_price_sell' => $detail->unit_price ?? 0,
                         'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                        'stock' => $detail->is_indent
+                        'stock' => $detail->is_indent ? 'indent' : 'available'
                     ];
                 });
 
@@ -884,7 +884,7 @@ class QuotationController extends Controller
                             'quantity' => $detail->quantity ?? 0,
                             'unit_price_sell' => $detail->unit_price ?? 0,
                             'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                            'stock' => $detail->is_indent
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
                         ];
                     });
 
@@ -973,7 +973,7 @@ class QuotationController extends Controller
                             'unit_price_sell' => $detail->unit_price ?? 0,
                             'is_return' => $detail->is_return ?? 0,
                             'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                            'stock' => $detail->is_indent
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
                         ];
                     });
 
@@ -1402,7 +1402,7 @@ class QuotationController extends Controller
                     'unit_price_sell' => $detail->unit_price ?? 0,
                     'is_return' => $detail->is_return ?? 0,
                     'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent
+                    'stock' => $detail->is_indent ? 'indent' : 'available'
                 ];
             });
 
@@ -1510,7 +1510,7 @@ class QuotationController extends Controller
                     'unit_price_sell' => $detail->unit_price ?? 0,
                     'is_return' => $detail->is_return ?? 0,
                     'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent
+                    'stock' => $detail->is_indent ? 'indent' : 'available'
                 ];
             });
 
@@ -1613,7 +1613,7 @@ class QuotationController extends Controller
                     'unit_price_sell' => $detail->unit_price ?? 0,
                     'is_return' => $detail->is_return ?? 0,
                     'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent
+                    'stock' => $detail->is_indent ? 'indent' : 'available'
                 ];
             });
 
