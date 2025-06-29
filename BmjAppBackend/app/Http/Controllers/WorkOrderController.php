@@ -127,15 +127,15 @@ class WorkOrderController extends Controller
 
             // Apply year and month filter
             if ($year) {
-                $query->whereYear('created_at', $year);
+                $query->whereYear('start_date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $query->whereMonth('created_at', $monthNumber);
+                    $query->whereMonth('start_date', $monthNumber);
                 }
             }
 
             // Paginate the results
-            $workOrders = $query->orderBy('created_at', 'desc')
+            $workOrders = $query->orderBy('start_date', 'desc')
                 ->paginate(20);
 
             // Transform the results

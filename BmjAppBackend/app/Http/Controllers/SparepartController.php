@@ -67,19 +67,10 @@ class SparepartController extends Controller
     {
         try {
             $spareparts = $this->getAccessedSparepart($request);
-            // Only get the latest version for the given id
             $sparepart = $spareparts->with('detailSpareparts.seller')
                 ->where('id', $id)
-                ->orderByDesc('version')
                 ->firstOrFail();
 
-            // Check if this is the latest version for the sparepart_number
-            $latest = Sparepart::where('sparepart_number', $sparepart->sparepart_number)
-                ->orderByDesc('version')
-                ->first();
-            if ($sparepart->id !== $latest->id) {
-                $sparepart = $latest;
-            }
 
             $formattedSparepart = [
                 'id' => $sparepart->id ?? '',
@@ -94,7 +85,6 @@ class SparepartController extends Controller
                         'price' => $detail->unit_price ?? 0,
                     ];
                 })->toArray(),
-                'version' => $sparepart->version,
             ];
 
             return response()->json([
@@ -113,15 +103,10 @@ class SparepartController extends Controller
             $q = $request->query('search');
             $spareparts = $this->getAccessedSparepart($request);
 
-            // Subquery to get only the latest version for each sparepart_number
-            $latestIds = Sparepart::selectRaw('MAX(id) as id')
-                ->groupBy('sparepart_number');
-
-            $sparepartsQuery = $spareparts->whereIn('id', $latestIds)
-                ->where(function ($query) use ($q) {
-                    $query->where('sparepart_name', 'like', "%$q%")
-                        ->orWhere('sparepart_number', 'like', "%$q%");
-                })
+            $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
+                $query->where('sparepart_name', 'like', "%$q%")
+                    ->orWhere('sparepart_number', 'like', "%$q%");
+            })
                 ->with('detailSpareparts.seller');
 
             $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) {
@@ -130,7 +115,7 @@ class SparepartController extends Controller
                     'slug' => $data->slug ?? '',
                     'sparepart_number' => $data->sparepart_number ?? '',
                     'sparepart_name' => $data->sparepart_name ?? '',
-                    'totalUnit' => $data->total_unit,
+                    'total_unit' => $data->total_unit,
                     'unit_price_sell' => $data->unit_price_sell,
                     'unit_price_buy' => $data->detailSpareparts->map(function ($detail) {
                         return [
@@ -138,7 +123,6 @@ class SparepartController extends Controller
                             'price' => $detail->unit_price ?? 0,
                         ];
                     })->toArray(),
-                    'version' => $data->version,
                 ];
             });
 
