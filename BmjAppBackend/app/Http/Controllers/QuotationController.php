@@ -784,9 +784,10 @@ class QuotationController extends Controller
             $backOrder = BackOrder::create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'back_order_number' => 'PT' . now(),
-                'current_status' => BackOrderController::PROCESS,
+                'current_status' => BackOrderController::PROCESS, // Assume BO still need to "Process" at first time, if there is no BO, will update to "Ready".
             ]);
 
+            $hasBoSparepart = false;
             // Decrease the total_unit for each sparepart after moveToPo
             foreach ($spareparts as $sparepart) {
                 $sparepartRecord = Sparepart::find($sparepart->sparepart_id);
@@ -819,9 +820,10 @@ class QuotationController extends Controller
                     $sparepartRecord->save();
                 }
 
-                // Change current status of PO to BO
+                // Change current status of PO to BO because we have sparepart BO
                 if ($numberBoInBo) {
                     $purchaseOrder->update(['current_status' => PurchaseOrderController::BO]);
+                    $hasBoSparepart = true;
                 }
 
                 DetailBackOrder::create([
@@ -830,6 +832,12 @@ class QuotationController extends Controller
                     'number_delivery_order' => $numberDoInBo,
                     'number_back_order' => $numberBoInBo,
                 ]);
+            }
+
+            // If po that we created has no bo sparepart then make 'backOrder' to 'Ready' and quotation status to Inventory.
+            if (!$hasBoSparepart) {
+                $backOrder->update(['current_status' => BackOrderController::READY]);
+                $this->changeStatusToInventory($request, $quotation);
             }
             DB::commit();
 

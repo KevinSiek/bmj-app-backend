@@ -12,10 +12,14 @@ use Illuminate\Validation\Rule;
 
 class DeliveryOrderController extends Controller
 {
-    const PROCESS = "Process";
-    const SHIPPED = "Shipped";
-    const DELIVERED = "Delivered";
-    const CANCELLED = "Cancelled";
+    const ON_PROGRESS = "On Progress";
+    const DONE = "Done";
+
+    protected $quotationController;
+    public function __construct(QuotationController $quotationController)
+    {
+        $this->quotationController = $quotationController;
+    }
 
     /**
      * Get a single delivery order
@@ -44,9 +48,9 @@ class DeliveryOrderController extends Controller
 
             $formattedDeliveryOrder = [
                 'id' => (string) ($deliveryOrder->id ?? ''),
-                'purchaseOrder' => [
-                    'purchaseOrderNumber' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
-                    'purchaseOrderDate' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
+                'purchase_order' => [
+                    'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                    'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                     'type' => $purchaseOrder && $quotation ? $quotation->type : ''
                 ],
                 'type' => $deliveryOrder->type ?? '',
@@ -119,9 +123,9 @@ class DeliveryOrderController extends Controller
 
                     return [
                         'id' => (string) ($do->id ?? ''),
-                        'purchaseOrder' => [
-                            'purchaseOrderNumber' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
-                            'purchaseOrderDate' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
+                        'purchase_order' => [
+                            'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                            'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                             'type' => $purchaseOrder && $quotation ? $quotation->type : ''
                         ],
                         'type' => $do->type ?? '',
@@ -170,7 +174,7 @@ class DeliveryOrderController extends Controller
             $validator = Validator::make($mappedInput, [
                 'quotation_id' => 'nullable|exists:quotations,id',
                 'type' => 'nullable|string|max:255',
-                'current_status' => ['nullable', Rule::in([self::PROCESS, self::SHIPPED, self::DELIVERED, self::CANCELLED])],
+                'current_status' => ['nullable', Rule::in([self::ON_PROGRESS, self::DONE])],
                 'notes' => 'nullable|string',
             ]);
 
@@ -218,9 +222,9 @@ class DeliveryOrderController extends Controller
 
             $formattedDeliveryOrder = [
                 'id' => (string) ($updatedDeliveryOrder->id ?? ''),
-                'purchaseOrder' => [
-                    'purchaseOrderNumber' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
-                    'purchaseOrderDate' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
+                'purchase_order' => [
+                    'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                    'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                     'type' => $purchaseOrder && $quotation ? $quotation->type : ''
                 ],
                 'type' => $updatedDeliveryOrder->type ?? '',
@@ -238,6 +242,42 @@ class DeliveryOrderController extends Controller
             return $this->handleError($th, 'Failed to update delivery order');
         }
     }
+
+    /**
+     * Process delivery order
+     */
+    public function process(Request $request, $id)
+    {
+        try {
+            $deliveryOrder = $this->getAccessedDeliveryOrder($request)->find($id);
+
+            if (!$deliveryOrder) {
+                return $this->handleNotFound('Delovery order not found');
+            }
+
+            $alreadyDone = $deliveryOrder->current_status;
+            if ($alreadyDone === self::DONE) {
+                return response()->json([
+                    'message' => 'Work order already done'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $deliveryOrder->update([
+                'current_status' => self::DONE,
+            ]);
+
+            $quotation = $deliveryOrder->quotation;
+            $this->quotationController->changeStatusToRelease($request, $quotation);
+
+            return response()->json([
+                'message' => 'Delovery order processed successfully',
+                'data' => $deliveryOrder
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Delovery order process failed');
+        }
+    }
+
 
     /**
      * Get accessed delivery orders based on user role

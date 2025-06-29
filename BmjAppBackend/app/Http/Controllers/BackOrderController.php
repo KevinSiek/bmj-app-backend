@@ -149,7 +149,7 @@ class BackOrderController extends Controller
                 'office' => $backOrder->purchaseOrder?->quotation?->customer?->office ?? '',
                 'urban' => $backOrder->purchaseOrder?->quotation?->customer?->urban ?? '',
                 'subdistrict' => $backOrder->purchaseOrder?->quotation?->customer?->subdistrict ?? '',
-                'postalCode' => $backOrder->purchaseOrder?->quotation?->customer?->postal_code ?? '',
+                'postal_code' => $backOrder->purchaseOrder?->quotation?->customer?->postal_code ?? '',
                 'npwp' => $backOrder->purchaseOrder?->quotation?->customer?->npwp ?? '', // Assuming nullable
                 'delivery' => $backOrder->purchaseOrder?->quotation?->customer?->delivery ?? '', // Assuming nullable
             ],
@@ -254,6 +254,7 @@ class BackOrderController extends Controller
                 $sparepart->total_unit += $quantity;
                 $sparepart->save();
 
+                // Update detail quotation stock state from is_indent true to false
                 if ($quotation) {
                     $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
                         ->where('sparepart_id', $detailBackOrder->sparepart_id)
