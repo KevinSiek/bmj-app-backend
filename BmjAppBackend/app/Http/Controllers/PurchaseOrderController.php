@@ -464,6 +464,8 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->current_status = self::RELEASE;
                 $purchaseOrder->save();
 
+                $this->quotationController->changeStatusToRelease($request, $quotation);
+
                 // Commit the transaction
                 DB::commit();
 
@@ -503,6 +505,8 @@ class PurchaseOrderController extends Controller
                 // Update purchase order status
                 $purchaseOrder->current_status = self::RELEASE;
                 $purchaseOrder->save();
+
+                $this->quotationController->changeStatusToRelease($request, $quotation);
 
                 // Commit the transaction
                 DB::commit();
