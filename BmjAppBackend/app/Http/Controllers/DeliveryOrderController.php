@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliveryOrder;
-use App\Models\Quotation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,46 +21,72 @@ class DeliveryOrderController extends Controller
     }
 
     /**
+     * Format delivery order according to API contract
+     */
+    private function formatDeliveryOrder($deliveryOrder)
+    {
+        $quotation = $deliveryOrder->quotation;
+        $purchaseOrder = $quotation ? $quotation->purchaseOrder : null;
+        $customer = $quotation ? $quotation->customer : null;
+
+        $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
+            $sparepart = $detail->sparepart;
+            return [
+                'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                'quantity' => $detail->quantity ?? 0,
+                'unit_price_sell' => $detail->unit_price ?? 0,
+                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                'stock' => $detail->is_indent ? 'indent' : 'available'
+            ];
+        })->toArray() : [];
+
+        return [
+            'id' => (string) ($deliveryOrder->id ?? ''),
+            'current_status' => $deliveryOrder->current_status ?? '',
+            'delivery_order' => [
+                'delivery_order_number' => $deliveryOrder->work_order_number ?? '',
+                'delivery_order_date' => $deliveryOrder->delivery_order_date ?? '',
+                'received_by' => $deliveryOrder->received_by ?? '',
+                'picked_by' => $deliveryOrder->picked_by ?? '',
+                'ship_mode' => $deliveryOrder->ship_mode ?? '',
+                'order_type' => $deliveryOrder->order_type ?? '',
+                'delivery' => $deliveryOrder->delivery ?? '',
+                'npwp' => $deliveryOrder->npwp ?? ''
+            ],
+            'purchase_order' => [
+                'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
+                'type' => $quotation ? $quotation->type : ''
+            ],
+            'customer' => [
+                'company_name' => $customer ? $customer->company_name : '',
+                'address' => $customer ? $customer->address : '',
+                'city' => $customer ? $customer->city : '',
+                'province' => $customer ? $customer->province : '',
+                'office' => $customer ? $customer->office : '',
+                'urban' => $customer ? $customer->urban : '',
+                'subdistrict' => $customer ? $customer->subdistrict : '',
+                'postal_code' => $customer ? $customer->postal_code : ''
+            ],
+            'notes' => $deliveryOrder->notes ?? '',
+            'spareparts' => $spareParts
+        ];
+    }
+
+    /**
      * Get a single delivery order
      */
     public function get(Request $request, $id)
     {
         try {
             $deliveryOrder = $this->getAccessedDeliveryOrder($request)
-                ->with(['quotation.detailQuotations.sparepart', 'quotation.purchaseOrder'])
+                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
-
-            $quotation = $deliveryOrder->quotation;
-            $purchaseOrder = $quotation ? $quotation->purchaseOrder : null;
-
-            $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
-                $sparepart = $detail->sparepart;
-                return [
-                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            })->toArray() : [];
-
-            $formattedDeliveryOrder = [
-                'id' => (string) ($deliveryOrder->id ?? ''),
-                'purchase_order' => [
-                    'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
-                    'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
-                    'type' => $purchaseOrder && $quotation ? $quotation->type : ''
-                ],
-                'type' => $deliveryOrder->type ?? '',
-                'notes' => $deliveryOrder->notes ?? '',
-                'status' => $deliveryOrder->current_status ?? '',
-                'spareparts' => $spareParts
-            ];
 
             return response()->json([
                 'message' => 'Delivery order retrieved successfully',
-                'data' => $formattedDeliveryOrder,
+                'data' => $this->formatDeliveryOrder($deliveryOrder),
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -75,7 +100,7 @@ class DeliveryOrderController extends Controller
     {
         try {
             $query = $this->getAccessedDeliveryOrder($request)
-                ->with(['quotation.detailQuotations.sparepart', 'quotation.purchaseOrder']);
+                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart']);
 
             // Apply search term filter
             $q = $request->query('search');
@@ -83,12 +108,16 @@ class DeliveryOrderController extends Controller
                 $query->where(function ($query) use ($q) {
                     $query->where('type', 'like', '%' . $q . '%')
                         ->orWhere('current_status', 'like', '%' . $q . '%')
+                        ->orWhere('work_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function ($qry) use ($q) {
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%');
                         })
                         ->orWhereHas('quotation.purchaseOrder', function ($qry) use ($q) {
                             $qry->where('purchase_order_number', 'like', '%' . $q . '%');
+                        })
+                        ->orWhereHas('quotation.customer', function ($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
                         });
                 });
             }
@@ -97,42 +126,16 @@ class DeliveryOrderController extends Controller
             $month = $request->query('month');
             $year = $request->query('year');
             if ($year) {
-                $query->whereYear('created_at', $year);
+                $query->whereYear('delivery_order_date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $query->whereMonth('created_at', $monthNumber);
+                    $query->whereMonth('delivery_order_date', $monthNumber);
                 }
             }
 
-            $deliveryOrders = $query->orderBy('created_at', 'DESC')
+            $deliveryOrders = $query->orderBy('delivery_order_date', 'DESC')
                 ->paginate(20)->through(function ($do) {
-                    $quotation = $do->quotation;
-                    $purchaseOrder = $quotation ? $quotation->purchaseOrder : null;
-
-                    $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
-                        $sparepart = $detail->sparepart;
-                        return [
-                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                            'quantity' => $detail->quantity ?? 0,
-                            'unit_price_sell' => $detail->unit_price ?? 0,
-                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                            'stock' => $detail->is_indent ? 'indent' : 'available'
-                        ];
-                    })->toArray() : [];
-
-                    return [
-                        'id' => (string) ($do->id ?? ''),
-                        'purchase_order' => [
-                            'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
-                            'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
-                            'type' => $purchaseOrder && $quotation ? $quotation->type : ''
-                        ],
-                        'type' => $do->type ?? '',
-                        'notes' => $do->notes ?? '',
-                        'status' => $do->current_status ?? '',
-                        'spareparts' => $spareParts
-                    ];
+                    return $this->formatDeliveryOrder($do);
                 });
 
             return response()->json([
@@ -163,6 +166,14 @@ class DeliveryOrderController extends Controller
                 'type' => 'type',
                 'currentStatus' => 'current_status',
                 'notes' => 'notes',
+                'workOrderNumber' => 'work_order_number',
+                'deliveryOrderDate' => 'delivery_order_date',
+                'receivedBy' => 'received_by',
+                'pickedBy' => 'picked_by',
+                'shipMode' => 'ship_mode',
+                'orderType' => 'order_type',
+                'delivery' => 'delivery',
+                'npwp' => 'npwp',
             ];
             foreach ($fieldMap as $camel => $snake) {
                 if (array_key_exists($camel, $input)) {
@@ -176,6 +187,14 @@ class DeliveryOrderController extends Controller
                 'type' => 'nullable|string|max:255',
                 'current_status' => ['nullable', Rule::in([self::ON_PROGRESS, self::DONE])],
                 'notes' => 'nullable|string',
+                'work_order_number' => 'nullable|string|max:255',
+                'delivery_order_date' => 'nullable|date',
+                'received_by' => 'nullable|string|max:255',
+                'picked_by' => 'nullable|string|max:255',
+                'ship_mode' => 'nullable|string|max:255',
+                'order_type' => 'nullable|string|max:255',
+                'delivery' => 'nullable|string|max:255',
+                'npwp' => 'nullable|string|max:255',
             ]);
 
             if ($validator->fails()) {
@@ -201,41 +220,13 @@ class DeliveryOrderController extends Controller
             DB::commit();
 
             // Fetch updated delivery order
-            $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
-                ->with(['quotation.detailQuotations.sparepart', 'quotation.purchaseOrder'])
+            $updatedDeliveryOrder = $this->getAccessedDeliveryOrder(request())
+                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
-
-            $quotation = $updatedDeliveryOrder->quotation;
-            $purchaseOrder = $quotation ? $quotation->purchaseOrder : null;
-
-            $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
-                $sparepart = $detail->sparepart;
-                return [
-                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            })->toArray() : [];
-
-            $formattedDeliveryOrder = [
-                'id' => (string) ($updatedDeliveryOrder->id ?? ''),
-                'purchase_order' => [
-                    'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
-                    'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
-                    'type' => $purchaseOrder && $quotation ? $quotation->type : ''
-                ],
-                'type' => $updatedDeliveryOrder->type ?? '',
-                'notes' => $updatedDeliveryOrder->notes ?? '',
-                'status' => $updatedDeliveryOrder->current_status ?? '',
-                'spareparts' => $spareParts
-            ];
 
             return response()->json([
                 'message' => 'Delivery order updated successfully',
-                'data' => $formattedDeliveryOrder
+                'data' => $this->formatDeliveryOrder($updatedDeliveryOrder)
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -252,13 +243,13 @@ class DeliveryOrderController extends Controller
             $deliveryOrder = $this->getAccessedDeliveryOrder($request)->find($id);
 
             if (!$deliveryOrder) {
-                return $this->handleNotFound('Delovery order not found');
+                return $this->handleNotFound('Delivery order not found');
             }
 
             $alreadyDone = $deliveryOrder->current_status;
             if ($alreadyDone === self::DONE) {
                 return response()->json([
-                    'message' => 'Work order already done'
+                    'message' => 'Delivery order already done'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -267,17 +258,21 @@ class DeliveryOrderController extends Controller
             ]);
 
             $quotation = $deliveryOrder->quotation;
-            $this->quotationController->changeStatusToRelease($request, $quotation);
+            $this->quotationController->changeStatusToDone($request, $quotation);
+
+            // Fetch updated delivery order for response
+            $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
+                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart'])
+                ->findOrFail($id);
 
             return response()->json([
-                'message' => 'Delovery order processed successfully',
-                'data' => $deliveryOrder
+                'message' => 'Delivery order processed successfully',
+                'data' => $this->formatDeliveryOrder($updatedDeliveryOrder)
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Delovery order process failed');
+            return $this->handleError($th, 'Delivery order process failed');
         }
     }
-
 
     /**
      * Get accessed delivery orders based on user role

@@ -14,6 +14,14 @@ class DeliveryOrder extends Model
         'type',
         'current_status',
         'notes',
+        'work_order_number',
+        'delivery_order_date',
+        'received_by',
+        'picked_by',
+        'ship_mode',
+        'order_type',
+        'delivery',
+        'npwp',
     ];
 
     public function quotation()
