@@ -163,10 +163,10 @@ class EmployeeController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
-    public function get(Request $request, $id)
+    public function get(Request $request, $slug)
     {
         try {
-            $employee = Employee::findOrFail($id);
+            $employee = Employee::where('slug', $slug)->first();
 
             return response()->json([
                 'message' => 'Employees retrieved successfully',

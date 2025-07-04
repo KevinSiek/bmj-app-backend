@@ -747,7 +747,6 @@ class QuotationController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            $quotation->update(['current_status' => self::PO]);
             $this->changeStatusToPo($request, $quotation);
 
             // Get the spareparts associated with the quotation
@@ -1049,6 +1048,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $currentStatus,
+                'current_status' => self::PO
             ]);
 
             // Commit the transaction
@@ -1093,6 +1093,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $currentStatus,
+                'current_status' => self::PI
             ]);
 
             // Commit the transaction
@@ -1137,6 +1138,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $currentStatus,
+                'current_status' => self::Inventory
             ]);
 
             // Commit the transaction
@@ -1182,6 +1184,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $status,
+                'current_status' => self::READY
             ]);
 
             // Commit the transaction
@@ -1226,6 +1229,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $currentStatus,
+                'current_status' => $isDpPaid ? self::DP_PAID : self::FULL_PAID,
             ]);
 
             // Commit the transaction
@@ -1270,6 +1274,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $currentStatus,
+                'current_status' => self::RELEASE,
             ]);
 
             // Commit the transaction
@@ -1286,15 +1291,12 @@ class QuotationController extends Controller
             return $this->handleError($th, 'Failed to update quotation status to Release');
         }
     }
-    public function changeStatusToDone(Request $request, $slug)
+    public function changeStatusToDone(Request $request, $quotation)
     {
         // Start a database transaction
         DB::beginTransaction();
 
         try {
-            $quotations = $this->getAccessedQuotation($request);
-            $quotation = $quotations->where('slug', $slug)->firstOrFail();
-
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
             }
@@ -1316,6 +1318,7 @@ class QuotationController extends Controller
             // Update quotation with new status and current_status
             $quotation->update([
                 'status' => $currentStatus,
+                'current_status' => self::DONE,
             ]);
 
             // Commit the transaction
@@ -1323,13 +1326,13 @@ class QuotationController extends Controller
 
             // Return the response with transformed data
             return response()->json([
-                'message' => 'Success update status of the quotation to Return',
+                'message' => 'Success update status of the quotation to Done',
                 'data' => $quotation,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             // Roll back the transaction if an error occurs
             DB::rollBack();
-            return $this->handleError($th, 'Failed to update quotation status to Return');
+            return $this->handleError($th, 'Failed to update quotation status to Done');
         }
     }
 
@@ -1387,7 +1390,7 @@ class QuotationController extends Controller
             $quotation->update([
                 'review' => false,
                 'status' => $currentStatus,
-                'current_status' => '',
+                'current_status' => self::DONE,
                 'is_return' => !empty($returnedSparepartIds), // Set is_return to true if any spare parts are returned
             ]);
 

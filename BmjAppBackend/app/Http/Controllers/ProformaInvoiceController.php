@@ -233,7 +233,6 @@ class ProformaInvoiceController extends Controller
                 'employee_id' => $proformaInvoice->employee_id,
             ]);
 
-            $quotation = $proformaInvoice->purchaseOrder->quotation;
             DB::commit();
 
             return response()->json([
@@ -315,7 +314,7 @@ class ProformaInvoiceController extends Controller
     public function fullPaid(Request $request)
     {
         DB::beginTransaction();
-        $piNumber =  $request->input('proformaInvoiceNumber');
+        $piNumber =  $request->input('proformaInvoice.proformaInvoiceNumber');
 
         try {
             $proformaInvoice = $this->getAccessedProformaInvoice($request)->where('proforma_invoice_number', $piNumber)->first();

@@ -21,7 +21,7 @@ class PurchaseOrderController extends Controller
     const PREPARE = "Prepare";
     const READY = "Ready";
     const RELEASE = "Release";
-    const FINISHED = "Finished";
+    const DONE = "Done";
     const RETURNED = "Returned";
     const PAID = "Paid";
 
@@ -279,9 +279,6 @@ class PurchaseOrderController extends Controller
             ]);
 
             $quotation = $purchaseOrder->quotation;
-            $quotation->update([
-                'current_status' => QuotationController::PI
-            ]);
             $this->quotationController->changeStatusToPi($request, $quotation);
 
             DB::commit();
@@ -343,6 +340,37 @@ class PurchaseOrderController extends Controller
             // Return a success response
             return response()->json([
                 'message' => 'Purchase order is ready',
+                'data' => [
+                    'purchase_order' => $purchaseOrder,
+                ]
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to release purchase order');
+        }
+    }
+
+    public function done(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->findOrFail($id);
+
+            // Update purchase order status
+            $purchaseOrder->current_status = self::DONE;
+            $purchaseOrder->save();
+
+            // Update status quotation for tracking
+            $quotation = $purchaseOrder->quotation;
+            $this->quotationController->changeStatusToDone($request, $quotation);
+
+            // Commit the transaction
+            DB::commit();
+
+            // Return a success response
+            return response()->json([
+                'message' => 'Purchase order is Done',
                 'data' => [
                     'purchase_order' => $purchaseOrder,
                 ]
