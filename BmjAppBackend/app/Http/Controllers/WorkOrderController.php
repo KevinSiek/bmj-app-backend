@@ -308,6 +308,12 @@ class WorkOrderController extends Controller
             ]);
 
             $quotation = $workOrder->quotation;
+
+            $purchaseOrder = $quotation->purchaseOrder;
+            $purchaseOrder->update([
+                'current_status' => self::DONE,
+            ]);
+
             $this->quotationController->changeStatusToDone($request, $quotation);
 
             return response()->json([

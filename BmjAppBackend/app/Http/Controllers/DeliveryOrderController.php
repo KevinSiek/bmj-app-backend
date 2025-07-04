@@ -258,6 +258,12 @@ class DeliveryOrderController extends Controller
             ]);
 
             $quotation = $deliveryOrder->quotation;
+
+            $purchaseOrder = $quotation->purchaseOrder;
+            $purchaseOrder->update([
+                'current_status' => self::DONE,
+            ]);
+
             $this->quotationController->changeStatusToDone($request, $quotation);
 
             // Fetch updated delivery order for response

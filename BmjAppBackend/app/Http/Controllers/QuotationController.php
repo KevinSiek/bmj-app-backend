@@ -97,10 +97,6 @@ class QuotationController extends Controller
                 'project.quotationNumber' => 'required|string|unique:quotations,quotation_number',
                 'project.type' => 'required|string',
                 'price.amount' => 'required|numeric',
-                'price.discount' => 'required|numeric',
-                'price.subtotal' => 'required|numeric',
-                'price.ppn' => 'required|numeric',
-                'price.grandTotal' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
                 'customer.companyName' => 'required|string',
@@ -118,19 +114,33 @@ class QuotationController extends Controller
                 'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
             ]);
 
+            // Get the latest discount and PPN from General model
+            $general = General::latest()->first();
+            $discount = $general ? $general->discount : 0;
+            $ppn = $general ? $general->ppn : 0;
+
+            $totalAmount = $request->input('price.amount');
+            $priceDiscount = $totalAmount  * $discount;
+            $subTotal = $totalAmount - $priceDiscount;
+            $pricePpn = $subTotal  * $ppn;
+            $grandTotal = $subTotal - $pricePpn;
+
+
+
             // Map API contract to database fields
             $quotationData = [
                 'quotation_number' => $request->input('project.quotationNumber'),
                 'version' => 1, // Set initial version to 1
                 'type' => $request->input('project.type'),
                 'date' => now(),
-                'amount' => $request->input('price.amount'),
-                'discount' => $request->input('price.discount'),
-                'subtotal' => $request->input('price.subtotal'),
+                'amount' => $totalAmount,
                 'ppn' => $request->input('price.ppn'),
-                'grand_total' => $request->input('price.grandTotal'),
+                'grand_total' => $grandTotal,
                 'notes' => $request->input('notes'),
                 'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
+                'discount' => $priceDiscount,
+                'ppn' => $pricePpn,
+                'subtotal' => $subTotal,
             ];
 
             // Handle Customer Data

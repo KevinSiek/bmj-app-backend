@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('current_status')->default('Process');
             $table->text('notes')->nullable();
             $table->string('delivery_order_number')->nullable();
-            $table->date('delivery_order_date')->nullable();
+            $table->string('delivery_order_date')->nullable();
             $table->string('received_by')->nullable();
             $table->string('picked_by')->nullable();
             $table->string('ship_mode')->nullable();
