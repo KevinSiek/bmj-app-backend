@@ -21,6 +21,7 @@ class GeneralFactory extends Factory
     {
         return [
             'discount' => 0.1,
+            'ppn' => 0.11,
         ];
     }
 }

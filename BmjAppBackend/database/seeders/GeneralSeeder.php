@@ -9,6 +9,6 @@ class GeneralSeeder extends Seeder
 {
     public function run(): void
     {
-        General::factory(25)->create();
+        General::factory(5)->create();
     }
 }

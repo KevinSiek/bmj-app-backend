@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('generals', function (Blueprint $table) {
             $table->id();
             $table->decimal('discount');
+            $table->decimal('ppn');
             $table->timestamps();
         });
     }

@@ -522,12 +522,28 @@ class PurchaseOrderController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
+                // Generate work order number
+                $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
+                $randomString1 = strtoupper(Str::random(3));
+                $randomString2 = strtoupper(Str::random(3));
+                $monthRoman = $this->getRomanMonth(now()->month);
+                $year = now()->year;
+                $deliveryOrderNumber = "DO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+
+
                 // Create delivery order
                 $deliveryOrder = DeliveryOrder::create([
                     'quotation_id' => $quotation->id,
                     'type' => 'Sparepart',
                     'current_status' => 'Process',
-                    'notes' => $request->input('notes') ?? null,
+                    'delivery_order_number' => $deliveryOrderNumber,
+                    'delivery_order_date' => $request->input('deliveryOrder.deliveryOrderDate') ?? null,
+                    'received_by' => $request->input('deliveryOrder.receivedBy'),
+                    'picked_by' => $request->input('deliveryOrder.pickedBy'),
+                    'ship_mode' => $request->input('deliveryOrder.shipMode'),
+                    'order_type' => $request->input('deliveryOrder.orderType'),
+                    'delivery' => $request->input('deliveryOrder.delivery'),
+                    'npwp' => $request->input('deliveryOrder.npwp'),
                 ]);
 
                 // Update purchase order status

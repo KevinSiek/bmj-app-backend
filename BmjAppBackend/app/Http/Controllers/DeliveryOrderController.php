@@ -45,7 +45,7 @@ class DeliveryOrderController extends Controller
             'id' => (string) ($deliveryOrder->id ?? ''),
             'current_status' => $deliveryOrder->current_status ?? '',
             'delivery_order' => [
-                'delivery_order_number' => $deliveryOrder->work_order_number ?? '',
+                'delivery_order_number' => $deliveryOrder->delivery_order_number ?? '',
                 'delivery_order_date' => $deliveryOrder->delivery_order_date ?? '',
                 'received_by' => $deliveryOrder->received_by ?? '',
                 'picked_by' => $deliveryOrder->picked_by ?? '',

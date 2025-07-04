@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use App\Models\DetailQuotation;
+use App\Models\General;
 
 class QuotationController extends Controller
 {
@@ -574,6 +575,11 @@ class QuotationController extends Controller
                 ];
             });
 
+            // Get the latest discount and PPN from General model
+            $general = General::latest()->first();
+            $discount = $general ? $general->discount : 0;
+            $ppn = $general ? $general->ppn : 0;
+
             $formattedQuotation = [
                 'id' => (string) $quotation->id,
                 'slug' => $quotation->slug,
@@ -602,6 +608,8 @@ class QuotationController extends Controller
                 'current_status' => $quotation->current_status,
                 'status' => $quotation->status,
                 'notes' => $quotation->notes,
+                'discount' => $discount,
+                'ppn' => $ppn,
                 'spareparts' => $spareParts,
                 'date' => $quotation->date
             ];
@@ -642,6 +650,7 @@ class QuotationController extends Controller
                 ->orderBy('version', 'ASC')
                 ->paginate(20);
 
+
             $grouped = collect($paginated->items())->map(function ($quotation) {
                 $customer = $quotation->customer;
                 $spareParts = $quotation->detailQuotations->map(function ($detail) {
@@ -656,6 +665,12 @@ class QuotationController extends Controller
                     ];
                 });
 
+                // Get the latest discount and PPN from General model
+                $general = General::latest()->first();
+                $discount = $general ? $general->discount : 0;
+                $ppn = $general ? $general->ppn : 0;
+
+
                 return [
                     'quotation_number' => $quotation->quotation_number,
                     'version' => $quotation->version,
@@ -663,6 +678,8 @@ class QuotationController extends Controller
                     'current_status' => $quotation->current_status,
                     'status' => $quotation->status,
                     'notes' => $quotation->notes,
+                    'discount' => $discount,
+                    'ppn' => $ppn,
                     'project' => [
                         'quotation_number' => $quotation->quotation_number,
                         'type' => $quotation->type,
@@ -836,7 +853,6 @@ class QuotationController extends Controller
             // If po that we created has no bo sparepart then make 'backOrder' to 'Ready' and quotation status to Inventory.
             if (!$hasBoSparepart) {
                 $backOrder->update(['current_status' => BackOrderController::READY]);
-                $this->changeStatusToInventory($request, $quotation);
             }
             DB::commit();
 
