@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\Validator;
 
 class WorkOrderController extends Controller
 {
-    const SPAREPART_READY = "Sparepart Ready";
     const ON_PROGRESS = "On Progress";
     const DONE = "Done";
 
@@ -189,7 +188,7 @@ class WorkOrderController extends Controller
                         'vaccine' => $wo->vaccine,
                         'apd' => $wo->apd,
                         'execution_time' => $wo->expected_days,
-                        'peduliLindungi' => $wo->peduli_lindungi
+                        'peduli_lindungi' => $wo->peduli_lindungi
                     ],
                     'units' => $wo->woUnits->map(function ($woUnit) {
                         return [
@@ -316,7 +315,7 @@ class WorkOrderController extends Controller
                 'data' => $workOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Work order update failed');
+            return $this->handleError($th, 'Work order process failed');
         }
     }
 

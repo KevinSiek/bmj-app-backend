@@ -690,7 +690,7 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    protected function getAccessedPurchaseOrder($request)
+    function getAccessedPurchaseOrder($request)
     {
         try {
             $user = $request->user();

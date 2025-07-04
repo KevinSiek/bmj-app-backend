@@ -78,6 +78,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/', [DeliveryOrderController::class, 'getAll']);
         Route::get('/{id}', [DeliveryOrderController::class, 'get']);
         Route::put('/{id}', [DeliveryOrderController::class, 'update']);
+        Route::post('/process/{id}', [DeliveryOrderController::class, 'process']);
     });
 
     Route::prefix('proforma-invoice')->group(function () {
@@ -85,7 +86,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/{id}', [ProformaInvoiceController::class, 'get']);
         Route::post('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
         Route::post('/dpPaid/{id}', [ProformaInvoiceController::class, 'dpPaid']);
-        Route::post('/fullPaid', [ProformaInvoiceController::class, 'fullPaid']);
+        Route::post('/fullPaid/{po_id}', [ProformaInvoiceController::class, 'fullPaid']);
         Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
     });
 

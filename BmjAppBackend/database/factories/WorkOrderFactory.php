@@ -44,7 +44,6 @@ class WorkOrderFactory extends Factory
 
         $status = $this->faker->randomElement([
             WorkOrderController::ON_PROGRESS,
-            WorkOrderController::SPAREPART_READY,
             WorkOrderController::DONE,
         ]);
         $isDone = $status === WorkOrderController::DONE ? true : $this->faker->boolean;

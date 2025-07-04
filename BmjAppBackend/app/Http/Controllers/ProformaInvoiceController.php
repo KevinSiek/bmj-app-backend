@@ -12,9 +12,12 @@ use Symfony\Component\HttpFoundation\Response;
 class ProformaInvoiceController extends Controller
 {
     protected $quotationController;
-    public function __construct(QuotationController $quotationController)
+    protected $purchaseOrderController;
+
+    public function __construct(QuotationController $quotationController, PurchaseOrderController $purchaseOrderController)
     {
         $this->quotationController = $quotationController;
+        $this->purchaseOrderController = $purchaseOrderController;
     }
 
     public function getAll(Request $request)
@@ -311,13 +314,14 @@ class ProformaInvoiceController extends Controller
         }
     }
 
-    public function fullPaid(Request $request)
+    public function fullPaid(Request $request, $po_id)
     {
         DB::beginTransaction();
-        $piNumber =  $request->input('proformaInvoice.proformaInvoiceNumber');
 
         try {
-            $proformaInvoice = $this->getAccessedProformaInvoice($request)->where('proforma_invoice_number', $piNumber)->first();
+            // Search PI via PO id
+            $purchaseOrder = $this->purchaseOrderController->getAccessedPurchaseOrder($request)->find($po_id);
+            $proformaInvoice = $purchaseOrder->proformaInvoice;
 
             if (!$proformaInvoice) {
                 return $this->handleNotFound('Proforma invoice not found');
