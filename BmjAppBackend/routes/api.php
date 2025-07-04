@@ -59,7 +59,7 @@ Route::middleware("auth:sanctum")->group(function () {
         // Api to change status of quotation in general
         Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
         Route::post('/return/{slug}', [QuotationController::class, 'changeStatusToReturn']);
-        Route::get('/declineReturn/{slug}', [QuotationController::class, 'declineReturn']);
+        Route::get('/rejectReturn/{slug}', [QuotationController::class, 'declineReturn']);
         Route::get('/approveReturn/{slug}', [QuotationController::class, 'approveReturn']);
     });
 
@@ -70,6 +70,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
         Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
         Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
+        Route::post('/done/{id}', [PurchaseOrderController::class, 'done']);
         Route::put('/{id}', [PurchaseOrderController::class, 'update']);
     });
 
@@ -104,12 +105,12 @@ Route::middleware("auth:sanctum")->group(function () {
         // Employee Routes
         Route::prefix('employee')->group(function () {
             Route::get('/', [EmployeeController::class, 'getAll']);
-            Route::get('/{id}', [EmployeeController::class, 'get']);
+            Route::get('/{slug}', [EmployeeController::class, 'get']);
             Route::post('/', [EmployeeController::class, 'store']);
             Route::put('/{slug}', [EmployeeController::class, 'update']);
             Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
             Route::get('/access/{slug}', [EmployeeController::class, 'getEmployeeAccess']);
-            Route::get('/resetPassword/{slug}', [EmployeeController::class, 'resetPassword']);
+            Route::post('/reset-password/{slug}', [EmployeeController::class, 'resetPassword']);
         });
     });
 
