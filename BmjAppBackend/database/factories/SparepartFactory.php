@@ -23,6 +23,7 @@ class SparepartFactory extends Factory
         $name = $this->faker->word;
         return [
             'sparepart_number' => $this->faker->word,
+            'branch' => $this->faker->randomElement(['Semarang', 'Jakarta']),
             'sparepart_name' => $name,
             'slug' => Str::slug($name) . '-' . Str::random(6),
             'unit_price_sell' => $this->faker->randomFloat(2, 200, 2000),

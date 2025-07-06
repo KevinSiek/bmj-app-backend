@@ -15,6 +15,7 @@ class Sparepart extends Model
         'sparepart_name',
         'unit_price_sell',
         'total_unit',
+        'branch'
     ];
 
     public function detailQuotations()

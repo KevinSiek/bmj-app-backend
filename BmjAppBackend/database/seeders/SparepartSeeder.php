@@ -14,6 +14,7 @@ class SparepartSeeder extends Seeder
             'sparepart_number' => fn() => 'SPR-' . fake()->unique()->numberBetween(1000, 9999),
             'unit_price_sell' => fake()->numberBetween(1200000, 60000000),
             'total_unit' => fake()->numberBetween(0, 100),
+            'branch' => fake()->randomElement(['Semarang', 'Jakarta']),
         ])->each(function ($sparepart) {
             // Create DetailSparepart records for each sparepart with random sellers
             $sparepart->detailSpareparts()->saveMany(DetailSparepart::factory()->count(3)->make([
