@@ -620,7 +620,7 @@ class QuotationController extends Controller
                     'discount' => $quotation->discount,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
-                    'grandTotal' => $quotation->grand_total
+                    'grand_total' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
                 'status' => $quotation->status,
@@ -707,7 +707,7 @@ class QuotationController extends Controller
                         'discount' => $quotation->discount,
                         'subtotal' => $quotation->subtotal,
                         'ppn' => $quotation->ppn,
-                        'grandTotal' => $quotation->grand_total
+                        'grand_total' => $quotation->grand_total
                     ],
                     'customer' => [
                         'company_name' => $customer->company_name ?? '',
