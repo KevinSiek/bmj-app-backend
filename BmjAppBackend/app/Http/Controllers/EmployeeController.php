@@ -11,6 +11,10 @@ use Illuminate\Support\Str;
 
 class EmployeeController extends Controller
 {
+    // Branch or city source value
+    const SEMARANG = "Semarang";
+    const JAKARTA = "Jakarta";
+
     public function index()
     {
         try {

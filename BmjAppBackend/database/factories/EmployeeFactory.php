@@ -2,9 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Http\Controllers\EmployeeController;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Employee;
 use Illuminate\Support\Str;
+
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Employee>
  */
@@ -24,7 +26,7 @@ class EmployeeFactory extends Factory
         return [
             'fullname' => $fullname,
             'username' => $this->faker->name,
-            'branch' => $this->faker->randomElement(['Semarang', 'Jakarta']),
+            'branch' => $this->faker->randomElement([EmployeeController::SEMARANG, EmployeeController::JAKARTA]),
             'role' => $this->faker->jobTitle,
             'email' => $this->faker->unique()->email,
             'password' => bcrypt('password'),

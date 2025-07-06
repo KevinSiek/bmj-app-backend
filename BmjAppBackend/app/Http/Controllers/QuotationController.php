@@ -124,7 +124,7 @@ class QuotationController extends Controller
                 ->latest('id')
                 ->first();
             $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
-            $branchCode = $user->branch === 'Semarang' ? 'SMG' : 'JKT';
+            $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
             $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/{$branchCode}/{$currentMonth}/{$currentYear}";
 
             // Get the latest discount and PPN from General model
@@ -795,16 +795,31 @@ class QuotationController extends Controller
                 // Expected quotation_number format: 033/BMJ-PI/V/2024
                 $parts = explode('/', $quotation->quotation_number);
                 $poNumber = $parts[0]; // e.g., 033
-                $romanMonth = $parts[2]; // e.g., V
-                $year = substr($parts[3], -2); // e.g., 24 from 2024
-                $purchaseOrderNumber = "PO-IN/{$poNumber}/{$romanMonth}/{$year}";
+                $branch = $parts[3]; // e.g., SMG or JKT
+                $romanMonth = $parts[4]; // e.g., V
+                $year = substr($parts[5], -2); // e.g., 24 from 2024
+                $purchaseOrderNumber = "{$poNumber}/PO-IN/BMJ-MEGAH/{$branch}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PO number with current month and year
+                // Get lastest po id
+                $currentMonth = Carbon::now()->format('m'); // Two-digit month
+                $currentYear = Carbon::now()->format('Y'); // Four-digit year
+                $latestQuotation = $this->getAccessedQuotation($request)
+                    ->whereMonth('created_at', $currentMonth)
+                    ->whereYear('created_at', $currentYear)
+                    ->latest('id')
+                    ->first();
+                $lastestPo = $latestQuotation->purchaseOrder;
+                $nextLatestId = $lastestPo ? $lastestPo->id + 1 : 1;
+
+                // get user branch
+                $user = $request->user();
+                $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+
                 $currentMonth = now()->month; // e.g., 5 for May
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., V
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $timestamp = now()->format('YmdHis'); // Unique identifier
-                $purchaseOrderNumber = "PO-IN/{$timestamp}/{$romanMonth}/{$year}";
+                $purchaseOrderNumber = "{$nextLatestId}/PO-IN/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}";
             }
 
             $purchaseOrder = PurchaseOrder::create([
@@ -1388,7 +1403,8 @@ class QuotationController extends Controller
             // Validate the returned parameter
             $request->validate([
                 'returned' => 'required|array',
-                'returned.*' => 'integer|exists:spareparts,id',
+                'returned.*.sparepart_id' => 'required|integer|exists:spareparts,id',
+                'returned.*.quantity' => 'required|integer|min:1',
             ]);
 
             $quotations = $this->getAccessedQuotation($request);

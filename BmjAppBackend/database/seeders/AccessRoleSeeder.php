@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Http\Controllers\EmployeeController;
 use Illuminate\Database\Seeder;
 use App\Models\Accesses;
 use App\Models\Employee;
@@ -86,8 +87,8 @@ class AccessRoleSeeder extends Seeder
             $slug = Str::slug($fullname) . '-' . Str::random(6);
             $employee = Employee::create([
                 'fullname' => $fullname,
-                'username' => 'username -'.$fullname,
-                'branch' => 'Semarang',
+                'username' => 'username -' . $fullname,
+                'branch' => EmployeeController::SEMARANG,
                 'role' => $role['name'],
                 'email' => fake()->unique()->safeEmail(),
                 'password' => Hash::make('password'),

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Http\Controllers\EmployeeController;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Sparepart;
 use Illuminate\Support\Str;
@@ -23,7 +24,7 @@ class SparepartFactory extends Factory
         $name = $this->faker->word;
         return [
             'sparepart_number' => $this->faker->word,
-            'branch' => $this->faker->randomElement(['Semarang', 'Jakarta']),
+            'branch' => $this->faker->randomElement([EmployeeController::SEMARANG, EmployeeController::JAKARTA]),
             'sparepart_name' => $name,
             'slug' => Str::slug($name) . '-' . Str::random(6),
             'unit_price_sell' => $this->faker->randomFloat(2, 200, 2000),
