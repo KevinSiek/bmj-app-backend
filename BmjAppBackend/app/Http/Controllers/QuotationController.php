@@ -452,7 +452,7 @@ class QuotationController extends Controller
                 return $this->handleNotFound('Quotation not found');
             }
 
-            $quotation->review = true;
+            $quotation->review = false; // Make it false, because it need to be review again
             $quotation->current_status = QuotationController::NEED_CHANGE;
             $quotation->save();
 
@@ -617,9 +617,11 @@ class QuotationController extends Controller
                     'date' => $quotation->date
                 ],
                 'price' => [
+                    'amount' => $quotation->amount,
+                    'discount' => $quotation->discount,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
-                    'grand_total' => $quotation->grand_total
+                    'grandTotal' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
                 'status' => $quotation->status,

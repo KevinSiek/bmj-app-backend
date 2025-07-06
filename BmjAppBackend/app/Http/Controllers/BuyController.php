@@ -14,6 +14,7 @@ class BuyController extends Controller
 {
     const APPROVE = "Approved";
     const DECLINE = "Rejected";
+    const NEED_CHANGE = "Need Change";
     const WAIT_REVIEW = "Wait for Review";
     const DONE = "Done";
 
@@ -94,12 +95,12 @@ class BuyController extends Controller
         }
     }
 
-    public function update(Request $request, $slug)
+    public function update(Request $request, $id)
     {
         DB::beginTransaction();
 
         try {
-            $buy = Buy::where('slug', $slug)->first();
+            $buy = Buy::find($id);
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -205,7 +206,7 @@ class BuyController extends Controller
             $formattedBuy = [
                 'buy_number' => $updatedBuy->buy_number ?? '',
                 'date' => $updatedBuy->created_at ?? '',
-                'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                'notes' => '',
                 'current_status' => $updatedBuy->current_status,
                 'total_amount' => $totalPurchase,
                 'spareparts' => $spareParts,
@@ -223,10 +224,10 @@ class BuyController extends Controller
         }
     }
 
-    public function destroy($slug)
+    public function destroy($id)
     {
         try {
-            $buy = Buy::where('slug', $slug)->first();
+            $buy = Buy::find($id);
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -324,6 +325,201 @@ class BuyController extends Controller
             return $this->handleError($th);
         }
     }
+
+    public function needChange(Request $request, $id)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $buy = Buy::find($id);
+            if (!$buy) {
+                return $this->handleNotFound('Purchase not found');
+            }
+
+            $buy->review = false;
+            $buy->current_status = self::NEED_CHANGE;
+            $buy->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase status updated successfully',
+                'data' => $buy
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to update purchase status');
+        }
+    }
+
+    public function approve(Request $request, $id)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $buy = Buy::find($id);
+            if (!$buy) {
+                return $this->handleNotFound('Purchase not found');
+            }
+
+            $buy->review = true;
+            $buy->current_status = self::APPROVE;
+            $buy->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase status updated successfully',
+                'data' => $buy
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to update purchase status');
+        }
+    }
+
+    public function decline(Request $request, $id)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $buy = Buy::find($id);
+            if (!$buy) {
+                return $this->handleNotFound('Purchase not found');
+            }
+
+            $buy->review = true;
+            $buy->current_status = self::DECLINE;
+            $buy->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase status updated successfully',
+                'data' => $buy
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to update purchase status');
+        }
+    }
+
+    public function isNeedReview(Request $request, $isNeedReview)
+    {
+        try {
+            $q = $request->query('search');
+            $month = $request->query('month');
+            $year = $request->query('year');
+
+            $buyNeedReview = Buy::where('review', !$isNeedReview);
+
+            // Apply search filter if provided
+            if ($q) {
+                $buyNeedReview->where(function ($query) use ($q) {
+                    $query->where('current_status', 'like', "%$q%")
+                        ->orWhere('buy_number', 'like', "%$q%");
+                });
+            }
+
+            // Apply year and month filters if provided
+            if ($year) {
+                $buyNeedReview->whereYear('created_at', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $buyNeedReview->whereMonth('created_at', $monthNumber);
+                }
+            }
+
+            // Paginate the results
+            $quotations = $buyNeedReview->orderBy('created_at', 'DESC')
+                ->paginate(20)
+                ->through(function ($buy) {
+                    // Calculate total purchase amount
+                    $totalPurchase = $buy->detailBuys->sum(function ($detail) {
+                        return $detail->quantity * $detail->unit_price;
+                    });
+
+                    // Get spare parts details
+                    $spareParts = $buy->detailBuys->map(function ($detail) {
+                        return [
+                            'sparepart_name' => $detail->sparepart->sparepart_name,
+                            'sparepart_number' => $detail->sparepart->sparepart_number,
+                            'quantity' => $detail->quantity,
+                            'unit_price' => $detail->unit_price,
+                            'total_price' => $detail->quantity * $detail->unit_price,
+                        ];
+                    });
+
+                    // Format response
+                    return [
+                        'buy_number' => $buy->buy_number ?? '',
+                        'date' => $buy->created_at ?? '',
+                        'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                        'current_status' => $buy->current_status,
+                        'total_amount' => $totalPurchase,
+                        'spareparts' => $spareParts,
+                    ];
+                });
+
+            // Return the response with transformed data and pagination details
+            return response()->json([
+                'message' => $isNeedReview ? 'List of all quotations that need to be reviewed' : 'List of all quotations that do not need to be reviewed',
+                'data' => $quotations,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    public function done(Request $request, $id)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $buy = Buy::find($id);
+            if (!$buy) {
+                return $this->handleNotFound('Purchase not found');
+            }
+
+            $buy->current_status = self::DONE;
+            $buy->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase processed',
+                'data' => $buy
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to process purchase');
+        }
+    }
+
 
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')

@@ -134,6 +134,12 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::post('/', [BuyController::class, 'store']);
             Route::put('/{id}', [BuyController::class, 'update']);
             Route::delete('/{id}', [BuyController::class, 'destroy']);
+
+            Route::post('/approve/{id}', [BuyController::class, 'approve']);
+            Route::post('/reject/{id}', [BuyController::class, 'decline']);
+            Route::post('/needChange/{id}', [BuyController::class, 'needChange']);
+            Route::post('/done/{id}', [BuyController::class, 'done']);
+            Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
         });
 
         // Sparepart Routes

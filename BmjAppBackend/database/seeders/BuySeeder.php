@@ -15,7 +15,7 @@ class BuySeeder extends Seeder
             ->has(DetailBuy::factory()->count(5), 'detailBuys')
             ->state([
                 'buy_number' => fn() => 'BUY-' . fake()->unique()->bothify('####-##'),
-                'review' => fake()->boolean(70),
+                'review' => fake()->boolean(),
                 'current_status' => fake()->randomElement([
                     BuyController::APPROVE,
                     BuyController::WAIT_REVIEW,
