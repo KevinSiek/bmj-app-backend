@@ -48,7 +48,7 @@ class BuyController extends Controller
             // Map API contract to database fields
             $buyData = [
                 'buy_number' => 'id',
-                'review' => true,
+                'review' => false,
                 'current_status' => SELF::WAIT_REVIEW,
                 'back_order_id' => 1,
                 'total_amount' => $request->input('totalAmount'),
@@ -260,7 +260,7 @@ class BuyController extends Controller
                     'sparepart_name' => $detail->sparepart->sparepart_name,
                     'sparepart_number' => $detail->sparepart->sparepart_number,
                     'quantity' => $detail->quantity,
-                    'unit_price' => $detail->unit_price,
+                    'unit_price_sell' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
                 ];
             });
@@ -270,7 +270,7 @@ class BuyController extends Controller
                 'id' => $buy->id ?? '',
                 'buy_number' => $buy->buy_number ?? '',
                 'date' => $buy->created_at ?? '',
-                'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                'notes' => $buy->notes ?? '',
                 'current_status' => $buy->current_status,
                 'total_amount' => $totalPurchase,
                 'spareparts' => $spareParts,
@@ -312,7 +312,7 @@ class BuyController extends Controller
                         'id' => $buy->id ?? '',
                         'buy_number' => $buy->buy_number ?? '',
                         'date' => $buy->created_at ?? '',
-                        'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                        'notes' => $buy->notes ?? '',
                         'current_status' => $buy->current_status,
                         'total_amount' => $totalPurchase,
                         'spareparts' => $spareParts,
@@ -474,7 +474,7 @@ class BuyController extends Controller
                     return [
                         'buy_number' => $buy->buy_number ?? '',
                         'date' => $buy->created_at ?? '',
-                        'notes' => 'PURCHASE ITEM FROM SELLER KM',
+                        'notes' => $buy->notes ?? '',
                         'current_status' => $buy->current_status,
                         'total_amount' => $totalPurchase,
                         'spareparts' => $spareParts,
