@@ -81,6 +81,8 @@ class ProformaInvoiceController extends Controller
                         'project' => [
                             'proforma_invoice_number' => $pi->proforma_invoice_number,
                             'type' => $quotation->type ?? '',
+                            'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                            'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                         ],
                         'customer' => [
                             'company_name' => $customer->company_name ?? '',
@@ -154,6 +156,8 @@ class ProformaInvoiceController extends Controller
                 'project' => [
                     'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number,
                     'type' => $quotation->type ?? '',
+                    'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
