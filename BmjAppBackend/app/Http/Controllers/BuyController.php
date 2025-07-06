@@ -267,6 +267,7 @@ class BuyController extends Controller
 
             // Format response
             $formattedBuy = [
+                'id' => $buy->id ?? '',
                 'buy_number' => $buy->buy_number ?? '',
                 'date' => $buy->created_at ?? '',
                 'notes' => 'PURCHASE ITEM FROM SELLER KM',
@@ -308,6 +309,7 @@ class BuyController extends Controller
 
                     // Format response
                     return [
+                        'id' => $buy->id ?? '',
                         'buy_number' => $buy->buy_number ?? '',
                         'date' => $buy->created_at ?? '',
                         'notes' => 'PURCHASE ITEM FROM SELLER KM',
