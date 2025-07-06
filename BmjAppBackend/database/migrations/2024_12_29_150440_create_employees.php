@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('fullname');
             $table->string('username');
+            $table->string('branch');
             $table->string('slug');
             $table->string('role');
             $table->string('email')->unique();

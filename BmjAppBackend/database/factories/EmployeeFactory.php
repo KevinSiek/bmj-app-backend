@@ -24,6 +24,7 @@ class EmployeeFactory extends Factory
         return [
             'fullname' => $fullname,
             'username' => $this->faker->name,
+            'branch' => $this->faker->randomElement(['Semarang', 'Jakarta']),
             'role' => $this->faker->jobTitle,
             'email' => $this->faker->unique()->email,
             'password' => bcrypt('password'),

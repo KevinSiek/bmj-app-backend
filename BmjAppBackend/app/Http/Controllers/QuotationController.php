@@ -91,7 +91,8 @@ class QuotationController extends Controller
                 return $this->handleNotFound('You have no access in this action');
             }
 
-            $userId = $request->user()->id;
+            $user = $request->user();
+            $userId = $user->id;
 
             // Validate the request data based on API contract
             $validatedData = $request->validate([
@@ -123,7 +124,7 @@ class QuotationController extends Controller
                 ->latest('id')
                 ->first();
             $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
-            $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/CABANG/{$currentMonth}/{$currentYear}";
+            $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/{$user->branch}/{$currentMonth}/{$currentYear}";
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
