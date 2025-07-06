@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use App\Models\DetailQuotation;
 use App\Models\General;
+use Carbon\Carbon;
 
 class QuotationController extends Controller
 {
@@ -94,7 +95,6 @@ class QuotationController extends Controller
 
             // Validate the request data based on API contract
             $validatedData = $request->validate([
-                'project.quotationNumber' => 'required|string|unique:quotations,quotation_number',
                 'project.type' => 'required|string',
                 'price.amount' => 'required|numeric',
                 'notes' => 'sometimes|string',
@@ -114,6 +114,17 @@ class QuotationController extends Controller
                 'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
             ]);
 
+            // Generate quotation_number
+            $currentMonth = Carbon::now()->format('m'); // Two-digit month
+            $currentYear = Carbon::now()->format('Y'); // Four-digit year
+            $latestQuotation = $this->getAccessedQuotation($request)
+                ->whereMonth('created_at', $currentMonth)
+                ->whereYear('created_at', $currentYear)
+                ->latest('id')
+                ->first();
+            $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
+            $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/CABANG/{$currentMonth}/{$currentYear}";
+
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
             $discount = $general ? $general->discount : 0;
@@ -125,11 +136,9 @@ class QuotationController extends Controller
             $pricePpn = $subTotal  * $ppn;
             $grandTotal = $subTotal - $pricePpn;
 
-
-
             // Map API contract to database fields
             $quotationData = [
-                'quotation_number' => $request->input('project.quotationNumber'),
+                'quotation_number' => $quotationNumber,
                 'version' => 1, // Set initial version to 1
                 'type' => $request->input('project.type'),
                 'date' => now(),
@@ -137,7 +146,7 @@ class QuotationController extends Controller
                 'ppn' => $request->input('price.ppn'),
                 'grand_total' => $grandTotal,
                 'notes' => $request->input('notes'),
-                'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
+                'project' => $quotationNumber, // Using quotationNumber as project name
                 'discount' => $priceDiscount,
                 'ppn' => $pricePpn,
                 'subtotal' => $subTotal,
@@ -298,10 +307,10 @@ class QuotationController extends Controller
                 'type' => $request->input('project.type'),
                 'date' => $request->input('project.date'),
                 'amount' => $request->input('price.amount'),
-                'discount' => $request->input('price.discount'),
-                'subtotal' => $request->input('price.subtotal'),
-                'ppn' => $request->input('price.ppn'),
-                'grand_total' => $request->input('price.grandTotal'),
+                'discount' => 0,
+                'subtotal' => 0,
+                'ppn' => 0,
+                'grand_total' => 0,
                 'notes' => $request->input('notes'),
                 'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
             ];
