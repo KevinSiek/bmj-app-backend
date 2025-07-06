@@ -124,7 +124,8 @@ class QuotationController extends Controller
                 ->latest('id')
                 ->first();
             $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
-            $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/{$user->branch}/{$currentMonth}/{$currentYear}";
+            $branchCode = $user->branch === 'Semarang' ? 'SMG' : 'JKT';
+            $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/{$branchCode}/{$currentMonth}/{$currentYear}";
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
