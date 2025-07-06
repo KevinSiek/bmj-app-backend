@@ -275,10 +275,6 @@ class QuotationController extends Controller
                 'project.type' => 'required|string',
                 'project.date' => 'required|date',
                 'price.amount' => 'required|numeric',
-                'price.discount' => 'required|numeric',
-                'price.subtotal' => 'required|numeric',
-                'price.ppn' => 'required|numeric',
-                'price.grandTotal' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
                 'customer.companyName' => 'required|string',
@@ -446,7 +442,7 @@ class QuotationController extends Controller
                 return $this->handleNotFound('Quotation not found');
             }
 
-            $quotation->review = true;
+            $quotation->review = false; // Make it false, because it need to be review again
             $quotation->current_status = QuotationController::NEED_CHANGE;
             $quotation->save();
 
@@ -611,9 +607,11 @@ class QuotationController extends Controller
                     'date' => $quotation->date
                 ],
                 'price' => [
+                    'amount' => $quotation->amount,
+                    'discount' => $quotation->discount,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
-                    'grand_total' => $quotation->grand_total
+                    'grandTotal' => $quotation->grand_total
                 ],
                 'current_status' => $quotation->current_status,
                 'status' => $quotation->status,
