@@ -12,7 +12,8 @@ class EmployeeSeeder extends Seeder
         DB::table('employees')->insert([
             [
                 'email' => 'testingDirector@gmail.com',
-                'slug'=>'Testing-Director',
+                'slug'=> 'Testing-Director',
+                'branch' => 'Semarang',
                 'role' => 'Director',
                 'fullname' => 'Fullname Director',
                 'username'=>'username -Director',
@@ -23,7 +24,8 @@ class EmployeeSeeder extends Seeder
         DB::table('employees')->insert([
             [
                 'email' => 'testingMarketing@gmail.com',
-                'slug'=>'Testing2-Marketing',
+                'slug'=> 'Testing2-Marketing',
+                'branch' => 'Semarang',
                 'role' => 'Marketing',
                 'fullname' => 'Fullname Marketing',
                 'username'=>'username -Marketing',
@@ -34,7 +36,8 @@ class EmployeeSeeder extends Seeder
         DB::table('employees')->insert([
             [
                 'email' => 'testingInventory@gmail.com',
-                'slug'=>'Testing3-Inventory',
+                'slug'=> 'Testing3-Inventory',
+                'branch' => 'Semarang',
                 'role' => 'Inventory',
                 'fullname' => 'Fullname Inventory',
                 'username'=>'username -Inventory',
@@ -45,7 +48,8 @@ class EmployeeSeeder extends Seeder
         DB::table('employees')->insert([
             [
                 'email' => 'testingFinance@gmail.com',
-                'slug'=>'Testing3-Finance',
+                'slug'=> 'Testing3-Finance',
+                'branch' => 'Semarang',
                 'role' => 'Finance',
                 'fullname' => 'Fullname Finance',
                 'username'=>'username -Finance',
@@ -56,7 +60,8 @@ class EmployeeSeeder extends Seeder
         DB::table('employees')->insert([
             [
                 'email' => 'testingService@gmail.com',
-                'slug'=>'Testing3-Service',
+                'slug'=> 'Testing3-Service',
+                'branch' => 'Jakarta',
                 'role' => 'Service',
                 'fullname' => 'Fullname Service',
                 'username'=>'username -Service',

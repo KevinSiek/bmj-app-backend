@@ -13,6 +13,7 @@ class Employee extends Authenticatable
 
     protected $fillable = [
         'fullname',
+        'branch',
         'slug',
         'role',
         'email',

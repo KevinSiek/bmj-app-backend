@@ -87,6 +87,7 @@ class AccessRoleSeeder extends Seeder
             $employee = Employee::create([
                 'fullname' => $fullname,
                 'username' => 'username -'.$fullname,
+                'branch' => 'Semarang',
                 'role' => $role['name'],
                 'email' => fake()->unique()->safeEmail(),
                 'password' => Hash::make('password'),
