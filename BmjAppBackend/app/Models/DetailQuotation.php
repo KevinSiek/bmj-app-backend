@@ -12,6 +12,8 @@ class DetailQuotation extends Model
     protected $fillable = [
         'quotation_id',
         'sparepart_id',
+        'service',
+        'service_price',
         'quantity',
         'total_unit',
         'unit_price',

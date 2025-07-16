@@ -24,11 +24,12 @@ class WorkOrderController extends Controller
     {
         try {
             $workOrder = $this->getAccessedWorkOrder($request)
-                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart', 'woUnits'])
+                ->with(['purchaseOrder', 'purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart', 'woUnits'])
                 ->findOrFail($id);
 
-            $quotation = $workOrder->quotation;
-            $proformaInvoice = $quotation->proformaInvoice ?? null;
+            $purchaseOrder = $workOrder->purchaseOrder;
+            $quotation = $purchaseOrder->quotation ?? null;
+            $proformaInvoice = $purchaseOrder->proformaInvoice ?? null;
             $customer = $quotation->customer ?? null;
             $director = Employee::where('role', '=', 'Director')->first(); // Only with director at moment
 
@@ -101,7 +102,7 @@ class WorkOrderController extends Controller
     {
         try {
             $query = $this->getAccessedWorkOrder($request)
-                ->with(['quotation', 'quotation.customer', 'quotation.detailQuotations.sparepart', 'woUnits']);
+                ->with(['purchaseOrder', 'purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart', 'woUnits']);
 
             // Get query parameters
             $q = $request->query('search');
@@ -112,13 +113,13 @@ class WorkOrderController extends Controller
             if ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('work_order_number', 'like', '%' . $q . '%')
-                        ->orWhereHas('quotation', function ($qry) use ($q) {
+                        ->orWhereHas('purchaseOrder.quotation', function ($qry) use ($q) {
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
                                 ->orWhere('type', 'like', '%' . $q . '%')
                                 ->orWhere('current_status', 'like', '%' . $q . '%');
                         })
-                        ->orWhereHas('quotation.customer', function ($qry) use ($q) {
+                        ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
                 });
@@ -139,8 +140,9 @@ class WorkOrderController extends Controller
 
             // Transform the results
             $workOrders->getCollection()->transform(function ($wo) {
-                $quotation = $wo->quotation;
-                $proformaInvoice = $quotation->proformaInvoice ?? null;
+                $purchaseOrder = $wo->purchaseOrder;
+                $quotation = $purchaseOrder->quotation ?? null;
+                $proformaInvoice = $purchaseOrder->proformaInvoice ?? null;
                 $customer = $quotation->customer ?? null;
                 $director = Employee::where('role', '=', 'Director')->first(); // Only with director at moment
 
@@ -307,9 +309,8 @@ class WorkOrderController extends Controller
                 'end_date' => now()
             ]);
 
-            $quotation = $workOrder->quotation;
-
-            $purchaseOrder = $quotation->purchaseOrder;
+            $purchaseOrder = $workOrder->purchaseOrder;
+            $quotation = $purchaseOrder->quotation;
             $purchaseOrder->update([
                 'current_status' => self::DONE,
             ]);
@@ -336,7 +337,7 @@ class WorkOrderController extends Controller
 
             // Only allow work orders for authorized users
             if ($role == 'Service') {
-                $query->whereHas('quotation', function ($q) use ($userId) {
+                $query->whereHas('purchaseOrder.quotation', function ($q) use ($userId) {
                     $q->where('employee_id', $userId);
                 });
             }

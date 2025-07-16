@@ -51,16 +51,7 @@ class Quotation extends Model
 
     public function purchaseOrder()
     {
-        return $this->hasOne(PurchaseOrder::class);
+        return $this->hasMany(PurchaseOrder::class);
     }
 
-    public function workOrder()
-    {
-        return $this->hasOne(WorkOrder::class);
-    }
-
-    public function deliveryOrder()
-    {
-        return $this->hasOne(DeliveryOrder::class);
-    }
 }

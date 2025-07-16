@@ -16,7 +16,8 @@ class PurchaseOrder extends Model
         'payment_due',
         'employee_id',
         'current_status',
-        'notes'
+        'notes',
+        'version'
     ];
 
     public function quotation()
@@ -37,5 +38,15 @@ class PurchaseOrder extends Model
     public function backOrders()
     {
         return $this->hasOne(BackOrder::class);
+    }
+
+    public function workOrder()
+    {
+        return $this->hasOne(WorkOrder::class);
+    }
+
+    public function deliveryOrder()
+    {
+        return $this->hasOne(DeliveryOrder::class);
     }
 }

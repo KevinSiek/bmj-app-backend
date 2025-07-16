@@ -58,7 +58,7 @@ Route::middleware("auth:sanctum")->group(function () {
 
         // Api to change status of quotation in general
         // Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
-        Route::post('/return/{slug}', [QuotationController::class, 'changeStatusToReturn']);
+        Route::post('/return/{id}', [QuotationController::class, 'changeStatusToReturn']);
         Route::get('/rejectReturn/{slug}', [QuotationController::class, 'declineReturn']);
         Route::get('/approveReturn/{slug}', [QuotationController::class, 'approveReturn']);
     });

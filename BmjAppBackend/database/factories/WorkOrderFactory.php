@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use App\Http\Controllers\WorkOrderController;
 use App\Models\WorkOrder;
-use App\Models\Quotation;
+use App\Models\PurchaseOrder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -49,7 +49,7 @@ class WorkOrderFactory extends Factory
         $isDone = $status === WorkOrderController::DONE ? true : $this->faker->boolean;
 
         return [
-            'quotation_id' => Quotation::inRandomOrder()->first()->id ?? Quotation::factory()->create()->id,
+            'purchase_order_id' => PurchaseOrder::inRandomOrder()->first()->id ?? PurchaseOrder::factory()->create()->id,
             'work_order_number' => 'WO-' . strtoupper($this->faker->unique()->lexify('????')) . '-' . $this->faker->numberBetween(1000, 9999),
             'received_by' => $this->faker->name,
             'expected_days' => $this->faker->numberBetween(1, 30),

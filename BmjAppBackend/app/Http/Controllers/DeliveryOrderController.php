@@ -25,8 +25,8 @@ class DeliveryOrderController extends Controller
      */
     private function formatDeliveryOrder($deliveryOrder)
     {
-        $quotation = $deliveryOrder->quotation;
-        $purchaseOrder = $quotation ? $quotation->purchaseOrder : null;
+        $purchaseOrder = $deliveryOrder->purchaseOrder;
+        $quotation = $purchaseOrder ? $purchaseOrder->quotation : null;
         $customer = $quotation ? $quotation->customer : null;
 
         $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
@@ -81,7 +81,7 @@ class DeliveryOrderController extends Controller
     {
         try {
             $deliveryOrder = $this->getAccessedDeliveryOrder($request)
-                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart'])
+                ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
 
             return response()->json([
@@ -100,7 +100,7 @@ class DeliveryOrderController extends Controller
     {
         try {
             $query = $this->getAccessedDeliveryOrder($request)
-                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart']);
+                ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart']);
 
             // Apply search term filter
             $q = $request->query('search');
@@ -109,14 +109,14 @@ class DeliveryOrderController extends Controller
                     $query->where('type', 'like', '%' . $q . '%')
                         ->orWhere('current_status', 'like', '%' . $q . '%')
                         ->orWhere('work_order_number', 'like', '%' . $q . '%')
-                        ->orWhereHas('quotation', function ($qry) use ($q) {
+                        ->orWhereHas('purchaseOrder.quotation', function ($qry) use ($q) {
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%');
                         })
-                        ->orWhereHas('quotation.purchaseOrder', function ($qry) use ($q) {
+                        ->orWhereHas('purchaseOrder', function ($qry) use ($q) {
                             $qry->where('purchase_order_number', 'like', '%' . $q . '%');
                         })
-                        ->orWhereHas('quotation.customer', function ($qry) use ($q) {
+                        ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
                 });
@@ -162,7 +162,6 @@ class DeliveryOrderController extends Controller
             $input = $request->all();
             $mappedInput = [];
             $fieldMap = [
-                'quotationId' => 'quotation_id',
                 'type' => 'type',
                 'currentStatus' => 'current_status',
                 'notes' => 'notes',
@@ -183,7 +182,6 @@ class DeliveryOrderController extends Controller
 
             // Validation rules
             $validator = Validator::make($mappedInput, [
-                'quotation_id' => 'nullable|exists:quotations,id',
                 'type' => 'nullable|string|max:255',
                 'current_status' => ['nullable', Rule::in([self::ON_PROGRESS, self::DONE])],
                 'notes' => 'nullable|string',
@@ -257,9 +255,8 @@ class DeliveryOrderController extends Controller
                 'current_status' => self::DONE,
             ]);
 
-            $quotation = $deliveryOrder->quotation;
-
-            $purchaseOrder = $quotation->purchaseOrder;
+            $purchaseOrder = $deliveryOrder->purchaseOrder;
+            $quotation = $purchaseOrder ? $purchaseOrder->quotation : null;
             $purchaseOrder->update([
                 'current_status' => self::DONE,
             ]);
@@ -268,7 +265,7 @@ class DeliveryOrderController extends Controller
 
             // Fetch updated delivery order for response
             $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
-                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart'])
+                ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
 
             return response()->json([
@@ -294,7 +291,7 @@ class DeliveryOrderController extends Controller
 
             // Restrict access for Marketing role
             if ($role == 'Marketing') {
-                $query->whereHas('quotation.purchaseOrder', function ($q) use ($userId) {
+                $query->whereHas('purchaseOrder', function ($q) use ($userId) {
                     $q->where('employee_id', $userId);
                 });
             }

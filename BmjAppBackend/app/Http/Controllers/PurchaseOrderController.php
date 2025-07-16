@@ -36,24 +36,39 @@ class PurchaseOrderController extends Controller
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee'])
-                ->findOrFail($id);
+                ->where('id', $id)
+                ->orderBy('version', 'asc')
+                ->firstOrFail();
 
             $quotation = $purchaseOrder->quotation;
             $customer = $quotation ? $quotation->customer : null;
             $proformaInvoice = $purchaseOrder->proformaInvoice ? $purchaseOrder->proformaInvoice : null;
 
-            $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
-                $sparepart = $detail->sparepart;
-                return [
-                    'sparepart_id' => $sparepart ? $sparepart->id : '',
-                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            })->toArray() : [];
+            $spareParts = [];
+            $services = [];
+            if ($quotation && $quotation->detailQuotations) {
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart ? $sparepart->id : '',
+                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                        ];
+                    }
+                }
+            }
 
             $formattedPurchaseOrder = [
                 'id' => (string) ($purchaseOrder->id ?? ''),
@@ -89,10 +104,12 @@ class PurchaseOrderController extends Controller
                 ],
                 'notes' => $purchaseOrder->notes ?? '',
                 'current_status' => $purchaseOrder->current_status ?? '',
-                'status' =>  $quotation->status,
+                'status' => $quotation ? $quotation->status : [],
                 'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
-                'quotationn_number' => $quotation ? $quotation->quotation_number : '',
-                'spareparts' => $spareParts
+                'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                'version' => $purchaseOrder->version,
+                'spareparts' => $spareParts,
+                'services' => $services
             ];
 
             return response()->json([
@@ -108,7 +125,8 @@ class PurchaseOrderController extends Controller
     {
         try {
             $query = $this->getAccessedPurchaseOrder($request)
-                ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee']);
+                ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee'])
+                ->orderBy('version', 'asc');
 
             // Get query parameters
             $q = $request->query('search');
@@ -147,18 +165,31 @@ class PurchaseOrderController extends Controller
                     $customer = $quotation ? $quotation->customer : null;
                     $proformaInvoice = $po->proformaInvoice ? $po->proformaInvoice : null;
 
-                    $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
-                        $sparepart = $detail->sparepart;
-                        return [
-                            'sparepart_id' => $sparepart ? $sparepart->id : '',
-                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                            'quantity' => $detail->quantity ?? 0,
-                            'unit_price_sell' => $detail->unit_price ?? 0,
-                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                            'stock' => $detail->is_indent ? 'indent' : 'available'
-                        ];
-                    })->toArray() : [];
+                    $spareParts = [];
+                    $services = [];
+                    if ($quotation && $quotation->detailQuotations) {
+                        foreach ($quotation->detailQuotations as $detail) {
+                            if ($detail->sparepart_id) {
+                                $sparepart = $detail->sparepart;
+                                $spareParts[] = [
+                                    'sparepart_id' => $sparepart ? $sparepart->id : '',
+                                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                                    'stock' => $detail->is_indent ? 'indent' : 'available'
+                                ];
+                            } else {
+                                $services[] = [
+                                    'service' => $detail->service ?? '',
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                                ];
+                            }
+                        }
+                    }
 
                     return [
                         'id' => (string) ($po->id ?? ''),
@@ -194,10 +225,12 @@ class PurchaseOrderController extends Controller
                         ],
                         'notes' => $po->notes ?? '',
                         'current_status' => $po->current_status ?? '',
-                        'status' => $quotation->status,
+                        'status' => $quotation ? $quotation->status : [],
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
-                        'quotationn_number' => $quotation ? $quotation->quotation_number : '',
-                        'spareparts' => $spareParts
+                        'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                        'version' => $po->version,
+                        'spareparts' => $spareParts,
+                        'services' => $services
                     ];
                 });
 
@@ -240,7 +273,10 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
 
         try {
-            $purchaseOrder = $this->getAccessedPurchaseOrder($request)->find($id);
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->where('id', $id)
+                ->orderBy('version', 'asc')
+                ->first();
 
             if (!$purchaseOrder) {
                 return $this->handleNotFound('Purchase order not found');
@@ -315,7 +351,7 @@ class PurchaseOrderController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to update purchase order status to' . $status);
+            return $this->handleError($th, 'Failed to update purchase order status to ' . $status);
         }
     }
 
@@ -455,7 +491,7 @@ class PurchaseOrderController extends Controller
 
                 // Create work order
                 $workOrder = WorkOrder::create([
-                    'quotation_id' => $quotation->id,
+                    'purchase_order_id' => $purchaseOrder->id,
                     'work_order_number' => $workOrderNumber,
                     'received_by' => $request->input('serviceOrder.receivedBy'),
                     'expected_start_date' => $request->input('serviceOrder.startDate'),
@@ -522,18 +558,17 @@ class PurchaseOrderController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
-                // Generate work order number
-                $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
+                // Generate delivery order number
+                $orderNumber = sprintf('%03d', DeliveryOrder::count() + 1);
                 $randomString1 = strtoupper(Str::random(3));
                 $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
                 $deliveryOrderNumber = "DO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
 
-
                 // Create delivery order
                 $deliveryOrder = DeliveryOrder::create([
-                    'quotation_id' => $quotation->id,
+                    'purchase_order_id' => $purchaseOrder->id,
                     'type' => 'Sparepart',
                     'current_status' => 'Process',
                     'delivery_order_number' => $deliveryOrderNumber,
@@ -581,7 +616,7 @@ class PurchaseOrderController extends Controller
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->findOrFail($id);
 
-            // Map camelCase input to snake_case for a validation and update
+            // Map camelCase input to snake_case for validation and update
             $input = $request->all();
             $mappedInput = [];
             $fieldMap = [
@@ -606,7 +641,7 @@ class PurchaseOrderController extends Controller
                 'purchase_order_date' => 'nullable|date',
                 'payment_due' => 'nullable|date',
                 'employee_id' => 'nullable|exists:employees,id',
-                'current_status' => ['nullable', Rule::in([self::BO, self::PREPARE, self::READY, self::RELEASE, self::FINISHED, self::RETURNED, self::PAID])],
+                'current_status' => ['nullable', Rule::in([self::BO, self::PREPARE, self::READY, self::RELEASE, self::RETURNED, self::PAID])],
                 'notes' => 'nullable|string',
             ]);
 
@@ -642,18 +677,31 @@ class PurchaseOrderController extends Controller
             $customer = $quotation ? $quotation->customer : null;
             $proformaInvoice = $updatedPurchaseOrder->proformaInvoice ? $updatedPurchaseOrder->proformaInvoice : null;
 
-            $spareParts = $quotation && $quotation->detailQuotations ? $quotation->detailQuotations->map(function ($detail) {
-                $sparepart = $detail->sparepart;
-                return [
-                    'sparepart_id' => $sparepart ? $sparepart->id : '',
-                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => ($detail->quantity * ($detail->quantity ?? 0)),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            })->toArray() : [];
+            $spareParts = [];
+            $services = [];
+            if ($quotation && $quotation->detailQuotations) {
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart ? $sparepart->id : '',
+                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                        ];
+                    }
+                }
+            }
 
             $formattedPurchaseOrder = [
                 'id' => (string)($updatedPurchaseOrder->id ?? ''),
@@ -689,12 +737,12 @@ class PurchaseOrderController extends Controller
                 ],
                 'notes' => $updatedPurchaseOrder->notes ?? '',
                 'current_status' => $updatedPurchaseOrder->current_status ?? '',
-                'status' => $quotation->status ?? [],
+                'status' => $quotation ? $quotation->status : [],
                 'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
-                'quotationn_number' => $quotation ? $quotation->quotation_number : '',
-                'spareparts' => $spareParts
+                'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                'spareparts' => $spareParts,
+                'services' => $services
             ];
-
 
             return response()->json([
                 'message' => 'Purchase order updated successfully',

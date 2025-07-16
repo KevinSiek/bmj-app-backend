@@ -14,11 +14,13 @@ return new class extends Migration
         Schema::create('detail_quotations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('quotation_id')->constrained('quotations');
-            $table->foreignId('sparepart_id')->constrained('spareparts');
-            $table->integer('quantity');
-            $table->boolean('is_indent');
+            $table->foreignId('sparepart_id')->nullable();
+            $table->integer('quantity')->nullable();
+            $table->boolean('is_indent')->nullable();
             $table->boolean('is_return')->nullable();
-            $table->integer('unit_price');
+            $table->string('service')->nullable();
+            $table->decimal('service_price', 15, 2)->nullable();
+            $table->integer('unit_price')->nullable();
             $table->timestamps();
         });
     }

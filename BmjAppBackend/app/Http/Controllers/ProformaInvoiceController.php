@@ -26,7 +26,7 @@ class ProformaInvoiceController extends Controller
             $query = $this->getAccessedProformaInvoice($request)
                 ->with([
                     'purchaseOrder.quotation.customer',
-                    // 'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys', // we might want to change "detailBuys" to "detailSpareparts"
+                    'purchaseOrder.quotation.detailQuotations.sparepart',
                     'employee'
                 ]);
 
@@ -62,18 +62,28 @@ class ProformaInvoiceController extends Controller
                     $customer = $quotation->customer;
                     $detailQuotations = $quotation->detailQuotations;
 
-                    $spareparts = collect();
-                    foreach ($detailQuotations as $detailQuotation) {
-                        $sparepart = $detailQuotation->sparepart;
-                        $spareparts->push([
-                            'sparepart_id' => $sparepart->id ?? '',
-                            'sparepart_name' => $sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $sparepart->part_number ?? '',
-                            'quantity' => $detailQuotation->quantity ?? 0,
-                            'unit_price_sell' => $detailQuotation->unit_price ?? 0,
-                            'total_price' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
-                            'stock' => $detailQuotation->is_indent ? 'indent' : 'available'
-                        ]);
+                    $spareParts = [];
+                    $services = [];
+                    foreach ($detailQuotations as $detail) {
+                        if ($detail->sparepart_id) {
+                            $sparepart = $detail->sparepart;
+                            $spareParts[] = [
+                                'sparepart_id' => $sparepart->id ?? '',
+                                'sparepart_name' => $sparepart->sparepart_name ?? '',
+                                'sparepart_number' => $sparepart->part_number ?? '',
+                                'quantity' => $detail->quantity ?? 0,
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0),
+                                'stock' => $detail->is_indent ? 'indent' : 'available'
+                            ];
+                        } else {
+                            $services[] = [
+                                'service' => $detail->service ?? '',
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'quantity' => $detail->quantity ?? 0,
+                                'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0)
+                            ];
+                        }
                     }
 
                     return [
@@ -101,14 +111,15 @@ class ProformaInvoiceController extends Controller
                             'down_payment' => $pi->down_payment ?? 0,
                             'total' => $quotation->grand_total ?? 0,
                             'ppn' => $quotation->ppn ?? 0,
-                            'total_amount' => $quotation->total_amount,
+                            'total_amount' => $quotation->total_amount ?? 0,
                         ],
                         'down_payment' => $pi->down_payment ?? 0,
-                        'status' => $quotation->status,
-                        'quotationn_number' => $quotation ? $quotation->quotation_number : '',
+                        'status' => $quotation->status ?? [],
+                        'quotation_number' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'date' => $pi->created_at,
-                        'spareparts' => $spareparts,
+                        'spareparts' => $spareParts,
+                        'services' => $services
                     ];
                 });
 
@@ -127,7 +138,7 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice = $this->getAccessedProformaInvoice($request)
                 ->with([
                     'purchaseOrder.quotation.customer',
-                    // 'purchaseOrder.quotation.detailQuotations.sparepart.detailBuys',  // we might want to change "detailBuys" to "detailSpareparts"
+                    'purchaseOrder.quotation.detailQuotations.sparepart',
                     'employee'
                 ])
                 ->findOrFail($id);
@@ -137,18 +148,28 @@ class ProformaInvoiceController extends Controller
             $customer = $quotation->customer;
             $detailQuotations = $quotation->detailQuotations;
 
-            $spareparts = collect();
-            foreach ($detailQuotations as $detailQuotation) {
-                $sparepart = $detailQuotation->sparepart;
-                $spareparts->push([
-                    'sparepart_id' => $sparepart->id ?? '',
-                    'sparepart_name' => $sparepart->sparepart_name ?? '',
-                    'sparepart_number' => $sparepart->part_number ?? '',
-                    'quantity' => $detailQuotation->quantity ?? 0,
-                    'unit_price_sell' => $detailQuotation->unit_price ?? 0,
-                    'total_price' => ($detailQuotation->quantity ?? 0) * ($detailQuotation->unit_price ?? 0),
-                    'stock' => $detailQuotation->is_indent ? 'indent' : 'available'
-                ]);
+            $spareParts = [];
+            $services = [];
+            foreach ($detailQuotations as $detail) {
+                if ($detail->sparepart_id) {
+                    $sparepart = $detail->sparepart;
+                    $spareParts[] = [
+                        'sparepart_id' => $sparepart->id ?? '',
+                        'sparepart_name' => $sparepart->sparepart_name ?? '',
+                        'sparepart_number' => $sparepart->part_number ?? '',
+                        'quantity' => $detail->quantity ?? 0,
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0),
+                        'stock' => $detail->is_indent ? 'indent' : 'available'
+                    ];
+                } else {
+                    $services[] = [
+                        'service' => $detail->service ?? '',
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'quantity' => $detail->quantity ?? 0,
+                        'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0)
+                    ];
+                }
             }
 
             $formattedProformaInvoice = [
@@ -174,17 +195,17 @@ class ProformaInvoiceController extends Controller
                     'discount' => $quotation->discount ?? 0,
                     'subtotal' => $quotation->subtotal ?? 0,
                     'down_payment' => $proformaInvoice->down_payment ?? 0,
-                    'quotationn_number' => $quotation ? $quotation->quotation_number : '',
                     'total' => $quotation->grand_total ?? 0,
                     'ppn' => $quotation->ppn ?? 0,
-                    'total_amount' => $quotation->total_amount,
+                    'total_amount' => $quotation->total_amount ?? 0,
                 ],
                 'down_payment' => $proformaInvoice->down_payment ?? 0,
-                'quotationn_number' => $quotation ? $quotation->quotation_number : '',
+                'quotation_number' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'date' => $proformaInvoice->created_at,
-                'status' => $quotation->status,
-                'spareparts' => $spareparts,
+                'status' => $quotation->status ?? [],
+                'spareparts' => $spareParts,
+                'services' => $services
             ];
 
             return response()->json([
@@ -252,7 +273,6 @@ class ProformaInvoiceController extends Controller
         }
     }
 
-    // Update the data for a specific proforma invoice
     public function update(Request $request, $id)
     {
         try {

@@ -52,7 +52,6 @@ class QuotationController extends Controller
     const RETURN = 'Return';
     const DECLINED = "Declined";
     const APPROVED = "Approved";
-
     /**
      * Convert month number to Roman numeral
      *
@@ -96,7 +95,7 @@ class QuotationController extends Controller
 
             // Validate the request data based on API contract
             $validatedData = $request->validate([
-                'project.type' => 'required|string',
+                'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
                 'price.amount' => 'required|numeric',
                 'notes' => 'sometimes|string',
                 // Customer validation
@@ -108,11 +107,15 @@ class QuotationController extends Controller
                 'customer.city' => 'required|string',
                 'customer.province' => 'required|string',
                 'customer.postalCode' => 'required|numeric',
-                // Sparepart validation
-                'spareparts' => 'required|array',
-                'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
-                'spareparts.*.quantity' => 'required|integer|min:1',
-                'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
+                // Sparepart or Service validation based on type
+                'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
+                'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
+                'spareparts.*.quantity' => 'required_if:project.type,' . self::SPAREPARTS . '|integer|min:1',
+                'spareparts.*.unitPriceSell' => 'required_if:project.type,' . self::SPAREPARTS . '|numeric|min:1',
+                'services' => 'required_if:project.type,' . self::SERVICE . '|array',
+                'services.*.service' => 'required_if:project.type,' . self::SERVICE . '|string',
+                'services.*.quantity' => 'required_if:project.type,' . self::SERVICE . '|integer|min:1',
+                'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
             ]);
 
             // Generate quotation_number
@@ -194,46 +197,69 @@ class QuotationController extends Controller
             // Create the quotation with the validated data and slug
             $quotation = Quotation::create($quotationData);
 
-            // Create DetailQuotation from list of spareparts in this quotations
-            foreach ($request->input('spareparts') as $sparepart) {
-                $sparepartId = $sparepart['sparepartId'];
-                $sparepartUnitPrice = $sparepart['unitPriceSell'];
-                $quantityOrderSparepart = $sparepart['quantity'];
-                // Validate against each sparepart data
-                $sparepartValidator = Validator::make($sparepart, [
-                    'sparepartId' => 'required|exists:spareparts,id',
-                    'quantity' => 'required|integer|min:1',
-                    'unitPriceSell' => 'required|numeric|min:1',
-                ]);
+            // Handle Spareparts or Services based on type
+            if ($quotationData['type'] === self::SPAREPARTS) {
+                foreach ($request->input('spareparts', []) as $sparepart) {
+                    $sparepartId = $sparepart['sparepartId'];
+                    $sparepartUnitPrice = $sparepart['unitPriceSell'];
+                    $quantityOrderSparepart = $sparepart['quantity'];
+                    // Validate against each sparepart data
+                    $sparepartValidator = Validator::make($sparepart, [
+                        'sparepartId' => 'required|exists:spareparts,id',
+                        'quantity' => 'required|integer|min:1',
+                        'unitPriceSell' => 'required|numeric|min:1',
+                    ]);
 
-                // If unit price that employee give different with official unit price, then this quotation need review
-                $sparepartDbData = Sparepart::find($sparepartId);
-                $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
-                if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
-                    $quotationData['review'] = false;
-                    $quotationData['current_status'] = QuotationController::ON_REVIEW;
-                    $quotation->update($quotationData);
-                }
-                // Determine if current sparepart quantity is exist or not.
-                $sparepart['is_indent'] = false;
-                if ($quantityOrderSparepart > $sparepartDbData->total_unit) {
-                    $sparepart['is_indent'] = true;
-                }
+                    // If unit price that employee give different with official unit price, then this quotation need review
+                    $sparepartDbData = Sparepart::find($sparepartId);
+                    $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
+                    if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
+                        $quotationData['review'] = false;
+                        $quotationData['current_status'] = QuotationController::ON_REVIEW;
+                        $quotation->update($quotationData);
+                    }
+                    // Determine if current sparepart quantity is exist or not.
+                    $sparepart['is_indent'] = false;
+                    if ($quantityOrderSparepart > $sparepartDbData->total_unit) {
+                        $sparepart['is_indent'] = true;
+                    }
 
-                if ($sparepartValidator->fails()) {
-                    throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
-                }
+                    if ($sparepartValidator->fails()) {
+                        throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
+                    }
 
-                // Insert into the bridge table
-                DB::table('detail_quotations')->insert([
-                    'quotation_id' => $quotation->id,
-                    'sparepart_id' => $sparepartId,
-                    'quantity' => $quantityOrderSparepart,
-                    'is_indent' => $sparepart['is_indent'],
-                    'unit_price' => $sparepartUnitPrice,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                    // Insert into the bridge table
+                    DB::table('detail_quotations')->insert([
+                        'quotation_id' => $quotation->id,
+                        'sparepart_id' => $sparepartId,
+                        'quantity' => $quantityOrderSparepart,
+                        'is_indent' => $sparepart['is_indent'],
+                        'unit_price' => $sparepartUnitPrice,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            } elseif ($quotationData['type'] === self::SERVICE) {
+                foreach ($request->input('services', []) as $service) {
+                    $serviceValidator = Validator::make($service, [
+                        'service' => 'required|string',
+                        'quantity' => 'required|integer|min:1',
+                        'unitPriceSell' => 'required|numeric|min:1',
+                    ]);
+
+                    if ($serviceValidator->fails()) {
+                        throw new \Exception('Invalid service data: ' . $serviceValidator->errors()->first());
+                    }
+
+                    DB::table('detail_quotations')->insert([
+                        'quotation_id' => $quotation->id,
+                        'service' => $service['service'],
+                        'unit_price' => $service['unitPriceSell'],
+                        'quantity' => $service['quantity'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
             // Commit the transaction if everything is successful
@@ -262,7 +288,7 @@ class QuotationController extends Controller
             // Find the quotation by slug
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->firstOrFail();
-            $po = $quotation->purchaseOrder;
+            $po = $quotation->purchaseOrder->first();
 
             $latestVersion = $this->getAccessedQuotation($request)->where('quotation_number', $quotation->quotation_number)
                 ->max('version');
@@ -283,7 +309,7 @@ class QuotationController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'project.quotationNumber' => 'required|string',
-                'project.type' => 'required|string',
+                'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
                 'project.date' => 'required|date',
                 'price.amount' => 'required|numeric',
                 'notes' => 'sometimes|string',
@@ -296,11 +322,15 @@ class QuotationController extends Controller
                 'customer.city' => 'required|string',
                 'customer.province' => 'required|string',
                 'customer.postalCode' => 'required|numeric',
-                // Sparepart validation
-                'spareparts' => 'required|array',
-                'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
-                'spareparts.*.quantity' => 'required|integer|min:1',
-                'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
+                // Sparepart or Service validation based on type
+                'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
+                'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
+                'spareparts.*.quantity' => 'required_if:project.type,' . self::SPAREPARTS . '|integer|min:1',
+                'spareparts.*.unitPriceSell' => 'required_if:project.type,' . self::SPAREPARTS . '|numeric|min:1',
+                'services' => 'required_if:project.type,' . self::SERVICE . '|array',
+                'services.*.service' => 'required_if:project.type,' . self::SERVICE . '|string',
+                'services.*.quantity' => 'required_if:project.type,' . self::SERVICE . '|integer|min:1',
+                'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
             ]);
 
             // Map API contract to database fields
@@ -373,48 +403,72 @@ class QuotationController extends Controller
             // Create new quotation with the validated data
             $newQuotation = Quotation::create($quotationData);
 
-            // Create DetailQuotation from list of spareparts in this quotations
-            foreach ($request->input('spareparts') as $sparepart) {
-                $sparepartId = $sparepart['sparepartId'];
-                $sparepartUnitPrice = $sparepart['unitPriceSell'];
+            // Handle Spareparts or Services based on type
+            if ($quotationData['type'] === self::SPAREPARTS) {
+                foreach ($request->input('spareparts', []) as $sparepart) {
+                    $sparepartId = $sparepart['sparepartId'];
+                    $sparepartUnitPrice = $sparepart['unitPriceSell'];
 
-                // Validate against each sparepart data
-                $sparepartValidator = Validator::make($sparepart, [
-                    'sparepartId' => 'required|exists:spareparts,id',
-                    'quantity' => 'required|integer|min:1',
-                    'unitPriceSell' => 'required|numeric|min:1',
-                ]);
+                    // Validate against each sparepart data
+                    $sparepartValidator = Validator::make($sparepart, [
+                        'sparepartId' => 'required|exists:spareparts,id',
+                        'quantity' => 'required|integer|min:1',
+                        'unitPriceSell' => 'required|numeric|min:1',
+                    ]);
 
-                // If unit price that employee give different with official unit price, then this quotation need review
-                $sparepartDbData = Sparepart::find($sparepartId);
-                $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
-                if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
-                    $quotationData['review'] = false;
-                    $quotationData['current_status'] = QuotationController::ON_REVIEW;
-                    $newQuotation->update($quotationData);
+                    // If unit price that employee give different with official unit price, then this quotation need review
+                    $sparepartDbData = Sparepart::find($sparepartId);
+                    $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
+                    if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
+                        $quotationData['review'] = false;
+                        $quotationData['current_status'] = QuotationController::ON_REVIEW;
+                        $newQuotation->update($quotationData);
+                    }
+
+                    // Determine if current sparepart quantity is exist or not.
+                    $sparepart['is_indent'] = false;
+                    if ($sparepart['quantity'] > $sparepartDbData->total_unit) {
+                        $sparepart['is_indent'] = true;
+                    }
+
+                    if ($sparepartValidator->fails()) {
+                        throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
+                    }
+
+                    // Insert into the bridge table
+                    DB::table('detail_quotations')->insert([
+                        'quotation_id' => $newQuotation->id,
+                        'sparepart_id' => $sparepartId,
+                        'quantity' => $sparepart['quantity'],
+                        'is_indent' => $sparepart['is_indent'],
+                        'unit_price' => $sparepartUnitPrice,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
                 }
+            } elseif ($quotationData['type'] === self::SERVICE) {
+                foreach ($request->input('services', []) as $service) {
+                    $serviceValidator = Validator::make($service, [
+                        'service' => 'required|string',
+                        'quantity' => 'required|integer|min:1',
+                        'unitPriceSell' => 'required|numeric|min:1',
+                    ]);
 
-                // Determine if current sparepart quantity is exist or not.
-                $sparepart['is_indent'] = false;
-                if ($sparepart['quantity'] > $sparepartDbData->total_unit) {
-                    $sparepart['is_indent'] = true;
+                    if ($serviceValidator->fails()) {
+                        throw new \Exception('Invalid service data: ' . $serviceValidator->errors()->first());
+                    }
+
+                    DB::table('detail_quotations')->insert([
+                        'quotation_id' => $newQuotation->id,
+                        'service' => $service['service'],
+                        'quantity' => $service['quantity'],
+                        'unit_price' => $service['unitPriceSell'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
                 }
-
-                if ($sparepartValidator->fails()) {
-                    throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
-                }
-
-                // Insert into the bridge table
-                DB::table('detail_quotations')->insert([
-                    'quotation_id' => $newQuotation->id,
-                    'sparepart_id' => $sparepartId,
-                    'quantity' => $sparepart['quantity'],
-                    'is_indent' => $sparepart['is_indent'],
-                    'unit_price' => $sparepartUnitPrice,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
             }
+
             // Commit the transaction if everything is successful
             DB::commit();
 
@@ -441,7 +495,7 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
-            $po = $quotation->purchaseOrder;
+            $po = $quotation->purchaseOrder->first();
 
             if ($po) {
                 return response()->json([
@@ -482,7 +536,7 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
-            $po = $quotation->purchaseOrder;
+            $po = $quotation->purchaseOrder->first();
 
             if ($po) {
                 return response()->json([
@@ -532,7 +586,7 @@ class QuotationController extends Controller
             // Retrieve the quotation
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->first();
-            $po = $quotation->purchaseOrder;
+            $po = $quotation->purchaseOrder->first();
 
             if ($po) {
                 return response()->json([
@@ -580,17 +634,31 @@ class QuotationController extends Controller
             $quotation = $quoatations->where('slug', $slug)->firstOrFail();
 
             $customer = $quotation->customer;
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'sparepart_id' => $detail->sparepart->id ?? '',
-                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            });
+            $spareParts = [];
+            $services = [];
+            if ($quotation && $quotation->detailQuotations) {
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart ? $sparepart->id : '',
+                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                        ];
+                    }
+                }
+            }
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
@@ -630,6 +698,7 @@ class QuotationController extends Controller
                 'discount' => $discount,
                 'ppn' => $ppn,
                 'spareparts' => $spareParts,
+                'services' => $services,
                 'date' => $quotation->date
             ];
 
@@ -669,26 +738,38 @@ class QuotationController extends Controller
                 ->orderBy('version', 'ASC')
                 ->paginate(20);
 
-
             $grouped = collect($paginated->items())->map(function ($quotation) {
                 $customer = $quotation->customer;
-                $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                    return [
-                        'sparepart_id' => $detail->sparepart->id ?? '',
-                        'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                        'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                        'quantity' => $detail->quantity ?? 0,
-                        'unit_price_sell' => $detail->unit_price ?? 0,
-                        'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                        'stock' => $detail->is_indent ? 'indent' : 'available'
-                    ];
-                });
+                $spareParts = [];
+                $services = [];
+                if ($quotation && $quotation->detailQuotations) {
+                    foreach ($quotation->detailQuotations as $detail) {
+                        if ($detail->sparepart_id) {
+                            $sparepart = $detail->sparepart;
+                            $spareParts[] = [
+                                'sparepart_id' => $sparepart ? $sparepart->id : '',
+                                'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                                'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                                'quantity' => $detail->quantity ?? 0,
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                                'stock' => $detail->is_indent ? 'indent' : 'available'
+                            ];
+                        } else {
+                            $services[] = [
+                                'service' => $detail->service ?? '',
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'quantity' => $detail->quantity ?? 0,
+                                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                            ];
+                        }
+                    }
+                }
 
                 // Get the latest discount and PPN from General model
                 $general = General::latest()->first();
                 $discount = $general ? $general->discount : 0;
                 $ppn = $general ? $general->ppn : 0;
-
 
                 return [
                     'quotation_number' => $quotation->quotation_number,
@@ -721,7 +802,8 @@ class QuotationController extends Controller
                         'subdistrict' => $customer->subdistrict ?? '',
                         'postal_code' => $customer->postal_code ?? ''
                     ],
-                    'spareparts' => $spareParts
+                    'spareparts' => $spareParts,
+                    'services' => $services
                 ];
             })->groupBy('quotation_number')->map(function ($group, $quotationNumber) {
                 return [
@@ -754,10 +836,13 @@ class QuotationController extends Controller
         try {
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->first();
-            $isNeedReview = $quotation->review;
-            $isApproved = $quotation->current_status == QuotationController::APPROVE;
 
-            $latestVersion = $this->getAccessedQuotation($request)->where('quotation_number', $quotation->quotation_number)
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
+            $latestVersion = $this->getAccessedQuotation($request)
+                ->where('quotation_number', $quotation->quotation_number)
                 ->max('version');
 
             // Allow update only if this is the latest version
@@ -767,41 +852,36 @@ class QuotationController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
-            }
-
-            if ($quotation->purchaseOrder) {
+            if ($quotation->purchaseOrder->first()) {
                 return response()->json([
                     'message' => 'Quotation already has a purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            $isNeedReview = $quotation->review;
+            $isApproved = $quotation->current_status == QuotationController::APPROVE;
+
             if (!$isNeedReview || !$isApproved) {
                 return response()->json([
-                    'message' => 'Quotation need to reviewed or approved first before move to purchase order'
+                    'message' => 'Quotation needs to be reviewed and approved before moving to purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            // Update quotation status to Po
             $this->changeStatusToPo($request, $quotation);
-
-            // Get the spareparts associated with the quotation
-            $spareparts = DB::table('detail_quotations')
-                ->where('quotation_id', $quotation->id)
-                ->get();
 
             // Generate purchase order number from quotation number
             try {
-                // Expected quotation_number format: 033/BMJ-PI/V/2024
+                // Expected quotation_number format: 033/QUOT/BMJ-MEGAH/SMG/07/2025
                 $parts = explode('/', $quotation->quotation_number);
                 $poNumber = $parts[0]; // e.g., 033
                 $branch = $parts[3]; // e.g., SMG or JKT
-                $romanMonth = $parts[4]; // e.g., V
-                $year = substr($parts[5], -2); // e.g., 24 from 2024
+                $month = $parts[4]; // e.g., 07
+                $year = substr($parts[5], -2); // e.g., 25 from 2025
+                $romanMonth = $this->getRomanMonth((int)$month); // Convert to Roman numeral
                 $purchaseOrderNumber = "{$poNumber}/PO-IN/BMJ-MEGAH/{$branch}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PO number with current month and year
-                // Get lastest po id
                 $currentMonth = Carbon::now()->format('m'); // Two-digit month
                 $currentYear = Carbon::now()->format('Y'); // Four-digit year
                 $latestQuotation = $this->getAccessedQuotation($request)
@@ -809,85 +889,106 @@ class QuotationController extends Controller
                     ->whereYear('created_at', $currentYear)
                     ->latest('id')
                     ->first();
-                $lastestPo = $latestQuotation->purchaseOrder;
+                $lastestPo = $latestQuotation ? $latestQuotation->purchaseOrder : null;
                 $nextLatestId = $lastestPo ? $lastestPo->id + 1 : 1;
 
-                // get user branch
+                // Get user branch
                 $user = $request->user();
                 $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
-
-                $currentMonth = now()->month; // e.g., 5 for May
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., V
+                $currentMonth = now()->month; // e.g., 7 for July
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
                 $purchaseOrderNumber = "{$nextLatestId}/PO-IN/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}";
             }
 
+            // Create PurchaseOrder with version 1
             $purchaseOrder = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
                 'purchase_order_number' => $purchaseOrderNumber,
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
-                'notes' => $request->input('notes', ''), // Use request notes or default to empty string
+                'notes' => $quotation->notes,
                 'current_status' => PurchaseOrderController::PREPARE,
+                'version' => 1
             ]);
 
-            $backOrder = BackOrder::create([
-                'purchase_order_id' => $purchaseOrder->id,
-                'back_order_number' => 'PT' . now(),
-                'current_status' => BackOrderController::PROCESS, // Assume BO still need to "Process" at first time, if there is no BO, will update to "Ready".
-            ]);
+            // Handle logic based on quotation type
+            if ($quotation->type === self::SPAREPARTS) {
+                // Get the spareparts associated with the quotation
+                $spareparts = DB::table('detail_quotations')
+                    ->where('quotation_id', $quotation->id)
+                    ->whereNotNull('sparepart_id')
+                    ->get();
 
-            $hasBoSparepart = false;
-            // Decrease the total_unit for each sparepart after moveToPo
-            foreach ($spareparts as $sparepart) {
-                $sparepartRecord = Sparepart::find($sparepart->sparepart_id);
-                $sparepartTotalUnit = $sparepartRecord->total_unit;
-                $sparepartQuantityOrderInPo = $sparepart->quantity;
-                $numberBoInBo = 0;
-                $numberDoInBo = $sparepart->quantity;
-
-                # When create BO, need to determine number of BO and DO for each sparepart in this PO
-                $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
-                $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
-                $stockIsNotExistBeforePo = $sparepartTotalUnit <= 0;
-                if ($stockIsExistButAfterPoBecomeIndent) {
-                    // If sparepart stock exist but become minus after PO then :
-                    //      1. The number of BO is total order minus total stock (Need to buy)
-                    //      2. The number of DO is total existing stock (Ready)
-                    $numberBoInBo = ($sparepartQuantityOrderInPo - $sparepartTotalUnit);
-                    $numberDoInBo = $sparepartTotalUnit;
-                } elseif ($stockIsNotExistBeforePo) {
-                    // If sparepart stock is not exist then :
-                    //      1. The number of BO is total order in this PO only (Need to buy)
-                    //      2. The number of DO is 0  (Nothing is ready)
-                    $numberBoInBo = $sparepartQuantityOrderInPo;
-                    $numberDoInBo = 0;
+                if ($spareparts->isEmpty()) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'No spareparts found for this quotation'
+                    ], Response::HTTP_BAD_REQUEST);
                 }
 
-                // Decrease the number of sparepart
-                if ($sparepartRecord) {
+                // Create BackOrder for Spareparts
+                $backOrder = BackOrder::create([
+                    'purchase_order_id' => $purchaseOrder->id,
+                    'back_order_number' => 'PT' . now()->format('YmdHis'),
+                    'current_status' => BackOrderController::PROCESS,
+                ]);
+
+                $hasBoSparepart = false;
+                // Process each sparepart
+                foreach ($spareparts as $sparepart) {
+                    $sparepartRecord = Sparepart::find($sparepart->sparepart_id);
+                    if (!$sparepartRecord) {
+                        DB::rollBack();
+                        return response()->json([
+                            'message' => "Sparepart with ID {$sparepart->sparepart_id} not found"
+                        ], Response::HTTP_BAD_REQUEST);
+                    }
+
+                    $sparepartTotalUnit = $sparepartRecord->total_unit;
+                    $sparepartQuantityOrderInPo = $sparepart->quantity;
+                    $numberBoInBo = 0;
+                    $numberDoInBo = $sparepartQuantityOrderInPo;
+
+                    // Determine BO and DO quantities
+                    $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
+                    $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
+                    $stockIsNotExistBeforePo = $sparepartTotalUnit <= 0;
+
+                    if ($stockIsExistButAfterPoBecomeIndent) {
+                        $numberBoInBo = ($sparepartQuantityOrderInPo - $sparepartTotalUnit);
+                        $numberDoInBo = $sparepartTotalUnit;
+                    } elseif ($stockIsNotExistBeforePo) {
+                        $numberBoInBo = $sparepartQuantityOrderInPo;
+                        $numberDoInBo = 0;
+                    }
+
+                    // Decrease the number of sparepart
                     $sparepartRecord->total_unit -= $sparepartQuantityOrderInPo;
                     $sparepartRecord->save();
+
+                    // Change current status of PO to BO if there is a backorder
+                    if ($numberBoInBo) {
+                        $purchaseOrder->update(['current_status' => PurchaseOrderController::BO]);
+                        $hasBoSparepart = true;
+                    }
+
+                    // Create DetailBackOrder entry
+                    DetailBackOrder::create([
+                        'back_order_id' => $backOrder->id,
+                        'sparepart_id' => $sparepart->sparepart_id,
+                        'number_delivery_order' => $numberDoInBo,
+                        'number_back_order' => $numberBoInBo,
+                    ]);
                 }
 
-                // Change current status of PO to BO because we have sparepart BO
-                if ($numberBoInBo) {
-                    $purchaseOrder->update(['current_status' => PurchaseOrderController::BO]);
-                    $hasBoSparepart = true;
+                // If no backorder spareparts, update BackOrder to READY
+                if (!$hasBoSparepart) {
+                    $backOrder->update(['current_status' => BackOrderController::READY]);
                 }
-
-                DetailBackOrder::create([
-                    'back_order_id' => $backOrder->id,
-                    'sparepart_id' => $sparepart->sparepart_id,
-                    'number_delivery_order' => $numberDoInBo,
-                    'number_back_order' => $numberBoInBo,
-                ]);
             }
 
-            // If po that we created has no bo sparepart then make 'backOrder' to 'Ready' and quotation status to Inventory.
-            if (!$hasBoSparepart) {
-                $backOrder->update(['current_status' => BackOrderController::READY]);
-            }
+            // Commit the transaction
             DB::commit();
 
             return response()->json([
@@ -933,17 +1034,31 @@ class QuotationController extends Controller
                 ->orderBy('version', 'ASC') // Sort by version
                 ->paginate(20)->through(function ($quotation) {
                     $customer = $quotation->customer;
-                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                        return [
-                            'sparepart_id' => $detail->sparepart->id ?? '',
-                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                            'quantity' => $detail->quantity ?? 0,
-                            'unit_price_sell' => $detail->unit_price ?? 0,
-                            'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                            'stock' => $detail->is_indent ? 'indent' : 'available'
-                        ];
-                    });
+                    $spareParts = [];
+                    $services = [];
+                    if ($quotation && $quotation->detailQuotations) {
+                        foreach ($quotation->detailQuotations as $detail) {
+                            if ($detail->sparepart_id) {
+                                $sparepart = $detail->sparepart;
+                                $spareParts[] = [
+                                    'sparepart_id' => $sparepart ? $sparepart->id : '',
+                                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                                    'stock' => $detail->is_indent ? 'indent' : 'available'
+                                ];
+                            } else {
+                                $services[] = [
+                                    'service' => $detail->service ?? '',
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                                ];
+                            }
+                        }
+                    }
 
                     return [
                         'id' => (string) $quotation->id,
@@ -974,6 +1089,7 @@ class QuotationController extends Controller
                         'status' => $quotation->status,
                         'notes' => $quotation->notes,
                         'spareparts' => $spareParts,
+                        'services' => $services,
                         'date' => $quotation->date
                     ];
                 });
@@ -1021,18 +1137,31 @@ class QuotationController extends Controller
                 ->orderBy('version', 'ASC') // Sort by version
                 ->paginate(20)->through(function ($quotation) {
                     $customer = $quotation->customer;
-                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                        return [
-                            'sparepart_id' => $detail->sparepart->id ?? '',
-                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                            'quantity' => $detail->quantity ?? 0,
-                            'unit_price_sell' => $detail->unit_price ?? 0,
-                            'is_return' => $detail->is_return ?? 0,
-                            'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                            'stock' => $detail->is_indent ? 'indent' : 'available'
-                        ];
-                    });
+                    $spareParts = [];
+                    $services = [];
+                    if ($quotation && $quotation->detailQuotations) {
+                        foreach ($quotation->detailQuotations as $detail) {
+                            if ($detail->sparepart_id) {
+                                $sparepart = $detail->sparepart;
+                                $spareParts[] = [
+                                    'sparepart_id' => $sparepart ? $sparepart->id : '',
+                                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                                    'stock' => $detail->is_indent ? 'indent' : 'available'
+                                ];
+                            } else {
+                                $services[] = [
+                                    'service' => $detail->service ?? '',
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                                ];
+                            }
+                        }
+                    }
 
                     return [
                         'id' => (string) $quotation->id,
@@ -1063,6 +1192,7 @@ class QuotationController extends Controller
                         'status' => $quotation->status,
                         'notes' => $quotation->notes,
                         'spareparts' => $spareParts,
+                        'servies' => $services,
                         'date' => $quotation->date
                     ];
                 });
@@ -1214,7 +1344,6 @@ class QuotationController extends Controller
         }
     }
 
-
     public function changeStatusToReady(Request $request, $quotation)
     {
         // Start a database transaction
@@ -1258,7 +1387,6 @@ class QuotationController extends Controller
             return $this->handleError($th, 'Failed to update status ready for the quotation');
         }
     }
-
 
     public function changeStatusToPaid(Request $request, $quotation, $isDpPaid)
     {
@@ -1349,6 +1477,7 @@ class QuotationController extends Controller
             return $this->handleError($th, 'Failed to update quotation status to Release');
         }
     }
+
     public function changeStatusToDone(Request $request, $quotation)
     {
         // Start a database transaction
@@ -1394,124 +1523,200 @@ class QuotationController extends Controller
         }
     }
 
-    public function changeStatusToReturn(Request $request, $slug)
+    public function changeStatusToReturn(Request $request, $id)
     {
         // Start a database transaction
         DB::beginTransaction();
 
         try {
-            // Validate the returned parameter
+            $purchaseOrder =  PurchaseOrder::where('id', $id)->firstOrFail();
+            $quotation = $purchaseOrder->quotation;
+
+            if ($quotation->type === self::SERVICE) {
+                return response()->json([
+                    'message' => 'Service quotations cannot be returned'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Get the latest purchase order for this quotation
+            $purchaseOrder = $quotation->purchaseOrder()
+                ->latest('version')
+                ->first();
+
+            if (!$purchaseOrder) {
+                return response()->json([
+                    'message' => 'No purchase order found for this quotation'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Validate the returned spareparts
             $request->validate([
                 'returned' => 'required|array',
                 'returned.*.sparepart_id' => 'required|integer|exists:spareparts,id',
                 'returned.*.quantity' => 'required|integer|min:1',
             ]);
 
-            $quotations = $this->getAccessedQuotation($request);
-            $quotation = $quotations->where('slug', $slug)->firstOrFail();
 
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
+            // Restock returned spareparts
+            $returnedItems = $request->input('returned', []);
+            foreach ($returnedItems as $item) {
+                $sparepart = Sparepart::find($item['sparepart_id']);
+                if ($sparepart) {
+                    $sparepart->total_unit += $item['quantity'];
+                    $sparepart->save();
+                }
             }
 
-            // Check if quotation is already in return state and has any returned spare parts
-            $inReturnState = $quotation->is_return;
-            $alreadyHaveReturnedSparepart = DetailQuotation::where('quotation_id', $quotation->id)->where('is_return', true)->exists();
-            if ($inReturnState && $alreadyHaveReturnedSparepart) {
-                return response()->json([
-                    'message' => 'Cannot change to Return state: Quotation is already in return state with returned spare parts',
-                ], Response::HTTP_BAD_REQUEST);
+            // Calculated new price for new quotation
+            $detailQuotation = $quotation->detailQuotations;
+            $detailUpdatedQuotation = [];
+            $totaNewAmount = 0;
+
+            // Handle Spareparts or Services based on type
+            foreach ($detailQuotation  as $detail) {
+                $sparepartId = $detail->sparepart_id;
+                $quantity = $detail->quantity;
+                $unit_price = $detail->unit_price;
+
+                foreach ($returnedItems as $item) {
+                    if ($sparepartId == $item['sparepart_id']) {
+                        $quantityReturn = $item['quantity'];
+                        $quantity = $quantity - $quantityReturn;
+                    }
+                }
+                // Calculated totalNewAmount after return process
+                $totaNewAmount += $quantity * $unit_price;
+
+                // Store updated data for detail_quotation after return process
+                array_push($detailUpdatedQuotation, [
+                    'sparepart_id' => $sparepartId,
+                    'quantity' => $quantity,
+                    'unit_price' => $unit_price,
+                    'is_return' => false,
+                ]);
             }
 
-            // Update DetailQuotation entries for the specified sparepart_ids
-            $returnedSparepartIds = $request->input('returned', []);
-            if (!empty($returnedSparepartIds)) {
-                DetailQuotation::where('quotation_id', $quotation->id)
-                    ->whereIn('sparepart_id', $returnedSparepartIds)
-                    ->update(['is_return' => true]);
+            // Get the latest discount and PPN from General model
+            $general = General::latest()->first();
+            $discount = $general ? $general->discount : 0;
+            $ppn = $general ? $general->ppn : 0;
+
+            $priceDiscount = $totaNewAmount  * $discount;
+            $subTotal = $totaNewAmount  - $priceDiscount;
+            $pricePpn = $subTotal  * $ppn;
+            $grandTotal = $subTotal - $pricePpn;
+
+
+            // Create new PO version
+            $newVersion = $purchaseOrder->version + 1;
+            $newPONumber = $purchaseOrder->purchase_order_number;
+
+            // Create new quotation version
+            // Map API contract to database fields
+            // calculated new amount
+            $quotationData = [
+                'quotation_number' => $quotation->quotation_number,
+                'type' => $quotation->type,
+                'date' => $quotation->date,
+                'amount' => $totaNewAmount,
+                'discount' => $priceDiscount,
+                'subtotal' => $subTotal,
+                'ppn' => $pricePpn,
+                'grand_total' => $grandTotal,
+                'notes' => $quotation->notes,
+                'project' => $quotation->quotation_number,
+            ];
+
+            // Handle versioning using the version field
+            $baseQuotationNumber = $quotation->quotation_number;
+            $existingVersion = Quotation::where('quotation_number', $baseQuotationNumber)
+                ->max('version');
+            $quotationData['version'] = $existingVersion + 1;
+
+            // Validate the new quotation_number for uniqueness
+            $existingQuotation = Quotation::where('quotation_number', $baseQuotationNumber)
+                ->where('version', $quotationData['version'])
+                ->first();
+            if ($existingQuotation) {
+                throw new \Exception('Quotation number with this version already exists.');
             }
 
+            // Assign the customer ID and employee ID to the quotation
+            $quotationData['customer_id'] = $quotation->customer->id;
+            $quotationData['employee_id'] = $quotation->employee_id; // Retain original employee_id
+            $quotationData['review'] = true;
+            $quotationData['current_status'] = QuotationController::PO;
+
+            // Generate a unique slug based on the 'project' field
+            $slug = Str::slug($quotationData['project']);
+            $quotationData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
+
+            // Create new quotation with the validated data
+            $newQuotation = Quotation::create($quotationData);
+
+            $detailQuotation = $quotation->detailQuotations;
+
+            // Create detail_quotations for new Quotation,
+            // NOTE: We ignore BackOrder for this step.
+            foreach ($detailUpdatedQuotation as $detail) {
+                $sparepartId = $detail['sparepart_id'];
+                $quantity = $detail['quantity'];
+                $unit_price = $detail['unit_price'];
+
+                // Insert into the bridge table
+                DB::table('detail_quotations')->insert([
+                    'quotation_id' => $newQuotation->id,
+                    'sparepart_id' => $sparepartId,
+                    'quantity' =>  $quantity,
+                    'is_indent' => 0, // This is for return, we declare is_indent true
+                    'is_return' => false, // This is detail quotation is created after return, so this one is not consider return, the previous is the one that return
+                    'unit_price' => $unit_price,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Create new PurchaseOrder for new Quotation,
+            PurchaseOrder::create([
+                'quotation_id' => $newQuotation->id,
+                'purchase_order_number' => $newPONumber,
+                'purchase_order_date' => now(),
+                'employee_id' => $purchaseOrder->employee_id,
+                'notes' => $purchaseOrder->notes,
+                'current_status' => PurchaseOrderController::PREPARE,
+                'version' => $newVersion,
+            ]);
+            // Update quotation status
             $user = $request->user();
-            // Ensure status is initialized as an array
             $currentStatus = $quotation->status ?? [];
             if (!is_array($currentStatus)) {
                 $currentStatus = [];
             }
 
-            // Append new status entry
             $currentStatus[] = [
                 'state' => self::RETURN,
                 'employee' => $user->username,
                 'timestamp' => now()->toIso8601String(),
             ];
 
-            // Update quotation with new status and is_return flag
             $quotation->update([
-                'review' => false,
                 'status' => $currentStatus,
                 'current_status' => self::DONE,
-                'is_return' => !empty($returnedSparepartIds), // Set is_return to true if any spare parts are returned
+                'is_return' => true,
             ]);
 
-            // Format the quotation data
-            $customer = $quotation->customer;
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'sparepart_id' => $detail->sparepart->id ?? '',
-                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'is_return' => $detail->is_return ?? 0,
-                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            });
+            // Format response
+            $formattedQuotation = $this->formatQuotation($quotation);
 
-            $formattedQuotation = [
-                'id' => (string) $quotation->id,
-                'slug' => $quotation->slug,
-                'quotation_number' => $quotation->quotation_number,
-                'version' => $quotation->version, // Include version
-                'customer' => [
-                    'company_name' => $customer->company_name ?? '',
-                    'address' => $customer->address ?? '',
-                    'city' => $customer->city ?? '',
-                    'province' => $customer->province ?? '',
-                    'office' => $customer->office ?? '',
-                    'urban' => $customer->urban ?? '',
-                    'subdistrict' => $customer->subdistrict ?? '',
-                    'postal_code' => $customer->postal_code ?? ''
-                ],
-                'project' => [
-                    'quotation_number' => $quotation->quotation_number,
-                    'type' => $quotation->type,
-                    'date' => $quotation->date
-                ],
-                'price' => [
-                    'subtotal' => $quotation->subtotal,
-                    'ppn' => $quotation->ppn,
-                    'grand_total' => $quotation->grand_total
-                ],
-                'current_status' => $quotation->current_status,
-                'status' => $quotation->status,
-                'notes' => $quotation->notes,
-                'spareparts' => $spareParts,
-                'date' => $quotation->date
-            ];
-
-            // Commit the transaction
             DB::commit();
 
-            // Return the response with transformed data
             return response()->json([
-                'message' => 'Success update status of the quotation to Return',
+                'message' => 'Successfully processed return and created new purchase order version',
                 'data' => $formattedQuotation,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            // Roll back the transaction if an error occurs
             DB::rollBack();
-            return $this->handleError($th, 'Failed to update quotation status to Return');
+            return $this->handleError($th, 'Failed to process return');
         }
     }
 
@@ -1563,18 +1768,31 @@ class QuotationController extends Controller
 
             // Format the quotation data
             $customer = $quotation->customer;
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'sparepart_id' => $detail->sparepart->id ?? '',
-                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'is_return' => $detail->is_return ?? 0,
-                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            });
+            $spareParts = [];
+            $services = [];
+            if ($quotation && $quotation->detailQuotations) {
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart ? $sparepart->id : '',
+                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                        ];
+                    }
+                }
+            }
 
             $formattedQuotation = [
                 'id' => (string) $quotation->id,
@@ -1605,6 +1823,7 @@ class QuotationController extends Controller
                 'status' => $quotation->status,
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
+                'servies' => $services,
                 'date' => $quotation->date
             ];
 
@@ -1666,18 +1885,31 @@ class QuotationController extends Controller
 
             // Format the quotation data
             $customer = $quotation->customer;
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'sparepart_id' => $detail->sparepart->id ?? '',
-                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                    'sparepart_number' => $detail->sparepart->sparepart_number ?? '',
-                    'quantity' => $detail->quantity ?? 0,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'is_return' => $detail->is_return ?? 0,
-                    'total_price' => $detail->quantity * ($detail->unit_price ?? 0),
-                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                ];
-            });
+            $spareParts = [];
+            $services = [];
+            if ($quotation && $quotation->detailQuotations) {
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart ? $sparepart->id : '',
+                            'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                            'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->service_price ?? 0))
+                        ];
+                    }
+                }
+            }
 
             $formattedQuotation = [
                 'id' => (string) $quotation->id,
@@ -1707,7 +1939,8 @@ class QuotationController extends Controller
                 'current_status' => $quotation->current_status,
                 'status' => $status,
                 'notes' => $quotation->notes,
-                'spareparts' => $spareParts,
+                'spareParts' => $spareParts,
+                'services' => $services,
                 'date' => $quotation->date
             ];
 
@@ -1776,5 +2009,75 @@ class QuotationController extends Controller
         return response()->json([
             'message' => $message
         ], Response::HTTP_NOT_FOUND);
+    }
+
+    protected function formatQuotation($quotation)
+    {
+        $customer = $quotation->customer;
+        $spareParts = [];
+        $services = [];
+        if ($quotation && $quotation->detailQuotations) {
+            foreach ($quotation->detailQuotations as $detail) {
+                if ($detail->sparepart_id) {
+                    $sparepart = $detail->sparepart;
+                    $spareParts[] = [
+                        'sparepart_id' => $sparepart ? $sparepart->id : '',
+                        'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                        'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                        'quantity' => $detail->quantity ?? 0,
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                        'stock' => $detail->is_indent ? 'indent' : 'available'
+                    ];
+                } else {
+                    $services[] = [
+                        'service' => $detail->service ?? '',
+                        'unit_price_sell' => $detail->unit_price ?? 0,
+                        'quantity' => $detail->quantity ?? 0,
+                        'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                    ];
+                }
+            }
+        }
+
+        // Get the latest discount and PPN from General model
+        $general = General::latest()->first();
+        $discount = $general ? $general->discount : 0;
+        $ppn = $general ? $general->ppn : 0;
+
+        return [
+            'id' => (string) $quotation->id,
+            'slug' => $quotation->slug,
+            'quotation_number' => $quotation->quotation_number,
+            'version' => $quotation->version,
+            'customer' => [
+                'company_name' => $customer->company_name ?? '',
+                'address' => $customer->address ?? '',
+                'city' => $customer->city ?? '',
+                'province' => $customer->province ?? '',
+                'office' => $customer->office ?? '',
+                'urban' => $customer->urban ?? '',
+                'subdistrict' => $customer->subdistrict ?? '',
+                'postal_code' => $customer->postal_code ?? ''
+            ],
+            'project' => [
+                'quotation_number' => $quotation->quotation_number,
+                'type' => $quotation->type,
+                'date' => $quotation->date
+            ],
+            'price' => [
+                'subtotal' => $quotation->subtotal,
+                'ppn' => $quotation->ppn,
+                'grand_total' => $quotation->grand_total
+            ],
+            'current_status' => $quotation->current_status,
+            'status' => $quotation->status,
+            'notes' => $quotation->notes,
+            'discount' => $discount,
+            'ppn' => $ppn,
+            'spareparts' => $spareParts,
+            'services' => $services,
+            'date' => $quotation->date
+        ];
     }
 }

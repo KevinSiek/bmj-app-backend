@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('work_orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('quotation_id')->constrained('quotations');
+            $table->foreignId('purchase_order_id')->constrained('purchase_orders');
             $table->string('work_order_number');
             $table->string('received_by')->nullable();
             $table->integer('expected_days')->nullable();

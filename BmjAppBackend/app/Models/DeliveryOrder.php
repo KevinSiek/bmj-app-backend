@@ -10,7 +10,7 @@ class DeliveryOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'quotation_id',
+        'purchase_order_id',
         'type',
         'current_status',
         'notes',
@@ -24,8 +24,8 @@ class DeliveryOrder extends Model
         'npwp',
     ];
 
-    public function quotation()
+    public function purchaseOrder()
     {
-        return $this->belongsTo(Quotation::class);
+        return $this->belongsTo(PurchaseOrder::class);
     }
 }

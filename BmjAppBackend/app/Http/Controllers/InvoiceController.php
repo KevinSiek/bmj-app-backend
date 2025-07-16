@@ -25,16 +25,30 @@ class InvoiceController extends Controller
             $quotation = $purchaseOrder->quotation;
             $customer = $quotation->customer ?? null;
 
-            $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                return [
-                    'sparepart_id' => $detail->sparepart->id ?? '',
-                    'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                    'sparepart_number' => $detail->sparepart->part_number ?? '',
-                    'quantity' => $detail->quantity,
-                    'unit_price_sell' => $detail->unit_price ?? 0,
-                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
-                ];
-            });
+            $spareParts = [];
+            $services = [];
+            if ($quotation && $quotation->detailQuotations) {
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart->id ?? '',
+                            'sparepart_name' => $sparepart->sparepart_name ?? '',
+                            'sparepart_number' => $sparepart->part_number ?? '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                        ];
+                    }
+                }
+            }
 
             $formattedInvoice = [
                 'id' => (string) $invoice->id,
@@ -48,6 +62,7 @@ class InvoiceController extends Controller
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                    'purchase_order_type' => $quotation->type ?? '',
                     'payment_due' => $purchaseOrder->payment_due,
                     'discount' => $quotation ? $quotation->discount : ''
                 ],
@@ -66,10 +81,11 @@ class InvoiceController extends Controller
                     'ppn' => $quotation->ppn ?? 0,
                     'grand_total' => $quotation->grand_total ?? 0,
                 ],
-                'status' => $quotation->status,
-                'quotationn_number' => $quotation ? $quotation->quotation_number : '',
+                'status' => $quotation->status ?? [],
+                'quotation_number' => $quotation ? $quotation->quotation_number : '',
                 'notes' => $quotation->notes ?? '',
                 'spareparts' => $spareParts,
+                'services' => $services,
                 'type' => $quotation->type,
             ];
 
@@ -124,16 +140,30 @@ class InvoiceController extends Controller
                     $quotation = $purchaseOrder->quotation;
                     $customer = $quotation->customer ?? null;
 
-                    $spareParts = $quotation->detailQuotations->map(function ($detail) {
-                        return [
-                            'sparepart_id' => $detail->sparepart->id ?? '',
-                            'sparepart_name' => $detail->sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $detail->sparepart->part_number ?? '',
-                            'quantity' => $detail->quantity,
-                            'unit_price_sell' => $detail->unit_price ?? 0,
-                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
-                        ];
-                    });
+                    $spareParts = [];
+                    $services = [];
+                    if ($quotation && $quotation->detailQuotations) {
+                        foreach ($quotation->detailQuotations as $detail) {
+                            if ($detail->sparepart_id) {
+                                $sparepart = $detail->sparepart;
+                                $spareParts[] = [
+                                    'sparepart_id' => $sparepart->id ?? '',
+                                    'sparepart_name' => $sparepart->sparepart_name ?? '',
+                                    'sparepart_number' => $sparepart->part_number ?? '',
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                                ];
+                            } else {
+                                $services[] = [
+                                    'service' => $detail->service ?? '',
+                                    'unit_price_sell' => $detail->unit_price ?? 0,
+                                    'quantity' => $detail->quantity ?? 0,
+                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                                ];
+                            }
+                        }
+                    }
 
                     return [
                         'id' => (string) $invoice->id,
@@ -143,7 +173,6 @@ class InvoiceController extends Controller
                             'term_of_payment' => $invoice->term_of_payment ?? '',
                             'subtotal' => $quotation->subtotal ?? 0,
                             'grand_total' => $quotation->grand_total ?? 0,
-
                         ],
                         'purchase_order' => [
                             'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
@@ -166,10 +195,11 @@ class InvoiceController extends Controller
                             'ppn' => $quotation->ppn ?? 0,
                             'grand_total' => $quotation->grand_total ?? 0,
                         ],
-                        'status' => $quotation->status,
-                        'quotationn_number' => $quotation ? $quotation->quotation_number : '',
+                        'status' => $quotation->status ?? [],
+                        'quotation_number' => $quotation ? $quotation->quotation_number : '',
                         'notes' => $quotation->notes ?? '',
                         'spareparts' => $spareParts,
+                        'services' => $services,
                         'type' => $quotation->type,
                     ];
                 });
