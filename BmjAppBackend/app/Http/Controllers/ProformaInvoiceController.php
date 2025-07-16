@@ -8,6 +8,7 @@ use App\Models\ProformaInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
+use Carbon\Carbon;
 
 class ProformaInvoiceController extends Controller
 {
@@ -116,6 +117,7 @@ class ProformaInvoiceController extends Controller
                         'down_payment' => $pi->down_payment ?? 0,
                         'status' => $quotation->status ?? [],
                         'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                        'version' => $purchaseOrder->version,
                         'notes' => $quotation->notes ?? '',
                         'date' => $pi->created_at,
                         'spareparts' => $spareParts,
@@ -201,6 +203,7 @@ class ProformaInvoiceController extends Controller
                 ],
                 'down_payment' => $proformaInvoice->down_payment ?? 0,
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                'version' => $purchaseOrder->version,
                 'notes' => $quotation->notes ?? '',
                 'date' => $proformaInvoice->created_at,
                 'status' => $quotation->status ?? [],
@@ -248,12 +251,36 @@ class ProformaInvoiceController extends Controller
                 ->whereMonth('invoice_date', $month)
                 ->count() + 1; // Increment by 1 for the new invoice
 
-            // Format the sequence number with leading zeros (e.g., 001)
-            $sequenceNumber = str_pad($invoiceCount, 3, '0', STR_PAD_LEFT);
 
-            // Generate invoice number in the format IP/<InputNumberInOrder>/<RomawiMonth>/<Year>
-            $invoiceNumber = "IP/{$sequenceNumber}/{$romanMonth}/{$year}";
+            // Generate proforma invoice number from purchase order number
+            try {
+                // Expected purchase_order_number format: PO-IN/033/V/24
+                $parts = explode('/', $proformaInvoice->proforma_invoice_number);
+                $piNumber = $parts[0]; // e.g., 033
+                $branch = $parts[3]; // e.g., V
+                $romanMonth = $parts[2]; // e.g., 24
+                $year = $parts[5]; // e.g., 24
+                $invoiceNumber = "IP/{$piNumber}/{$romanMonth}/{$branch}/{$year}";
+            } catch (\Throwable $th) {
+                // Fallback to timestamp-based PI number with current month and year
+                $currentMonth = Carbon::now()->format('m'); // Two-digit month
+                $currentYear = Carbon::now()->format('Y'); // Four-digit year
+                $latestPi = $this->getAccessedProformaInvoice($request)
+                    ->whereMonth('created_at', $currentMonth)
+                    ->whereYear('created_at', $currentYear)
+                    ->latest('id')
+                    ->first();
+                $lastestInvoice = $latestPi ? $latestPi->invoices : null;
+                $nextLastestInvoice = $lastestInvoice ? $lastestInvoice->id + 1 : 1;
 
+                // Get user branch
+                $user = $request->user();
+                $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+                $currentMonth = now()->month; // e.g., 7 for July
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
+                $year = now()->format('y'); // e.g., 25 for 2025
+                $invoiceNumber = "IP/{$nextLastestInvoice}/{$romanMonth}/{$branchCode}/{$year}";
+            }
             $invoice = Invoice::create([
                 'proforma_invoice_id' => $proformaInvoice->id,
                 'invoice_number' => $invoiceNumber,
@@ -271,6 +298,31 @@ class ProformaInvoiceController extends Controller
             DB::rollBack();
             return $this->handleError($th, 'Failed to promote proforma invoice');
         }
+    }
+
+    /**
+     * Convert month number to Roman numeral
+     *
+     * @param int $month
+     * @return string
+     */
+    protected function getRomanMonth($month)
+    {
+        $romanNumerals = [
+            1 => 'I',
+            2 => 'II',
+            3 => 'III',
+            4 => 'IV',
+            5 => 'V',
+            6 => 'VI',
+            7 => 'VII',
+            8 => 'VIII',
+            9 => 'IX',
+            10 => 'X',
+            11 => 'XI',
+            12 => 'XII'
+        ];
+        return $romanNumerals[$month] ?? 'I';
     }
 
     public function update(Request $request, $id)

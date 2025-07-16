@@ -57,7 +57,8 @@ class DeliveryOrderController extends Controller
             'purchase_order' => [
                 'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
                 'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
-                'type' => $quotation ? $quotation->type : ''
+                'type' => $quotation ? $quotation->type : '',
+                'version' => $purchaseOrder ? $purchaseOrder->version : '',
             ],
             'customer' => [
                 'company_name' => $customer ? $customer->company_name : '',

@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
 
 class PurchaseOrderController extends Controller
 {
@@ -292,17 +293,30 @@ class PurchaseOrderController extends Controller
             try {
                 // Expected purchase_order_number format: PO-IN/033/V/24
                 $parts = explode('/', $purchaseOrder->purchase_order_number);
-                $piNumber = $parts[1]; // e.g., 033
-                $romanMonth = $parts[2]; // e.g., V
-                $year = $parts[3]; // e.g., 24
-                $proformaInvoiceNumber = "PI-IN/{$piNumber}/{$romanMonth}/{$year}";
+                $piNumber = $parts[0]; // e.g., 033
+                $branch = $parts[3]; // e.g., V
+                $romanMonth = $parts[4]; // e.g., 24
+                $year = $parts[5]; // e.g., 24
+                $proformaInvoiceNumber = "PI-IN/{$piNumber}/{$romanMonth}/{$branch}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
-                $currentMonth = now()->month; // e.g., 5 for May
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., V
+                $currentMonth = Carbon::now()->format('m'); // Two-digit month
+                $currentYear = Carbon::now()->format('Y'); // Four-digit year
+                $latestPurchaseOrder = $this->getAccessedPurchaseOrder($request)
+                    ->whereMonth('created_at', $currentMonth)
+                    ->whereYear('created_at', $currentYear)
+                    ->latest('id')
+                    ->first();
+                $lastestPi = $latestPurchaseOrder ? $latestPurchaseOrder->proformaInvoice : null;
+                $nextLastestPi = $lastestPi ? $lastestPi->id + 1 : 1;
+
+                // Get user branch
+                $user = $request->user();
+                $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+                $currentMonth = now()->month; // e.g., 7 for July
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $timestamp = now()->format('YmdHis'); // Unique identifier
-                $proformaInvoiceNumber = "PI-IN/{$timestamp}/{$romanMonth}/{$year}";
+                $proformaInvoiceNumber = "PI-IN/{$nextLastestPi}/{$romanMonth}/{$branchCode}/{$year}";
             }
 
             $proformaInvoice = ProformaInvoice::create([

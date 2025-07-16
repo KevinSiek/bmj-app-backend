@@ -70,6 +70,7 @@ class WorkOrderController extends Controller
                 'description' => $quotation->notes ?? '',
                 'current_status' => $workOrder->current_status ?? '',
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                'version' => $purchaseOrder->version,
                 'additional' => [
                     'spareparts' => $workOrder->spareparts,
                     'backup_sparepart' => $workOrder->backup_sparepart,
@@ -183,6 +184,7 @@ class WorkOrderController extends Controller
                     'description' => $quotation->notes ?? '',
                     'current_status' => $wo->current_status ?? '',
                     'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                    'version' => $purchaseOrder->version,
                     'additional' => [
                         'spareparts' => $wo->spareparts,
                         'backup_sparepart' => $wo->backup_sparepart,
