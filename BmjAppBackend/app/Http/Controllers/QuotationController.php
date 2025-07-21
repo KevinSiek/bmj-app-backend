@@ -121,7 +121,7 @@ class QuotationController extends Controller
             // Generate quotation_number
             $currentMonth = Carbon::now()->format('m'); // Two-digit month
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
-            $latestQuotation = $this->getAccessedQuotation($request)
+            $latestQuotation = $this->getAllWithoutPermission($request)
                 ->whereMonth('created_at', $currentMonth)
                 ->whereYear('created_at', $currentYear)
                 ->latest('id')
@@ -1969,6 +1969,24 @@ class QuotationController extends Controller
         } catch (\Throwable $th) {
             echo ('Error at getAccessedQuotation: ' . $th->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * Get all quotations without permission check
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAllWithoutPermission()
+    {
+        try {
+            // Get all quotations without permission check
+            $quotations = Quotation::with('customer');
+
+            return $quotations;
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Failed to retrieve quotations without permission');
         }
     }
 
