@@ -725,6 +725,13 @@ class QuotationController extends Controller
                     ->orWhere('type', 'like', "%$q%");
             });
 
+            // Filter quotations that have purchaseOrder with version greater than 1
+            $quotationsQuery->where(function ($query) {
+                $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
+                    $subQuery->where('version', '>', 1);
+                })->orWhereDoesntHave('purchaseOrder');
+            });
+
             if ($year) {
                 $quotationsQuery->whereYear('date', $year);
                 if ($month) {
