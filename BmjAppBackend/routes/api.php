@@ -15,6 +15,7 @@ use App\Http\Controllers\WorkOrderController;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\GeneralController;
+use App\Http\Controllers\SummaryController;
 
 // Token and Login Routes
 Route::post('/tokens/create', function (Request $request) {
@@ -31,6 +32,14 @@ Route::middleware("auth:sanctum")->group(function () {
     });
     Route::post('logout', [LoginController::class, 'logout']);
     Route::post('changePassword', [LoginController::class, 'changePassword']);
+
+    Route::prefix('summary')->group(function () {
+        Route::get('/director', [SummaryController::class, 'summaryDirector']);
+        Route::get('/marketing', [SummaryController::class, 'summaryMarketing']);
+        Route::get('/inventory', [SummaryController::class, 'summaryInventory']);
+        Route::get('/finance', [SummaryController::class, 'summaryFinance']);
+        Route::get('/service', [SummaryController::class, 'summaryService']);
+    });
 
     // Employee Access
     Route::prefix('access')->group(function () {
@@ -142,11 +151,11 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
         });
 
-        // Sparepart Routes
-        Route::prefix('sparepart')->group(function () {
-            Route::get('/', [SparepartController::class, 'getAll']);
-            Route::get('/{id}', [SparepartController::class, 'get']);
-            Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
-        });
+    });
+    // Sparepart Routes
+    Route::prefix('sparepart')->group(function () {
+        Route::get('/', [SparepartController::class, 'getAll']);
+        Route::get('/{id}', [SparepartController::class, 'get']);
+        Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
     });
 });

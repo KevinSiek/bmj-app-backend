@@ -15,6 +15,12 @@ class EmployeeController extends Controller
     const SEMARANG = "Semarang";
     const JAKARTA = "Jakarta";
 
+    const MARKETING = 'Marketing';
+    const DIRECTOR = 'Director';
+    const INVENTORY = 'Inventory';
+    const FINANCE = 'Finance';
+    const SERVICE = 'Service';
+
     public function index()
     {
         try {
