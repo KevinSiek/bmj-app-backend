@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('delivery_order_number')->nullable();
             $table->string('delivery_order_date')->nullable();
             $table->string('received_by')->nullable();
+            $table->string('prepared_by')->nullable();
             $table->string('picked_by')->nullable();
             $table->string('ship_mode')->nullable();
             $table->string('order_type')->nullable();

@@ -17,6 +17,7 @@ class DeliveryOrder extends Model
         'delivery_order_number',
         'delivery_order_date',
         'received_by',
+        'prepared_by',
         'picked_by',
         'ship_mode',
         'order_type',

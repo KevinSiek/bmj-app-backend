@@ -27,6 +27,7 @@ class DeliveryOrderSeeder extends Seeder
                 'delivery_order_number' => 'DO-' . str_pad($index + 1, 4, '0', STR_PAD_LEFT),
                 'delivery_order_date' => now()->subDays($index)->toDateString(),
                 'received_by' => 'Receiver ' . ($index + 1),
+                'prepared_by' => 'Preparer ' . ($index + 1),
                 'picked_by' => 'Picker ' . ($index + 1),
                 'ship_mode' => 'Ground',
                 'order_type' => 'Standard',

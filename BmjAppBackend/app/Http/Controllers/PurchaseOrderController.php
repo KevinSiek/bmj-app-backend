@@ -587,6 +587,7 @@ class PurchaseOrderController extends Controller
                     'current_status' => 'Process',
                     'delivery_order_number' => $deliveryOrderNumber,
                     'delivery_order_date' => $request->input('deliveryOrder.deliveryOrderDate') ?? null,
+                    'prepared_by' => $request->input('deliveryOrder.preparedBy'),
                     'received_by' => $request->input('deliveryOrder.receivedBy'),
                     'picked_by' => $request->input('deliveryOrder.pickedBy'),
                     'ship_mode' => $request->input('deliveryOrder.shipMode'),
