@@ -148,7 +148,6 @@ class QuotationController extends Controller
                 'type' => $request->input('project.type'),
                 'date' => now(),
                 'amount' => $totalAmount,
-                'ppn' => $request->input('price.ppn'),
                 'grand_total' => $grandTotal,
                 'notes' => $request->input('notes'),
                 'project' => $quotationNumber, // Using quotationNumber as project name

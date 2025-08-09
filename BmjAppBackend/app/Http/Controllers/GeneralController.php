@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use App\Models\General;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -22,6 +23,44 @@ class GeneralController extends Controller
             return response()->json([
                 'message' => 'Discount retrieved successfully',
                 'discount' => $latestDiscount->discount
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    public function get()
+    {
+        try {
+            $general = General::first();
+
+            if (!$general) {
+                return $this->handleNotFound('No general information found');
+            }
+
+            return response()->json([
+                'message' => 'General information retrieved successfully',
+                'data' => $general
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    public  function update(Request $request)
+    {
+        try {
+            $general = General::first();
+
+            if (!$general) {
+                return $this->handleNotFound('No general information found');
+            }
+
+            $general->update($request->all());
+
+            return response()->json([
+                'message' => 'General information updated successfully',
+                'data' => $general
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

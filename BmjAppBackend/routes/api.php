@@ -51,7 +51,8 @@ Route::middleware("auth:sanctum")->group(function () {
     });
     // Api to store general value in future, like discount etc
     Route::prefix('general')->group(function () {
-        Route::get('/discount', [GeneralController::class, 'getDiscount']);
+        Route::get('/', [GeneralController::class, 'get']);
+        Route::put('/', [GeneralController::class, 'update']);
     });
     Route::prefix('quotation')->group(function () {
         Route::get('/', [QuotationController::class, 'getAll']);

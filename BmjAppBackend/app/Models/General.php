@@ -11,6 +11,7 @@ class General extends Model
 
     protected $fillable = [
         'discount',
-        'ppn'
+        'ppn',
+        'currency_converter'
     ];
 }

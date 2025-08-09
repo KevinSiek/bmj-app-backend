@@ -22,6 +22,7 @@ class GeneralFactory extends Factory
         return [
             'discount' => 0.1,
             'ppn' => 0.11,
+            'currency_converter' => 110.8
         ];
     }
 }

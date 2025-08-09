@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->decimal('discount');
             $table->decimal('ppn');
+            $table->decimal('currency_converter');
             $table->timestamps();
         });
     }
