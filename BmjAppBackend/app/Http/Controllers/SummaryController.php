@@ -96,17 +96,36 @@ class SummaryController extends Controller
                     ->whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
                     ->count();
+                $poDoneCount = PurchaseOrder::where('employee_id', $userId)
+                    ->whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
+                    ->where('current_status', PurchaseOrderController::DONE)
+                    ->count();
                 $woCount = WorkOrder::whereHas('purchaseOrder', function($query) use ($userId) {
                         $query->where('employee_id', $userId);
                     })
                     ->whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
                     ->count();
+                $woDoneCount = WorkOrder::whereHas('purchaseOrder', function($query) use ($userId) {
+                        $query->where('employee_id', $userId);
+                    })
+                    ->whereYear('start_date', $currentYear)
+                    ->whereMonth('start_date', $currentMonth)
+                    ->where('current_status', WorkOrderController::DONE)
+                    ->count();
                 $doCount = DeliveryOrder::whereHas('purchaseOrder', function($query) use ($userId) {
                         $query->where('employee_id', $userId);
                     })
                     ->whereYear('delivery_order_date', $currentYear)
                     ->whereMonth('delivery_order_date', $currentMonth)
+                    ->count();
+                $doDoneCount = DeliveryOrder::whereHas('purchaseOrder', function($query) use ($userId) {
+                        $query->where('employee_id', $userId);
+                    })
+                    ->whereYear('delivery_order_date', $currentYear)
+                    ->whereMonth('delivery_order_date', $currentMonth)
+                    ->where('current_status', DeliveryOrderController::DONE)
                     ->count();
             }
 
@@ -119,9 +138,18 @@ class SummaryController extends Controller
                         'review' => $quotationReviewCount,
                         'reject' => $quotationRejectCount
                     ],
-                    'purchase_order' => $poCount,
-                    'work_order' => $woCount,
-                    'delivery_order' => $doCount
+                    'purchase_order' => [
+                        'total' => $poCount,
+                        'done' => $poDoneCount
+                    ],
+                    'work_order' => [
+                        'total' => $woCount,
+                        'done' => $woDoneCount
+                    ],
+                    'delivery_order' => [
+                        'total' => $doCount,
+                        'done' => $doDoneCount
+                    ]
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -218,9 +246,9 @@ class SummaryController extends Controller
                 'message' => 'List of all quotations retrieved successfully',
                 'data' => [
                     'purchase_order' => [
-                        'waitForPayment' => $purchaseOrderWaitForPayment,
-                        'dpPaid' => $purchaseOrderDpPaid,
-                        'fullPaid' => $purchaseOrderFullPaid
+                        'wait_for_payment' => $purchaseOrderWaitForPayment,
+                        'dp_paid' => $purchaseOrderDpPaid,
+                        'full_paid' => $purchaseOrderFullPaid
                     ]
                 ]
             ], Response::HTTP_OK);
