@@ -11,7 +11,7 @@ class QuotationSeeder extends Seeder
 {
     public function run(): void
     {
-        Quotation::factory(30)
+        Quotation::factory(40)
             ->has(DetailQuotation::factory()->count(5)->state(function (array $attributes, Quotation $quotation) {
                 return [
                     'sparepart_id' => Sparepart::inRandomOrder()->first()->id,

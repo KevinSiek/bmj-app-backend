@@ -30,7 +30,7 @@ class QuotationFactory extends Factory
             'customer_id' => Customer::factory(),
             'project' => $project,
             'type' => $this->faker->sentence,
-            'date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
+            'date' => $this->faker->dateTimeBetween('2025-08-01', '2025-08-31'),
             'amount' => $this->faker->randomFloat(2, 1000, 10000),
             'discount' => $this->faker->randomFloat(2, 100, 500),
             'subtotal' => $this->faker->randomFloat(2, 5000, 9000),
