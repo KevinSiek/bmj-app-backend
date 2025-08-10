@@ -128,7 +128,8 @@ class QuotationController extends Controller
                 ->first();
             $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
             $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
-            $quotationNumber = "{$nextLatestId}/QUOT/BMJ-MEGAH/{$branchCode}/{$currentMonth}/{$currentYear}";
+            $userId = $user->id;
+            $quotationNumber = "QUOT/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$currentMonth}/{$userId}/{$currentYear}";
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
@@ -212,7 +213,7 @@ class QuotationController extends Controller
                     // If unit price that employee give different with official unit price, then this quotation need review
                     $sparepartDbData = Sparepart::find($sparepartId);
                     $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
-                    if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
+                    if ($sparepartUnitPrice != $sparepartDbUnitPriceSell && $sparepartUnitPrice < $sparepartDbUnitPriceSell) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
                         $quotation->update($quotationData);
@@ -717,19 +718,41 @@ class QuotationController extends Controller
             $month = $request->query('month');
             $year = $request->query('year');
 
-            $quoatations = $this->getAccessedQuotation($request);
-            $quotationsQuery = $quoatations->where(function ($query) use ($q) {
-                $query->where('project', 'like', "%$q%")
-                    ->orWhere('quotation_number', 'like', "%$q%")
-                    ->orWhere('type', 'like', "%$q%");
-            });
+            // Get all quotation numbers first to ensure we capture all versions
+            $quotationNumbers = Quotation::select('quotation_number')
+                ->distinct()
+                ->where(function ($query) use ($q) {
+                    if ($q) {
+                        $query->where('project', 'like', "%$q%")
+                            ->orWhere('quotation_number', 'like', "%$q%")
+                            ->orWhere('type', 'like', "%$q%");
+                    }
+                })
+                ->where(function ($query) {
+                    $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
+                        $subQuery->where('version', '>', 1);
+                    })->orWhereDoesntHave('purchaseOrder');
+                });
 
-            // Filter quotations that have purchaseOrder with version greater than 1
-            $quotationsQuery->where(function ($query) {
-                $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
-                    $subQuery->where('version', '>', 1);
-                })->orWhereDoesntHave('purchaseOrder');
-            });
+            if ($year) {
+                $quotationNumbers->whereYear('date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $quotationNumbers->whereMonth('date', $monthNumber);
+                }
+            }
+
+            // Paginate the distinct quotation numbers
+            $paginatedQuotationNumbers = $quotationNumbers->paginate(20);
+
+            // Get all quotations for the paginated quotation numbers
+            $quotationsQuery = $this->getAccessedQuotation($request)
+                ->whereIn('quotation_number', $paginatedQuotationNumbers->pluck('quotation_number'))
+                ->where(function ($query) {
+                    $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
+                        $subQuery->where('version', '>', 1);
+                    })->orWhereDoesntHave('purchaseOrder');
+                });
 
             if ($year) {
                 $quotationsQuery->whereYear('date', $year);
@@ -739,15 +762,16 @@ class QuotationController extends Controller
                 }
             }
 
-            $paginated = $quotationsQuery
+            $quotations = $quotationsQuery
                 ->orderBy('date', 'DESC')
                 ->orderBy('version', 'ASC')
-                ->paginate(20);
+                ->get();
 
-            $grouped = collect($paginated->items())->map(function ($quotation) {
+            $grouped = $quotations->map(function ($quotation) {
                 $customer = $quotation->customer;
                 $spareParts = [];
                 $services = [];
+
                 if ($quotation && $quotation->detailQuotations) {
                     foreach ($quotation->detailQuotations as $detail) {
                         if ($detail->sparepart_id) {
@@ -772,7 +796,6 @@ class QuotationController extends Controller
                     }
                 }
 
-                // Get the latest discount and PPN from General model
                 $general = General::latest()->first();
                 $discount = $general ? $general->discount : 0;
                 $ppn = $general ? $general->ppn : 0;
@@ -811,23 +834,18 @@ class QuotationController extends Controller
                     'spareparts' => $spareParts,
                     'services' => $services
                 ];
-            })->groupBy('quotation_number')->map(function ($group, $quotationNumber) {
-                return [
-                    'quotation_number' => $quotationNumber,
-                    'versions' => $group->values() // reset index for frontend
-                ];
-            })->values();
+            });
 
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
                 'data' => [
                     'data' => $grouped,
-                    'from' => $paginated->firstItem(),
-                    'to' => $paginated->lastItem(),
-                    'total' => $paginated->total(),
-                    'per_page' => $paginated->perPage(),
-                    'current_page' => $paginated->currentPage(),
-                    'last_page' => $paginated->lastPage(),
+                    'from' => $paginatedQuotationNumbers->firstItem(),
+                    'to' => $paginatedQuotationNumbers->lastItem(),
+                    'total' => $paginatedQuotationNumbers->total(),
+                    'per_page' => $paginatedQuotationNumbers->perPage(),
+                    'current_page' => $paginatedQuotationNumbers->currentPage(),
+                    'last_page' => $paginatedQuotationNumbers->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -838,8 +856,13 @@ class QuotationController extends Controller
     public function moveToPo(Request $request, $slug)
     {
         DB::beginTransaction();
-
         try {
+            // Validate the there is notes
+            $request->validate([
+                'notes' => 'required|string',
+            ]);
+            $note = $request->input('notes');
+
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->first();
 
@@ -869,7 +892,7 @@ class QuotationController extends Controller
 
             if (!$isNeedReview || !$isApproved) {
                 return response()->json([
-                    'message' => 'Quotation needs to be reviewed and approved before moving to purchase order'
+                    'message' => 'Quotation needs to be reviewed or approved before moving to purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -878,33 +901,33 @@ class QuotationController extends Controller
 
             // Generate purchase order number from quotation number
             try {
-                // Expected quotation_number format: 033/QUOT/BMJ-MEGAH/SMG/07/2025
+                // Expected quotation_number format: QUOT/033/BMJ-MEGAH/SMG/1/07/2025
                 $parts = explode('/', $quotation->quotation_number);
-                $poNumber = $parts[0]; // e.g., 033
+                $poNumber = $parts[1]; // e.g., 033
                 $branch = $parts[3]; // e.g., SMG or JKT
-                $month = $parts[4]; // e.g., 07
-                $year = substr($parts[5], -2); // e.g., 25 from 2025
-                $romanMonth = $this->getRomanMonth((int)$month); // Convert to Roman numeral
-                $purchaseOrderNumber = "{$poNumber}/PO-IN/BMJ-MEGAH/{$branch}/{$romanMonth}/{$year}";
+                $user = $request->user();
+                $userId = $user->id;
+                $currentMonth = now()->month; // e.g., 7 for July
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
+                $year = now()->format('y'); // e.g., 25 for 2025
+                $purchaseOrderNumber = "PO-IN/{$poNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PO number with current month and year
                 $currentMonth = Carbon::now()->format('m'); // Two-digit month
                 $currentYear = Carbon::now()->format('Y'); // Four-digit year
-                $latestQuotation = $this->getAccessedQuotation($request)
-                    ->whereMonth('created_at', $currentMonth)
-                    ->whereYear('created_at', $currentYear)
-                    ->latest('id')
+                $latestQuotation = Quotation::latest('id')
                     ->first();
                 $lastestPo = $latestQuotation ? $latestQuotation->purchaseOrder : null;
                 $nextLatestId = $lastestPo ? $lastestPo->id + 1 : 1;
 
                 // Get user branch
                 $user = $request->user();
+                $userId = $user->id;
                 $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $purchaseOrderNumber = "{$nextLatestId}/PO-IN/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}";
+                $purchaseOrderNumber = "PO-IN/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             }
 
             // Create PurchaseOrder with version 1
@@ -913,7 +936,7 @@ class QuotationController extends Controller
                 'purchase_order_number' => $purchaseOrderNumber,
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
-                'notes' => $quotation->notes,
+                'notes' => $note,
                 'current_status' => PurchaseOrderController::PREPARE,
                 'version' => 1
             ]);

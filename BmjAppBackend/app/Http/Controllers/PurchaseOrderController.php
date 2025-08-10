@@ -25,6 +25,7 @@ class PurchaseOrderController extends Controller
     const DONE = "Done";
     const RETURNED = "Returned";
     const PAID = "Paid";
+    const REJECTED = "Rejected";
 
     protected $quotationController;
     public function __construct(QuotationController $quotationController)
@@ -73,6 +74,7 @@ class PurchaseOrderController extends Controller
 
             $formattedPurchaseOrder = [
                 'id' => (string) ($purchaseOrder->id ?? ''),
+                'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
@@ -125,19 +127,19 @@ class PurchaseOrderController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $query = $this->getAccessedPurchaseOrder($request)
-                ->with(['quotation.customer', 'quotation.detailQuotations.sparepart', 'proformaInvoice', 'employee'])
-                ->orderBy('version', 'asc');
-
             // Get query parameters
             $q = $request->query('search');
             $month = $request->query('month');
             $year = $request->query('year');
 
+            // Get all purchaseOrder numbers first to ensure we capture all versions
+            $purchaseOrderNumbers = PurchaseOrder::select('purchase_order_number')
+                ->distinct();
+
             // Apply search term filter if 'q' is provided
             if ($q) {
-                $query->where(function ($query) use ($q) {
-                    $query->where('purchase_order_number', 'like', '%' . $q . '%')
+                $purchaseOrderNumbers->where(function ($purchaseOrderNumbers) use ($q) {
+                    $purchaseOrderNumbers->where('purchase_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function ($qry) use ($q) {
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
@@ -152,92 +154,134 @@ class PurchaseOrderController extends Controller
 
             // Apply year and month filter
             if ($year) {
-                $query->whereYear('purchase_order_date', $year);
+                $purchaseOrderNumbers->whereYear('purchase_order_date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $query->whereMonth('purchase_order_date', $monthNumber);
+                    $purchaseOrderNumbers->whereMonth('purchase_order_date', $monthNumber);
                 }
             }
 
-            // Paginate the results
-            $purchaseOrders = $query->orderBy('purchase_order_date', 'DESC')
-                ->paginate(20)->through(function ($po) {
-                    $quotation = $po->quotation;
-                    $customer = $quotation ? $quotation->customer : null;
-                    $proformaInvoice = $po->proformaInvoice ? $po->proformaInvoice : null;
+            // Paginate the distinct quotation numbers
+            $paginatedPurchaseOrders = $purchaseOrderNumbers->paginate(20);
 
-                    $spareParts = [];
-                    $services = [];
-                    if ($quotation && $quotation->detailQuotations) {
-                        foreach ($quotation->detailQuotations as $detail) {
-                            if ($detail->sparepart_id) {
-                                $sparepart = $detail->sparepart;
-                                $spareParts[] = [
-                                    'sparepart_id' => $sparepart ? $sparepart->id : '',
-                                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                                    'quantity' => $detail->quantity ?? 0,
-                                    'unit_price_sell' => $detail->unit_price ?? 0,
-                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                                ];
-                            } else {
-                                $services[] = [
-                                    'service' => $detail->service ?? '',
-                                    'unit_price_sell' => $detail->unit_price ?? 0,
-                                    'quantity' => $detail->quantity ?? 0,
-                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
-                                ];
-                            }
+            $queryTwo = $this->getAccessedPurchaseOrder($request)
+                ->whereIn('purchase_order_number', $paginatedPurchaseOrders->pluck('purchase_order_number'))
+                ->orderBy('version', 'asc');
+
+            // Aply q
+            if ($q) {
+                $queryTwo->where(function ($queryTwo) use ($q) {
+                    $queryTwo->where('purchase_order_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('quotation', function ($qry) use ($q) {
+                            $qry->where('quotation_number', 'like', '%' . $q . '%')
+                                ->orWhere('project', 'like', '%' . $q . '%')
+                                ->orWhere('type', 'like', '%' . $q . '%')
+                                ->orWhere('current_status', 'like', '%' . $q . '%');
+                        })
+                        ->orWhereHas('quotation.customer', function ($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
+                });
+            }
+
+            // Apply year and month filter
+            if ($year) {
+                $queryTwo->whereYear('purchase_order_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $queryTwo->whereMonth('purchase_order_date', $monthNumber);
+                }
+            }
+
+            // Return like API contract
+            $purchaseOrders =  $queryTwo->orderBy('purchase_order_date', 'DESC')
+                ->get();
+            $grouped = $purchaseOrders->map(function ($po) {
+                $quotation = $po->quotation;
+                $customer = $quotation ? $quotation->customer : null;
+                $proformaInvoice = $po->proformaInvoice ? $po->proformaInvoice : null;
+
+                $spareParts = [];
+                $services = [];
+                if ($quotation && $quotation->detailQuotations) {
+                    foreach ($quotation->detailQuotations as $detail) {
+                        if ($detail->sparepart_id) {
+                            $sparepart = $detail->sparepart;
+                            $spareParts[] = [
+                                'sparepart_id' => $sparepart ? $sparepart->id : '',
+                                'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
+                                'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                                'quantity' => $detail->quantity ?? 0,
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
+                                'stock' => $detail->is_indent ? 'indent' : 'available'
+                            ];
+                        } else {
+                            $services[] = [
+                                'service' => $detail->service ?? '',
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'quantity' => $detail->quantity ?? 0,
+                                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                            ];
                         }
                     }
+                }
 
-                    return [
-                        'id' => (string) ($po->id ?? ''),
-                        'purchase_order' => [
-                            'purchase_order_number' => $po->purchase_order_number ?? '',
-                            'purchase_order_date' => $po->purchase_order_date ?? '',
-                            'type' => $quotation ? $quotation->type : ''
-                        ],
-                        'proforma_invoice' => [
-                            'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
-                            'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : '',
-                            'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : '',
-                            'is_full_paid' => $proformaInvoice ? $proformaInvoice->is_full_paid : ''
-                        ],
-                        'customer' => [
-                            'company_name' => $customer ? $customer->company_name : '',
-                            'address' => $customer ? $customer->address : '',
-                            'city' => $customer ? $customer->city : '',
-                            'province' => $customer ? $customer->province : '',
-                            'office' => $customer ? $customer->office : '',
-                            'urban' => $customer ? $customer->urban : '',
-                            'subdistrict' => $customer ? $customer->subdistrict : '',
-                            'postal_code' => $customer ? $customer->postal_code : ''
-                        ],
-                        'price' => [
-                            'amount' => $quotation ? $quotation->amount : 0,
-                            'discount' => $quotation ? $quotation->discount : 0,
-                            'subtotal' => $quotation ? $quotation->subtotal : 0,
-                            'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
-                            'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
-                            'ppn' => $quotation ? $quotation->ppn : 0,
-                            'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
-                        ],
-                        'notes' => $po->notes ?? '',
-                        'current_status' => $po->current_status ?? '',
-                        'status' => $quotation ? $quotation->status : [],
+                return [
+                    'id' => (string) ($po->id ?? ''),
+                    'purchase_order_number' => $po->purchase_order_number ?? '',
+                    'purchase_order' => [
+                        'purchase_order_number' => $po->purchase_order_number ?? '',
+                        'purchase_order_date' => $po->purchase_order_date ?? '',
+                        'type' => $quotation ? $quotation->type : ''
+                    ],
+                    'proforma_invoice' => [
+                        'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
+                        'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : '',
+                        'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : '',
+                        'is_full_paid' => $proformaInvoice ? $proformaInvoice->is_full_paid : ''
+                    ],
+                    'customer' => [
+                        'company_name' => $customer ? $customer->company_name : '',
+                        'address' => $customer ? $customer->address : '',
+                        'city' => $customer ? $customer->city : '',
+                        'province' => $customer ? $customer->province : '',
+                        'office' => $customer ? $customer->office : '',
+                        'urban' => $customer ? $customer->urban : '',
+                        'subdistrict' => $customer ? $customer->subdistrict : '',
+                        'postal_code' => $customer ? $customer->postal_code : ''
+                    ],
+                    'price' => [
+                        'amount' => $quotation ? $quotation->amount : 0,
+                        'discount' => $quotation ? $quotation->discount : 0,
+                        'subtotal' => $quotation ? $quotation->subtotal : 0,
                         'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
-                        'quotation_number' => $quotation ? $quotation->quotation_number : '',
-                        'version' => $po->version,
-                        'spareparts' => $spareParts,
-                        'services' => $services
-                    ];
-                });
+                        'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
+                        'ppn' => $quotation ? $quotation->ppn : 0,
+                        'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
+                    ],
+                    'notes' => $po->notes ?? '',
+                    'current_status' => $po->current_status ?? '',
+                    'status' => $quotation ? $quotation->status : [],
+                    'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                    'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                    'version' => $po->version,
+                    'spareparts' => $spareParts,
+                    'services' => $services
+                ];
+            });
 
             return response()->json([
                 'message' => 'List of purchase orders retrieved successfully',
-                'data' => $purchaseOrders,
+                'data' => [
+                    'data' => $grouped,
+                    'from' => $paginatedPurchaseOrders->firstItem(),
+                    'to' => $paginatedPurchaseOrders->lastItem(),
+                    'total' => $paginatedPurchaseOrders->total(),
+                    'per_page' => $paginatedPurchaseOrders->perPage(),
+                    'current_page' => $paginatedPurchaseOrders->currentPage(),
+                    'last_page' => $paginatedPurchaseOrders->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -274,6 +318,12 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
 
         try {
+            // Validate the there is notes for downPayment
+            // $request->validate([
+            //     'notes' => 'required|string',
+            // ]);
+            $notes = 'test dp';
+
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->where('id', $id)
                 ->orderBy('version', 'asc')
@@ -291,32 +341,30 @@ class PurchaseOrderController extends Controller
 
             // Generate proforma invoice number from purchase order number
             try {
-                // Expected purchase_order_number format: PO-IN/033/V/24
+                // Expected purchase_order_number format: PO-IN/001/BMJ-MEGAH/SMG/1/V/25
                 $parts = explode('/', $purchaseOrder->purchase_order_number);
-                $piNumber = $parts[0]; // e.g., 033
+                $piNumber = $parts[1]; // e.g., 033
                 $branch = $parts[3]; // e.g., V
-                $romanMonth = $parts[4]; // e.g., 24
-                $year = $parts[5]; // e.g., 24
-                $proformaInvoiceNumber = "PI-IN/{$piNumber}/{$romanMonth}/{$branch}/{$year}";
+                $romanMonth = $parts[5]; // e.g., 24
+                $year = $parts[6]; // e.g., 24
+                $user = $request->user();
+                $userId = $user->id;
+                $proformaInvoiceNumber = "PI-IN/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
-                $currentMonth = Carbon::now()->format('m'); // Two-digit month
-                $currentYear = Carbon::now()->format('Y'); // Four-digit year
-                $latestPurchaseOrder = $this->getAccessedPurchaseOrder($request)
-                    ->whereMonth('created_at', $currentMonth)
-                    ->whereYear('created_at', $currentYear)
-                    ->latest('id')
+                $latestPurchaseOrder = PurchaseOrder::latest('id')
                     ->first();
                 $lastestPi = $latestPurchaseOrder ? $latestPurchaseOrder->proformaInvoice : null;
                 $nextLastestPi = $lastestPi ? $lastestPi->id + 1 : 1;
 
                 // Get user branch
                 $user = $request->user();
+                $userId = $user->id;
                 $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $proformaInvoiceNumber = "PI-IN/{$nextLastestPi}/{$romanMonth}/{$branchCode}/{$year}";
+                $proformaInvoiceNumber = "PI-IN/{$nextLastestPi}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             }
 
             $proformaInvoice = ProformaInvoice::create([
@@ -324,6 +372,7 @@ class PurchaseOrderController extends Controller
                 'proforma_invoice_number' => $proformaInvoiceNumber,
                 'proforma_invoice_date' => now(),
                 'employee_id' => $purchaseOrder->employee_id,
+                'notes' => $notes,
                 'is_dp_paid' => false,
                 'is_full_paid' => false,
             ]);
@@ -620,6 +669,56 @@ class PurchaseOrderController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->handleError($th, 'Failed to release purchase order');
+        }
+    }
+
+    public function decline(Request $request, $id)
+    {
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Retrieve the quotation
+            $purchaseOrders = $this->getAccessedPurchaseOrder($request);
+            $purchaseOrder = $purchaseOrders->find($id);
+            $pi = $purchaseOrder->proformaInvoice->first();
+
+            if ($pi) {
+                return response()->json([
+                    'message' => 'Can\'t decline, purchase order already processed.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            if (!$purchaseOrder) {
+                return $this->handleNotFound('Purchase order not found');
+            }
+
+            // Only allow director decline purchase order
+            $user = $request->user();
+            $role = $user->role;
+            if ($role != 'Director') {
+                return response()->json([
+                    'message' => 'You are not authorized to decline this purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Change purchase order state
+            $purchaseOrder->current_status = PurchaseOrderController::REJECTED;
+            $purchaseOrder->save();
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase order status decline successfully',
+                'data' => $purchaseOrder
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            // Roll back the transaction if an error occurs
+            DB::rollBack();
+
+            // Handle errors
+            return $this->handleError($th, 'Failed to decline purchase order');
         }
     }
 

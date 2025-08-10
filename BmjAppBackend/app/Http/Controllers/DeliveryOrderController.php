@@ -72,6 +72,7 @@ class DeliveryOrderController extends Controller
                 'postal_code' => $customer ? $customer->postal_code : ''
             ],
             'notes' => $deliveryOrder->notes ?? '',
+            'status' => $quotation->status ?? [],
             'spareparts' => $spareParts
         ];
     }

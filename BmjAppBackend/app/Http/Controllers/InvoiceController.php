@@ -102,12 +102,9 @@ class InvoiceController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $query = $this->getAccessedInvoice($request)
-                ->with([
-                    'proformaInvoice.purchaseOrder.quotation.customer',
-                    'proformaInvoice.purchaseOrder.quotation.detailQuotations.sparepart',
-                    'employee'
-                ]);
+            // Get all invoice numbers first to ensure we capture all versions
+            $invoiceNumbers = Invoice::select('invoice_number')
+                ->distinct();
 
             // Get query parameters
             $q = $request->query('search');
@@ -116,8 +113,8 @@ class InvoiceController extends Controller
 
             // Apply search term filter if 'q' is provided
             if ($q) {
-                $query->where(function ($query) use ($q) {
-                    $query->where('invoice_number', 'like', '%' . $q . '%')
+                $invoiceNumbers->where(function ($invoiceNumbers) use ($q) {
+                    $invoiceNumbers->where('invoice_number', 'like', '%' . $q . '%')
                         ->orWhereHas('proformaInvoice.purchaseOrder.quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
@@ -126,89 +123,106 @@ class InvoiceController extends Controller
 
             // Apply year and month filter
             if ($year) {
-                $query->whereYear('invoice_date', $year);
+                $invoiceNumbers->whereYear('invoice_date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $query->whereMonth('invoice_date', $monthNumber);
+                    $invoiceNumbers->whereMonth('invoice_date', $monthNumber);
                 }
             }
 
-            // Paginate the results
-            $invoices = $query->orderBy('invoice_date', 'desc')
-                ->paginate(20)->through(function ($invoice) {
-                    $proformaInvoice = $invoice->proformaInvoice;
-                    $purchaseOrder = $proformaInvoice->purchaseOrder;
-                    $quotation = $purchaseOrder->quotation;
-                    $customer = $quotation->customer ?? null;
+            // Paginate the distinct quotation numbers
+            $paginatedInvoiceNumbers = $invoiceNumbers->paginate(20);
 
-                    $spareParts = [];
-                    $services = [];
-                    if ($quotation && $quotation->detailQuotations) {
-                        foreach ($quotation->detailQuotations as $detail) {
-                            if ($detail->sparepart_id) {
-                                $sparepart = $detail->sparepart;
-                                $spareParts[] = [
-                                    'sparepart_id' => $sparepart->id ?? '',
-                                    'sparepart_name' => $sparepart->sparepart_name ?? '',
-                                    'sparepart_number' => $sparepart->part_number ?? '',
-                                    'quantity' => $detail->quantity ?? 0,
-                                    'unit_price_sell' => $detail->unit_price ?? 0,
-                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
-                                ];
-                            } else {
-                                $services[] = [
-                                    'service' => $detail->service ?? '',
-                                    'unit_price_sell' => $detail->unit_price ?? 0,
-                                    'quantity' => $detail->quantity ?? 0,
-                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
-                                ];
-                            }
+            // Get all quotations for the paginated quotation numbers
+            $query = $this->getAccessedInvoice($request)
+                ->whereIn('invoice_number', $paginatedInvoiceNumbers->pluck('invoice_number'));
+
+            // Return like API contract
+            $invoiceOrders =  $query->orderBy('invoice_date', 'DESC')
+                ->get();
+            // Return like API contract
+            $invoices = $invoiceOrders->map(function ($invoice) {
+                $proformaInvoice = $invoice->proformaInvoice;
+                $purchaseOrder = $proformaInvoice->purchaseOrder;
+                $quotation = $purchaseOrder->quotation;
+                $customer = $quotation->customer ?? null;
+
+                $spareParts = [];
+                $services = [];
+                if ($quotation && $quotation->detailQuotations) {
+                    foreach ($quotation->detailQuotations as $detail) {
+                        if ($detail->sparepart_id) {
+                            $sparepart = $detail->sparepart;
+                            $spareParts[] = [
+                                'sparepart_id' => $sparepart->id ?? '',
+                                'sparepart_name' => $sparepart->sparepart_name ?? '',
+                                'sparepart_number' => $sparepart->part_number ?? '',
+                                'quantity' => $detail->quantity ?? 0,
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                            ];
+                        } else {
+                            $services[] = [
+                                'service' => $detail->service ?? '',
+                                'unit_price_sell' => $detail->unit_price ?? 0,
+                                'quantity' => $detail->quantity ?? 0,
+                                'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
+                            ];
                         }
                     }
+                }
 
-                    return [
-                        'id' => (string) $invoice->id,
-                        'invoice' => [
-                            'invoice_number' => $invoice->invoice_number,
-                            'date' => $invoice->invoice_date,
-                            'term_of_payment' => $invoice->term_of_payment ?? '',
-                            'subtotal' => $quotation->subtotal ?? 0,
-                            'grand_total' => $quotation->grand_total ?? 0,
-                        ],
-                        'purchase_order' => [
-                            'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
-                            'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
-                            'payment_due' => $purchaseOrder->payment_due,
-                            'discount' => $quotation ? $quotation->discount : ''
-                        ],
-                        'customer' => [
-                            'company_name' => $customer->company_name ?? '',
-                            'address' => $customer->address ?? '',
-                            'city' => $customer->city ?? '',
-                            'province' => $customer->province ?? '',
-                            'office' => $customer->office ?? '',
-                            'urban' => $customer->urban ?? '',
-                            'subdistrict' => $customer->subdistrict ?? '',
-                            'postal_code' => $customer->postal_code ?? ''
-                        ],
-                        'price' => [
-                            'subtotal' => $quotation->subtotal ?? 0,
-                            'ppn' => $quotation->ppn ?? 0,
-                            'grand_total' => $quotation->grand_total ?? 0,
-                        ],
-                        'status' => $quotation->status ?? [],
-                        'quotation_number' => $quotation ? $quotation->quotation_number : '',
-                        'version' => $purchaseOrder->version,
-                        'notes' => $quotation->notes ?? '',
-                        'spareparts' => $spareParts,
-                        'services' => $services,
-                        'type' => $quotation->type,
-                    ];
-                });
+                return [
+                    'id' => (string) $invoice->id,
+                    'invoice' => [
+                        'invoice_number' => $invoice->invoice_number,
+                        'date' => $invoice->invoice_date,
+                        'term_of_payment' => $invoice->term_of_payment ?? '',
+                        'subtotal' => $quotation->subtotal ?? 0,
+                        'grand_total' => $quotation->grand_total ?? 0,
+                    ],
+                    'purchase_order' => [
+                        'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                        'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                        'payment_due' => $purchaseOrder->payment_due,
+                        'discount' => $quotation ? $quotation->discount : ''
+                    ],
+                    'customer' => [
+                        'company_name' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postal_code' => $customer->postal_code ?? ''
+                    ],
+                    'price' => [
+                        'subtotal' => $quotation->subtotal ?? 0,
+                        'ppn' => $quotation->ppn ?? 0,
+                        'grand_total' => $quotation->grand_total ?? 0,
+                    ],
+                    'status' => $quotation->status ?? [],
+                    'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                    'version' => $purchaseOrder->version,
+                    'notes' => $quotation->notes ?? '',
+                    'spareparts' => $spareParts,
+                    'services' => $services,
+                    'type' => $quotation->type,
+                ];
+            });
 
             return response()->json([
                 'message' => 'List of invoices retrieved successfully',
-                'data' => $invoices,
+                'data' => [
+                    'data' => $invoices,
+                    'from' => $paginatedInvoiceNumbers->firstItem(),
+                    'to' => $paginatedInvoiceNumbers->lastItem(),
+                    'total' => $paginatedInvoiceNumbers->total(),
+                    'per_page' => $paginatedInvoiceNumbers->perPage(),
+                    'current_page' => $paginatedInvoiceNumbers->currentPage(),
+                    'last_page' => $paginatedInvoiceNumbers->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

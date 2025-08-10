@@ -24,12 +24,9 @@ class ProformaInvoiceController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $query = $this->getAccessedProformaInvoice($request)
-                ->with([
-                    'purchaseOrder.quotation.customer',
-                    'purchaseOrder.quotation.detailQuotations.sparepart',
-                    'employee'
-                ]);
+            // Get all invoice numbers first to ensure we capture all versions
+            $proformaInvoiceNumbers = ProformaInvoice::select('proforma_invoice_number')
+                ->distinct();
 
             // Get query parameters
             $q = $request->query('search');
@@ -38,8 +35,8 @@ class ProformaInvoiceController extends Controller
 
             // Apply search term filter if 'q' is provided
             if ($q) {
-                $query->where(function ($query) use ($q) {
-                    $query->where('proforma_invoice_number', 'like', '%' . $q . '%')
+                $proformaInvoiceNumbers->where(function ($proformaInvoiceNumbers) use ($q) {
+                    $proformaInvoiceNumbers->where('proforma_invoice_number', 'like', '%' . $q . '%')
                         ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
                             $qry->where('company_name', 'like', '%' . $q . '%');
                         });
@@ -48,86 +45,106 @@ class ProformaInvoiceController extends Controller
 
             // Apply year and month filter
             if ($year) {
-                $query->whereYear('proforma_invoice_date', $year);
+                $proformaInvoiceNumbers->whereYear('proforma_invoice_date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $query->whereMonth('proforma_invoice_date', $monthNumber);
+                    $proformaInvoiceNumbers->whereMonth('proforma_invoice_date', $monthNumber);
                 }
             }
 
-            // Paginate the results
-            $proformaInvoices = $query->orderBy('proforma_invoice_date', 'desc')
-                ->paginate(20)->through(function ($pi) {
-                    $purchaseOrder = $pi->purchaseOrder;
-                    $quotation = $purchaseOrder->quotation;
-                    $customer = $quotation->customer;
-                    $detailQuotations = $quotation->detailQuotations;
+            // Paginate the distinct quotation numbers
+            $paginatedProformaInvoiceNumbers = $proformaInvoiceNumbers->paginate(20);
 
-                    $spareParts = [];
-                    $services = [];
-                    foreach ($detailQuotations as $detail) {
-                        if ($detail->sparepart_id) {
-                            $sparepart = $detail->sparepart;
-                            $spareParts[] = [
-                                'sparepart_id' => $sparepart->id ?? '',
-                                'sparepart_name' => $sparepart->sparepart_name ?? '',
-                                'sparepart_number' => $sparepart->part_number ?? '',
-                                'quantity' => $detail->quantity ?? 0,
-                                'unit_price_sell' => $detail->unit_price ?? 0,
-                                'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0),
-                                'stock' => $detail->is_indent ? 'indent' : 'available'
-                            ];
-                        } else {
-                            $services[] = [
-                                'service' => $detail->service ?? '',
-                                'unit_price_sell' => $detail->unit_price ?? 0,
-                                'quantity' => $detail->quantity ?? 0,
-                                'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0)
-                            ];
-                        }
+
+            // Get all quotations for the paginated quotation numbers
+            $query = $this->getAccessedProformaInvoice($request)
+                ->whereIn('proforma_invoice_number', $paginatedProformaInvoiceNumbers->pluck('proforma_invoice_number'));
+
+            // Retrieve paginated proforma invoices
+            $proformaInvoice = $query
+                ->orderBy('proforma_invoice_date', 'desc')
+                ->paginate($request->input('per_page', 15)); // Default to 15 items per page
+
+            // Return like API format
+            $proformaInvoices = $proformaInvoice->map(function ($pi) {
+                $purchaseOrder = $pi->purchaseOrder;
+                $quotation = $purchaseOrder->quotation;
+                $customer = $quotation->customer;
+                $detailQuotations = $quotation->detailQuotations;
+
+                $spareParts = [];
+                $services = [];
+                foreach ($detailQuotations as $detail) {
+                    if ($detail->sparepart_id) {
+                        $sparepart = $detail->sparepart;
+                        $spareParts[] = [
+                            'sparepart_id' => $sparepart->id ?? '',
+                            'sparepart_name' => $sparepart->sparepart_name ?? '',
+                            'sparepart_number' => $sparepart->part_number ?? '',
+                            'quantity' => $detail->quantity ?? 0,
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0),
+                            'stock' => $detail->is_indent ? 'indent' : 'available'
+                        ];
+                    } else {
+                        $services[] = [
+                            'service' => $detail->service ?? '',
+                            'unit_price_sell' => $detail->unit_price ?? 0,
+                            'quantity' => $detail->quantity ?? 0,
+                            'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0)
+                        ];
                     }
+                }
 
-                    return [
-                        'id' => (string) $pi->id,
-                        'project' => [
-                            'proforma_invoice_number' => $pi->proforma_invoice_number,
-                            'type' => $quotation->type ?? '',
-                            'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
-                            'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
-                        ],
-                        'customer' => [
-                            'company_name' => $customer->company_name ?? '',
-                            'address' => $customer->address ?? '',
-                            'city' => $customer->city ?? '',
-                            'province' => $customer->province ?? '',
-                            'office' => $customer->office ?? '',
-                            'urban' => $customer->urban ?? '',
-                            'subdistrict' => $customer->subdistrict ?? '',
-                            'postal_code' => $customer->postal_code ?? '',
-                        ],
-                        'price' => [
-                            'amount' => $quotation->amount ?? 0,
-                            'discount' => $quotation->discount ?? 0,
-                            'subtotal' => $quotation->subtotal ?? 0,
-                            'down_payment' => $pi->down_payment ?? 0,
-                            'total' => $quotation->grand_total ?? 0,
-                            'ppn' => $quotation->ppn ?? 0,
-                            'total_amount' => $quotation->total_amount ?? 0,
-                        ],
+                return [
+                    'id' => (string) $pi->id,
+                    'project' => [
+                        'proforma_invoice_number' => $pi->proforma_invoice_number,
+                        'type' => $quotation->type ?? '',
+                        'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                        'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                    ],
+                    'customer' => [
+                        'company_name' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postal_code' => $customer->postal_code ?? '',
+                    ],
+                    'price' => [
+                        'amount' => $quotation->amount ?? 0,
+                        'discount' => $quotation->discount ?? 0,
+                        'subtotal' => $quotation->subtotal ?? 0,
                         'down_payment' => $pi->down_payment ?? 0,
-                        'status' => $quotation->status ?? [],
-                        'quotation_number' => $quotation ? $quotation->quotation_number : '',
-                        'version' => $purchaseOrder->version,
-                        'notes' => $quotation->notes ?? '',
-                        'date' => $pi->created_at,
-                        'spareparts' => $spareParts,
-                        'services' => $services
-                    ];
-                });
+                        'total' => $quotation->grand_total ?? 0,
+                        'ppn' => $quotation->ppn ?? 0,
+                        'total_amount' => $quotation->total_amount ?? 0,
+                    ],
+                    'down_payment' => $pi->down_payment ?? 0,
+                    'status' => $quotation->status ?? [],
+                    'quotation_number' => $quotation ? $quotation->quotation_number : '',
+                    'version' => $purchaseOrder->version,
+                    'notes' => $pi->notes ?? '',
+                    'date' => $pi->created_at,
+                    'spareparts' => $spareParts,
+                    'services' => $services
+                ];
+            });
 
             return response()->json([
                 'message' => 'List of proforma invoices retrieved successfully',
-                'data' => $proformaInvoices,
+                'data' => [
+                    'data' => $proformaInvoices,
+                    'from' => $proformaInvoice->firstItem(),
+                    'to' => $proformaInvoice->lastItem(),
+                    'total' => $proformaInvoice->total(),
+                    'per_page' => $proformaInvoice->perPage(),
+                    'current_page' => $proformaInvoice->currentPage(),
+                    'last_page' => $proformaInvoice->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);
@@ -204,7 +221,7 @@ class ProformaInvoiceController extends Controller
                 'down_payment' => $proformaInvoice->down_payment ?? 0,
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
                 'version' => $purchaseOrder->version,
-                'notes' => $quotation->notes ?? '',
+                'notes' => $proformaInvoice->notes ?? '',
                 'date' => $proformaInvoice->created_at,
                 'status' => $quotation->status ?? [],
                 'spareparts' => $spareParts,
@@ -237,49 +254,36 @@ class ProformaInvoiceController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            // Get current date components
+            // Get current date
             $currentDate = now();
-            $year = $currentDate->format('Y');
-            $month = $currentDate->month;
-
-            // Convert month to Roman numeral
-            $romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-            $romanMonth = $romanMonths[$month - 1];
-
-            // Get the count of invoices for the current month and year to determine the sequence number
-            $invoiceCount = Invoice::whereYear('invoice_date', $year)
-                ->whereMonth('invoice_date', $month)
-                ->count() + 1; // Increment by 1 for the new invoice
-
 
             // Generate proforma invoice number from purchase order number
             try {
-                // Expected purchase_order_number format: PO-IN/033/V/24
+                // Expected purchase_order_number format: PI-IN/001/BMJ-MEGAH/JKT/1/V/25
                 $parts = explode('/', $proformaInvoice->proforma_invoice_number);
-                $piNumber = $parts[0]; // e.g., 033
+                $piNumber = $parts[1]; // e.g., 033
                 $branch = $parts[3]; // e.g., V
-                $romanMonth = $parts[2]; // e.g., 24
-                $year = $parts[5]; // e.g., 24
-                $invoiceNumber = "IP/{$piNumber}/{$romanMonth}/{$branch}/{$year}";
+                $currentMonth = now()->month; // e.g., 7 for July
+                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
+                $year = now()->format('y'); // e.g., 25 for 2025
+                $user = $request->user();
+                $userId = $user->id;
+                $invoiceNumber = "IP/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
                 $currentMonth = Carbon::now()->format('m'); // Two-digit month
-                $currentYear = Carbon::now()->format('Y'); // Four-digit year
-                $latestPi = $this->getAccessedProformaInvoice($request)
-                    ->whereMonth('created_at', $currentMonth)
-                    ->whereYear('created_at', $currentYear)
-                    ->latest('id')
+                $latestInvoice = INVOICE::latest('id')
                     ->first();
-                $lastestInvoice = $latestPi ? $latestPi->invoices : null;
-                $nextLastestInvoice = $lastestInvoice ? $lastestInvoice->id + 1 : 1;
+                $nextLastestInvoice = $latestInvoice ? $latestInvoice->id + 1 : 1;
 
                 // Get user branch
                 $user = $request->user();
+                $userId = $user->id;
                 $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $invoiceNumber = "IP/{$nextLastestInvoice}/{$romanMonth}/{$branchCode}/{$year}";
+                $invoiceNumber = "IP/{$nextLastestInvoice}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             }
             $invoice = Invoice::create([
                 'proforma_invoice_id' => $proformaInvoice->id,

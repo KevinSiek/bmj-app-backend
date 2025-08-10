@@ -23,6 +23,7 @@ return new class extends Migration
             $table->boolean('is_full_paid')->nullable();
             $table->string('total_amount_text')->nullable();
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
+            $table->string('notes')->nullable();
             $table->timestamps();
         });
     }

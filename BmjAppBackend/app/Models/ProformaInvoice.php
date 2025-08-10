@@ -19,7 +19,8 @@ class ProformaInvoice extends Model
         'is_dp_paid',
         'is_full_paid',
         'total_amount_text',
-        'employee_id'
+        'employee_id',
+        'notes'
     ];
 
     protected $casts = [

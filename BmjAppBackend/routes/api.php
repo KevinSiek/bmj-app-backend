@@ -81,7 +81,9 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
         Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
         Route::post('/done/{id}', [PurchaseOrderController::class, 'done']);
+        Route::post('/decline/{id}', [PurchaseOrderController::class, 'decline']);
         Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+        Route::post('/reject/{id}', [PurchaseOrderController::class, 'decline']);
     });
 
     Route::prefix('delivery-order')->group(function () {
@@ -151,7 +153,6 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::post('/done/{id}', [BuyController::class, 'done']);
             Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
         });
-
     });
     // Sparepart Routes
     Route::prefix('sparepart')->group(function () {
