@@ -29,9 +29,9 @@ Route::middleware("auth:sanctum")->group(function () {
     // Authorization
     Route::prefix('user')->group(function () {
         Route::get('/', [LoginController::class, 'getCurrentUser']);
+        Route::post('/changePassword', [LoginController::class, 'changePassword']);
     });
     Route::post('logout', [LoginController::class, 'logout']);
-    Route::post('changePassword', [LoginController::class, 'changePassword']);
 
     Route::prefix('summary')->group(function () {
         Route::get('/director', [SummaryController::class, 'summaryDirector']);
