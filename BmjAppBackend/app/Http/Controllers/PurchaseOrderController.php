@@ -82,7 +82,7 @@ class PurchaseOrderController extends Controller
                 ],
                 'proforma_invoice' => [
                     'proforma_invoice_number' => $proformaInvoice ? $proformaInvoice->proforma_invoice_number : '',
-                    'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date : '',
+                    'proforma_invoice_date' => $proformaInvoice ? $proformaInvoice->proforma_invoice_date->format('Y-m-d') : '',
                     'is_dp_paid' => $proformaInvoice ? $proformaInvoice->is_dp_paid : '',
                     'is_full_paid' => $proformaInvoice ? $proformaInvoice->is_full_paid : ''
                 ],
@@ -133,8 +133,8 @@ class PurchaseOrderController extends Controller
             $year = $request->query('year');
 
             // Get all purchaseOrder numbers first to ensure we capture all versions
-            $purchaseOrderNumbers = PurchaseOrder::select('purchase_order_number')
-                ->distinct();
+            $purchaseOrderNumbers = $this->getAccessedPurchaseOrder($request)
+                ->select('purchase_order_number');
 
             // Apply search term filter if 'q' is provided
             if ($q) {
@@ -162,7 +162,7 @@ class PurchaseOrderController extends Controller
             }
 
             // Paginate the distinct quotation numbers
-            $paginatedPurchaseOrders = $purchaseOrderNumbers->paginate(20);
+            $paginatedPurchaseOrders = $purchaseOrderNumbers->groupBy('purchase_order_number')->paginate(20);
 
             $queryTwo = $this->getAccessedPurchaseOrder($request)
                 ->whereIn('purchase_order_number', $paginatedPurchaseOrders->pluck('purchase_order_number'))
@@ -194,7 +194,9 @@ class PurchaseOrderController extends Controller
             }
 
             // Return like API contract
-            $purchaseOrders =  $queryTwo->orderBy('purchase_order_date', 'DESC')
+            $purchaseOrders =  $queryTwo
+                ->orderBy('purchase_order_date', 'DESC')
+                ->orderBy('id', 'DESC')
                 ->get();
             $grouped = $purchaseOrders->map(function ($po) {
                 $quotation = $po->quotation;
@@ -327,7 +329,7 @@ class PurchaseOrderController extends Controller
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->where('id', $id)
                 ->orderBy('version', 'asc')
-                ->first();
+                ->firstOrFail();
 
             if (!$purchaseOrder) {
                 return $this->handleNotFound('Purchase order not found');
@@ -678,6 +680,15 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
 
         try {
+            $user = $request->user();
+            $role = $user->role;
+            // Only allow Finance or Director to create PI
+            if ($role !== 'Finance' or $role !== 'Director') {
+                return response()->json([
+                    'message' => 'You don\'t have access to create PI.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             // Retrieve the quotation
             $purchaseOrders = $this->getAccessedPurchaseOrder($request);
             $purchaseOrder = $purchaseOrders->find($id);
@@ -880,6 +891,10 @@ class PurchaseOrderController extends Controller
             // Only allow purchase orders for authorized users
             if ($role == 'Marketing') {
                 $query->where('employee_id', $userId);
+            } elseif ($role == 'Service') {
+                $query->where('type', QuotationController::SERVICE);
+            } elseif ($role == 'Inventory') {
+                $query->where('type', QuotationController::SPAREPARTS);
             }
 
             return $query;

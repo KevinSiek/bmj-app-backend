@@ -333,16 +333,27 @@ class QuotationController extends Controller
                 'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
             ]);
 
+            // Get the latest discount and PPN from General model
+            $general = General::latest()->first();
+            $discount = $general ? $general->discount : 0;
+            $ppn = $general ? $general->ppn : 0;
+
+            $totalAmount = $request->input('price.amount');
+            $priceDiscount = $totalAmount  * $discount;
+            $subTotal = $totalAmount - $priceDiscount;
+            $pricePpn = $subTotal  * $ppn;
+            $grandTotal = $subTotal - $pricePpn;
+
             // Map API contract to database fields
             $quotationData = [
                 'quotation_number' => $request->input('project.quotationNumber'),
                 'type' => $request->input('project.type'),
                 'date' => $request->input('project.date'),
                 'amount' => $request->input('price.amount'),
-                'discount' => 0,
-                'subtotal' => 0,
-                'ppn' => 0,
-                'grand_total' => 0,
+                'discount' => $priceDiscount,
+                'subtotal' => $subTotal,
+                'ppn' => $pricePpn,
+                'grand_total' => $grandTotal,
                 'notes' => $request->input('notes'),
                 'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
             ];
@@ -719,8 +730,8 @@ class QuotationController extends Controller
             $year = $request->query('year');
 
             // Get all quotation numbers first to ensure we capture all versions
-            $quotationNumbers = Quotation::select('quotation_number')
-                ->distinct()
+            $quotationNumbers = $this->getAccessedQuotation($request)
+                ->select('quotation_number')
                 ->where(function ($query) use ($q) {
                     if ($q) {
                         $query->where('project', 'like', "%$q%")
@@ -743,7 +754,8 @@ class QuotationController extends Controller
             }
 
             // Paginate the distinct quotation numbers
-            $paginatedQuotationNumbers = $quotationNumbers->paginate(20);
+            $paginatedQuotationNumbers = $quotationNumbers->groupBy('quotation_number')
+                ->paginate(20);
 
             // Get all quotations for the paginated quotation numbers
             $quotationsQuery = $this->getAccessedQuotation($request)
@@ -765,6 +777,7 @@ class QuotationController extends Controller
             $quotations = $quotationsQuery
                 ->orderBy('date', 'DESC')
                 ->orderBy('version', 'ASC')
+                ->orderBy('id', 'DESC')
                 ->get();
 
             $grouped = $quotations->map(function ($quotation) {
@@ -857,10 +870,10 @@ class QuotationController extends Controller
     {
         DB::beginTransaction();
         try {
-            // Validate the there is notes
-            $request->validate([
-                'notes' => 'required|string',
-            ]);
+            // // Validate the there is notes
+            // $request->validate([
+            //     'notes' => 'required|string',
+            // ]);
             $note = $request->input('notes');
 
             $quotations = $this->getAccessedQuotation($request);
@@ -1680,6 +1693,9 @@ class QuotationController extends Controller
             $slug = Str::slug($quotationData['project']);
             $quotationData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
 
+            // Reassign list of status from previous quotation by filter it first to get PO only
+            $quotationData['status'] = $this->filterPoStatus($quotation->status);
+
             // Create new quotation with the validated data
             $newQuotation = Quotation::create($quotationData);
 
@@ -2126,5 +2142,18 @@ class QuotationController extends Controller
             'services' => $services,
             'date' => $quotation->date
         ];
+    }
+
+    /**
+     * Filters the status array to keep only entries with state 'Po'.
+     *
+     * @param array $statusArray The original status array
+     * @return array The filtered status array containing only 'Po' state entries
+     */
+    private function filterPoStatus(array $statusArray): array
+    {
+        return array_filter($statusArray, function ($status) {
+            return isset($status['state']) && $status['state'] === 'Po';
+        });
     }
 }

@@ -136,7 +136,9 @@ class DeliveryOrderController extends Controller
                 }
             }
 
-            $deliveryOrders = $query->orderBy('delivery_order_date', 'DESC')
+            $deliveryOrders = $query
+                ->orderBy('delivery_order_date', 'DESC')
+                ->orderBy('id', 'DESC')
                 ->paginate(20)->through(function ($do) {
                     return $this->formatDeliveryOrder($do);
                 });

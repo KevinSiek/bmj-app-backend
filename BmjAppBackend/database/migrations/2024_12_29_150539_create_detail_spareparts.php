@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('sparepart_id')->constrained('spareparts');
             $table->foreignId('seller_id')->constrained('sellers');
             $table->decimal('unit_price', 10, 2);
-            $table->integer('quantity');
+            $table->integer('quantity')->nullable();
             $table->timestamps();
         });
     }

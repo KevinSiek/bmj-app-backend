@@ -69,6 +69,7 @@ class BackOrderController extends Controller
                 'detailBackOrders.sparepart',
             ])
                 ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'DESC')
                 ->paginate(20);
 
             // Transform the data to match the API contract
@@ -227,7 +228,7 @@ class BackOrderController extends Controller
                 // Find the DetailSparepart with the lowest unit_price for this sparepart and seller
                 $cheapestDetailSparepart = $sparepart->detailSpareparts()
                     ->orderBy('unit_price', 'asc')
-                    ->first();
+                    ->firstOrFail();
 
                 if (!$cheapestDetailSparepart) {
                     DB::rollBack();
@@ -258,7 +259,7 @@ class BackOrderController extends Controller
                 if ($quotation) {
                     $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
                         ->where('sparepart_id', $detailBackOrder->sparepart_id)
-                        ->first();
+                        ->firstOrFail();
 
                     if ($detailQuotation && $detailQuotation->is_indent) {
                         $detailQuotation->is_indent = false;

@@ -93,15 +93,6 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/process/{id}', [DeliveryOrderController::class, 'process']);
     });
 
-    Route::prefix('proforma-invoice')->group(function () {
-        Route::get('/', [ProformaInvoiceController::class, 'getAll']);
-        Route::get('/{id}', [ProformaInvoiceController::class, 'get']);
-        Route::post('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
-        Route::post('/dpPaid/{id}', [ProformaInvoiceController::class, 'dpPaid']);
-        Route::post('/fullPaid/{po_id}', [ProformaInvoiceController::class, 'fullPaid']);
-        Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
-    });
-
     Route::prefix('invoice')->group(function () {
         Route::get('/', [InvoiceController::class, 'getAll']);
         Route::get('/{id}', [InvoiceController::class, 'get']);
@@ -124,6 +115,19 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::delete('/{slug}', [EmployeeController::class, 'destroy']);
             Route::get('/access/{slug}', [EmployeeController::class, 'getEmployeeAccess']);
             Route::post('/reset-password/{slug}', [EmployeeController::class, 'resetPassword']);
+        });
+    });
+
+    // Finance
+    Route::middleware(['is_finance'])->group(function () {
+        // Employee Routes
+        Route::prefix('proforma-invoice')->group(function () {
+            Route::get('/', [ProformaInvoiceController::class, 'getAll']);
+            Route::get('/{id}', [ProformaInvoiceController::class, 'get']);
+            Route::post('/moveToInvoice/{id}', [ProformaInvoiceController::class, 'moveToInvoice']);
+            Route::post('/dpPaid/{id}', [ProformaInvoiceController::class, 'dpPaid']);
+            Route::post('/fullPaid/{po_id}', [ProformaInvoiceController::class, 'fullPaid']);
+            Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
         });
     });
 
@@ -158,6 +162,9 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::prefix('sparepart')->group(function () {
         Route::get('/', [SparepartController::class, 'getAll']);
         Route::get('/{id}', [SparepartController::class, 'get']);
+        Route::post('/', [SparepartController::class, 'store']);
+        Route::put('/{id}', [SparepartController::class, 'update']);
+        Route::delete('/{id}', [SparepartController::class, 'destroy']);
         Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
     });
 });

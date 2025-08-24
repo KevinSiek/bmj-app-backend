@@ -103,8 +103,8 @@ class InvoiceController extends Controller
     {
         try {
             // Get all invoice numbers first to ensure we capture all versions
-            $invoiceNumbers = Invoice::select('invoice_number')
-                ->distinct();
+            $invoiceNumbers = $this->getAccessedInvoice($request)
+                ->select('invoice_number');
 
             // Get query parameters
             $q = $request->query('search');
@@ -131,14 +131,16 @@ class InvoiceController extends Controller
             }
 
             // Paginate the distinct quotation numbers
-            $paginatedInvoiceNumbers = $invoiceNumbers->paginate(20);
+            $paginatedInvoiceNumbers = $invoiceNumbers->groupBy('invoice_number')->paginate(20);
 
             // Get all quotations for the paginated quotation numbers
             $query = $this->getAccessedInvoice($request)
                 ->whereIn('invoice_number', $paginatedInvoiceNumbers->pluck('invoice_number'));
 
             // Return like API contract
-            $invoiceOrders =  $query->orderBy('invoice_date', 'DESC')
+            $invoiceOrders =  $query
+                ->orderBy('invoice_date', 'DESC')
+                ->orderBy('id', 'DESC')
                 ->get();
             // Return like API contract
             $invoices = $invoiceOrders->map(function ($invoice) {

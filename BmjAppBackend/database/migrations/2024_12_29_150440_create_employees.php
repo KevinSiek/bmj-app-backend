@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string('temp_password')->nullable();
             $table->boolean('temp_pass_already_use')->nullable()->default(false);
             $table->timestamps();
+            $table->softDeletes();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

@@ -37,14 +37,14 @@ class WorkOrderController extends Controller
                 'id' => (string) $workOrder->id,
                 'service_order' => [
                     'no' => $workOrder->work_order_number,
-                    'date' => $workOrder->created_at,
+                    'date' => $workOrder->created_at->format('Y-m-d'),
                     'received_by' => $workOrder->received_by ?? '',
                     'start_date' => $workOrder->start_date,
                     'end_date' => $workOrder->end_date,
                 ],
                 'proforma_invoice' => [
                     'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
-                    'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date ?? '',
+                    'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
@@ -137,7 +137,9 @@ class WorkOrderController extends Controller
             }
 
             // Paginate the results
-            $workOrders = $query->orderBy('start_date', 'desc')
+            $workOrders = $query
+                ->orderBy('start_date', 'desc')
+                ->orderBy('id', 'DESC')
                 ->paginate(20);
 
             // Transform the results
@@ -152,7 +154,7 @@ class WorkOrderController extends Controller
                     'id' => (string) $wo->id,
                     'service_order' => [
                         'no' => $wo->work_order_number,
-                        'date' => $wo->created_at,
+                        'date' => $wo->created_at->format('Y-m-d'),
                         'received_by' => $wo->received_by ?? '',
                         'start_date' => $wo->start_date,
                         'end_date' => $wo->end_date,
@@ -333,18 +335,10 @@ class WorkOrderController extends Controller
     protected function getAccessedWorkOrder($request)
     {
         try {
-            $user = $request->user();
-            $userId = $user->id;
-            $role = $user->role;
+            // For now, there is no filter for this
+
 
             $query = WorkOrder::query();
-
-            // Only allow work orders for authorized users
-            if ($role == 'Service') {
-                $query->whereHas('purchaseOrder.quotation', function ($q) use ($userId) {
-                    $q->where('employee_id', $userId);
-                });
-            }
 
             return $query;
         } catch (\Throwable $th) {

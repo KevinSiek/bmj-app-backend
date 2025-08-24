@@ -25,8 +25,8 @@ class ProformaInvoiceController extends Controller
     {
         try {
             // Get all invoice numbers first to ensure we capture all versions
-            $proformaInvoiceNumbers = ProformaInvoice::select('proforma_invoice_number')
-                ->distinct();
+            $proformaInvoiceNumbers = $this->getAccessedProformaInvoice($request)
+                ->select('proforma_invoice_number');
 
             // Get query parameters
             $q = $request->query('search');
@@ -52,20 +52,19 @@ class ProformaInvoiceController extends Controller
                 }
             }
 
-            // Paginate the distinct quotation numbers
-            $paginatedProformaInvoiceNumbers = $proformaInvoiceNumbers->paginate(20);
+            // Paginate after groupBy proforma_invoice_number
+            $paginatedProformaInvoiceNumbers = $proformaInvoiceNumbers->groupBy('proforma_invoice_number')->paginate(20);
 
 
             // Get all quotations for the paginated quotation numbers
             $query = $this->getAccessedProformaInvoice($request)
                 ->whereIn('proforma_invoice_number', $paginatedProformaInvoiceNumbers->pluck('proforma_invoice_number'));
 
-            // Retrieve paginated proforma invoices
+            // Return like API format
             $proformaInvoice = $query
                 ->orderBy('proforma_invoice_date', 'desc')
-                ->paginate($request->input('per_page', 15)); // Default to 15 items per page
-
-            // Return like API format
+                ->orderBy('id', 'DESC')
+                ->get();
             $proformaInvoices = $proformaInvoice->map(function ($pi) {
                 $purchaseOrder = $pi->purchaseOrder;
                 $quotation = $purchaseOrder->quotation;
@@ -103,6 +102,7 @@ class ProformaInvoiceController extends Controller
                         'type' => $quotation->type ?? '',
                         'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                         'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                        'date' => $pi->proforma_invoice_date->format('Y-m-d') ?? '',
                     ],
                     'customer' => [
                         'company_name' => $customer->company_name ?? '',
@@ -128,7 +128,6 @@ class ProformaInvoiceController extends Controller
                     'quotation_number' => $quotation ? $quotation->quotation_number : '',
                     'version' => $purchaseOrder->version,
                     'notes' => $pi->notes ?? '',
-                    'date' => $pi->created_at,
                     'spareparts' => $spareParts,
                     'services' => $services
                 ];
@@ -138,12 +137,12 @@ class ProformaInvoiceController extends Controller
                 'message' => 'List of proforma invoices retrieved successfully',
                 'data' => [
                     'data' => $proformaInvoices,
-                    'from' => $proformaInvoice->firstItem(),
-                    'to' => $proformaInvoice->lastItem(),
-                    'total' => $proformaInvoice->total(),
-                    'per_page' => $proformaInvoice->perPage(),
-                    'current_page' => $proformaInvoice->currentPage(),
-                    'last_page' => $proformaInvoice->lastPage(),
+                    'from' => $paginatedProformaInvoiceNumbers->firstItem(),
+                    'to' => $paginatedProformaInvoiceNumbers->lastItem(),
+                    'total' => $paginatedProformaInvoiceNumbers->total(),
+                    'per_page' => $paginatedProformaInvoiceNumbers->perPage(),
+                    'current_page' => $paginatedProformaInvoiceNumbers->currentPage(),
+                    'last_page' => $paginatedProformaInvoiceNumbers->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -198,6 +197,7 @@ class ProformaInvoiceController extends Controller
                     'type' => $quotation->type ?? '',
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                    'date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
@@ -222,7 +222,6 @@ class ProformaInvoiceController extends Controller
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
                 'version' => $purchaseOrder->version,
                 'notes' => $proformaInvoice->notes ?? '',
-                'date' => $proformaInvoice->created_at,
                 'status' => $quotation->status ?? [],
                 'spareparts' => $spareParts,
                 'services' => $services
@@ -439,6 +438,7 @@ class ProformaInvoiceController extends Controller
             $query = ProformaInvoice::query();
 
             // Only allow proforma invoices for authorized users
+            // Just in case we want enable this in future
             if ($role == 'Marketing') {
                 $query->where('employee_id', $userId);
             }
