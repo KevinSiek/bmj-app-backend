@@ -119,6 +119,7 @@ class LoginController extends Controller
             // Validate the request data
             $validatedData = $request->validate([
                 'password' => 'required|string|min:10|max:64|regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{10,}$/',
+                'confirm_password' => 'required|string|same:password',
             ]);
             $validatedData['password'] = bcrypt($request->password);
             $employee->update($validatedData);
