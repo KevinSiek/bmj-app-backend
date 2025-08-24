@@ -681,7 +681,7 @@ class PurchaseOrderController extends Controller
             // Retrieve the quotation
             $purchaseOrders = $this->getAccessedPurchaseOrder($request);
             $purchaseOrder = $purchaseOrders->find($id);
-            $pi = $purchaseOrder->proformaInvoice->first();
+            $pi = $purchaseOrder->proformaInvoice;
 
             if ($pi) {
                 return response()->json([
