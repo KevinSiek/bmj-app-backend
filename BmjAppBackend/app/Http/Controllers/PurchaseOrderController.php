@@ -321,9 +321,9 @@ class PurchaseOrderController extends Controller
 
         try {
             // Validate the there is notes for downPayment
-            // $request->validate([
-            //     'notes' => 'required|string',
-            // ]);
+            $request->validate([
+                'notes' => 'required|string',
+            ]);
             $notes = 'test dp';
 
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
@@ -522,6 +522,7 @@ class PurchaseOrderController extends Controller
                     'units.*.quantity' => 'nullable|integer|min:1',
                     'date.startDate' => 'nullable|string',
                     'date.endDate' => 'nullable|string',
+                    'notes' => 'nullable|string',
                 ]);
 
                 if ($validator->fails()) {
@@ -569,13 +570,14 @@ class PurchaseOrderController extends Controller
                     'head_of_service' => $request->input('poc.headOfService'),
                     'approver' => $request->input('poc.approver'),
                     'is_done' => false,
+                    'notes' => $request->input('notes'),
                     'spareparts' => json_encode($request->input('additional.spareparts')),
                     'backup_sparepart' => $request->input('additional.backupSparepart') ? json_encode($request->input('additional.backupSparepart')) : null,
                     'scope' => $request->input('additional.scope'),
                     'vaccine' => $request->input('additional.vaccine'),
                     'apd' => $request->input('additional.apd'),
                     'peduli_lindungi' => $request->input('additional.peduliLindungi'),
-                    'execution_time' => $request->input('additional.executionTime')
+                    'execution_time' => $request->input('additional.executionTime'),
                 ]);
 
                 // Create wo_units
@@ -623,6 +625,26 @@ class PurchaseOrderController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
+                // Validate request input for sparepart type
+                $validator = Validator::make($request->all(), [
+                    'deliveryOrder.deliveryOrderDate' => 'required|string',
+                    'deliveryOrder.preparedBy' => 'nullable|string',
+                    'deliveryOrder.receivedBy' => 'nullable|string',
+                    'deliveryOrder.pickedBy' => 'required|string',
+                    'deliveryOrder.shipMode' => 'required|string',
+                    'deliveryOrder.orderType' => 'required|string',
+                    'deliveryOrder.npwp' => 'nullable|string',
+                    'notes' => 'nullable|string',
+                ]);
+
+                if ($validator->fails()) {
+                    return response()->json([
+                        'message' => 'Validation failed',
+                        'error' => $validator->errors()
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+
                 // Generate delivery order number
                 $orderNumber = sprintf('%03d', DeliveryOrder::count() + 1);
                 $randomString1 = strtoupper(Str::random(3));
@@ -645,6 +667,7 @@ class PurchaseOrderController extends Controller
                     'order_type' => $request->input('deliveryOrder.orderType'),
                     'delivery' => $request->input('deliveryOrder.delivery'),
                     'npwp' => $request->input('deliveryOrder.npwp'),
+                    'notes' => $request->input('notes'),
                 ]);
 
                 // Update purchase order status
