@@ -22,6 +22,9 @@ class SparepartController extends Controller
      */
     public function updateAllData(Request $request)
     {
+        // TODO: This bulk update operation is highly susceptible to race conditions if multiple users
+        // upload files simultaneously. An application-level lock (e.g., using Redis, a database flag, or a queue)
+        // should be implemented to ensure only one import process can run at a time. Ignored for now as per instructions.
         try {
             // Validate file upload
             $validator = Validator::make($request->all(), [
@@ -68,19 +71,24 @@ class SparepartController extends Controller
 
     public function destroy($id)
     {
+        DB::beginTransaction();
         try {
-            $sparepart = Sparepart::find($id);
+            $sparepart = Sparepart::lockForUpdate()->find($id);
 
             if (!$sparepart) {
+                DB::rollBack();
                 return $this->handleNotFound('Sparepart not found');
             }
 
             $sparepart->delete();
+            DB::commit();
+
             return response()->json([
                 'message' => 'Sparepart deleted successfully',
                 'data' => null,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Sparepart deletion failed');
         }
     }
@@ -93,6 +101,8 @@ class SparepartController extends Controller
      */
     public function store(Request $request)
     {
+        // Start transaction
+        DB::beginTransaction();
         try {
             // Validate input data
             $validator = Validator::make($request->all(), [
@@ -120,6 +130,7 @@ class SparepartController extends Controller
 
             // Check if sparepart with this number already exists
             if (Sparepart::where('sparepart_number', $data['sparepart_number'])->exists()) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Sparepart already exists, please use edit function',
                 ], Response::HTTP_BAD_REQUEST);
@@ -133,9 +144,6 @@ class SparepartController extends Controller
                 $slug = $baseSlug . '-' . $counter++;
             }
             $data['slug'] = $slug;
-
-            // Start transaction
-            DB::beginTransaction();
 
             // Create sparepart
             $sparepart = Sparepart::create($data);
@@ -182,9 +190,10 @@ class SparepartController extends Controller
      */
     public function update(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
-            // Find sparepart
-            $sparepart = Sparepart::with('detailSpareparts.seller')->findOrFail($id);
+            // Find sparepart and lock it for update
+            $sparepart = Sparepart::with('detailSpareparts.seller')->lockForUpdate()->findOrFail($id);
 
             // Validate input data
             $validator = Validator::make($request->all(), [
@@ -214,6 +223,7 @@ class SparepartController extends Controller
                 $data['sparepart_number'] !== $sparepart->sparepart_number &&
                 Sparepart::where('sparepart_number', $data['sparepart_number'])->exists()
             ) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Sparepart number already exists',
                 ], Response::HTTP_BAD_REQUEST);
@@ -231,9 +241,6 @@ class SparepartController extends Controller
             } else {
                 $data['slug'] = $sparepart->slug;
             }
-
-            // Start transaction
-            DB::beginTransaction();
 
             // Update sparepart
             $sparepart->update($data);
@@ -269,6 +276,7 @@ class SparepartController extends Controller
                 'data' => $formattedSparepart,
             ], Response::HTTP_OK);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
             return $this->handleNotFound('Sparepart not found');
         } catch (\Throwable $th) {
             DB::rollBack();

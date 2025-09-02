@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DetailAccesses;
 use Illuminate\Http\Request;
 use App\Models\Employee;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Str;
 
@@ -39,6 +40,7 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
+        DB::beginTransaction();
         try {
             $validatedData = $request->validate([
                 'fullname' => 'required|string|max:255',
@@ -61,6 +63,8 @@ class EmployeeController extends Controller
             // Create the employee
             $employee = Employee::create($validatedData);
 
+            DB::commit();
+
             // Return the response with the temporary password
             return response()->json([
                 'message' => 'Employee created successfully',
@@ -70,6 +74,7 @@ class EmployeeController extends Controller
                 ],
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return response()->json([
                 'message' => 'Employee creation failed',
                 'error' => $th->getMessage()
@@ -79,11 +84,13 @@ class EmployeeController extends Controller
 
     public function update(Request $request, $slug)
     {
+        DB::beginTransaction();
         try {
-            // Find the employee by slug
-            $employee = Employee::where('slug', $slug)->first();
+            // Find the employee by slug and lock the record for update
+            $employee = Employee::where('slug', $slug)->lockForUpdate()->first();
 
             if (!$employee) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
@@ -101,11 +108,14 @@ class EmployeeController extends Controller
             // Update only the provided fields
             $employee->update($validatedData);
 
+            DB::commit();
+
             return response()->json([
                 'message' => 'Employee updated successfully',
                 'data' => $employee
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return response()->json([
                 'message' => 'Employee update failed',
                 'error' => $th->getMessage()
@@ -115,11 +125,13 @@ class EmployeeController extends Controller
 
     public function resetPassword($slug)
     {
+        DB::beginTransaction();
         try {
-            // Find the employee by slug
-            $employee = Employee::where('slug', $slug)->first();
+            // Find the employee by slug and lock the record for update
+            $employee = Employee::where('slug', $slug)->lockForUpdate()->first();
 
             if (!$employee) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
@@ -134,11 +146,14 @@ class EmployeeController extends Controller
                 'temp_pass_already_use' => false,
             ]);
 
+            DB::commit();
+
             return response()->json([
                 'message' => 'Reset password success',
                 'data' => $employee
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return response()->json([
                 'message' => 'Reset password failed',
                 'error' => $th->getMessage()
@@ -148,9 +163,12 @@ class EmployeeController extends Controller
 
     public function destroy($slug)
     {
+        DB::beginTransaction();
         try {
-            $employee = Employee::where('slug', '=', $slug)->first();
+            // Find the employee by slug and lock for deletion
+            $employee = Employee::where('slug', '=', $slug)->lockForUpdate()->first();
             if (!$employee) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
@@ -159,16 +177,21 @@ class EmployeeController extends Controller
             $deleted = $employee->delete();
 
             if (!$deleted) {
+                // This case is unlikely if the record was found, but it's good practice.
+                DB::rollBack();
                 return response()->json([
-                    'message' => 'Employee not found'
-                ], Response::HTTP_NOT_FOUND);
+                    'message' => 'Employee could not be deleted'
+                ], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
+
+            DB::commit();
 
             return response()->json([
                 'message' => 'Employee deleted successfully',
                 'data' => $deleted
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return response()->json([
                 'message' => 'Employee deletion failed',
                 'error' => $th->getMessage()

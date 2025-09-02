@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliveryOrder;
+use App\Models\PurchaseOrder;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -161,6 +163,7 @@ class DeliveryOrderController extends Controller
 
         try {
             $deliveryOrder = $this->getAccessedDeliveryOrder($request)
+                ->lockForUpdate() // Lock the row for update
                 ->findOrFail($id);
 
             // Map camelCase input to snake_case
@@ -203,6 +206,7 @@ class DeliveryOrderController extends Controller
             ]);
 
             if ($validator->fails()) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
@@ -226,7 +230,7 @@ class DeliveryOrderController extends Controller
 
             // Fetch updated delivery order
             $updatedDeliveryOrder = $this->getAccessedDeliveryOrder(request())
-                ->with(['quotation.customer', 'quotation.purchaseOrder', 'quotation.detailQuotations.sparepart'])
+                ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
 
             return response()->json([
@@ -244,31 +248,51 @@ class DeliveryOrderController extends Controller
      */
     public function process(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
-            $deliveryOrder = $this->getAccessedDeliveryOrder($request)->find($id);
+            $deliveryOrder = $this->getAccessedDeliveryOrder($request)->lockForUpdate()->find($id);
 
             if (!$deliveryOrder) {
+                DB::rollBack();
                 return $this->handleNotFound('Delivery order not found');
             }
 
-            $alreadyDone = $deliveryOrder->current_status;
-            if ($alreadyDone === self::DONE) {
+            if ($deliveryOrder->current_status === self::DONE) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Delivery order already done'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            $deliveryOrder->update([
-                'current_status' => self::DONE,
-            ]);
+            $deliveryOrder->current_status = self::DONE;
+            $deliveryOrder->save();
 
-            $purchaseOrder = $deliveryOrder->purchaseOrder;
-            $quotation = $purchaseOrder ? $purchaseOrder->quotation : null;
-            $purchaseOrder->update([
-                'current_status' => self::DONE,
-            ]);
+            // Lock the related purchase order and quotation for updating
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($deliveryOrder->purchase_order_id);
+            if ($purchaseOrder) {
+                $purchaseOrder->current_status = PurchaseOrderController::DONE;
+                $purchaseOrder->save();
 
-            $this->quotationController->changeStatusToDone($request, $quotation);
+                $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                if ($quotation) {
+                    // Inlined logic from QuotationController->changeStatusToDone
+                    $user = $request->user();
+                    $currentStatus = $quotation->status ?? [];
+                    if (!is_array($currentStatus)) {
+                        $currentStatus = [];
+                    }
+                    $currentStatus[] = [
+                        'state' => QuotationController::DONE,
+                        'employee' => $user->username,
+                        'timestamp' => now()->toIso8601String(),
+                    ];
+                    $quotation->status = $currentStatus;
+                    $quotation->current_status = QuotationController::DONE;
+                    $quotation->save();
+                }
+            }
+
+            DB::commit();
 
             // Fetch updated delivery order for response
             $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
@@ -280,6 +304,7 @@ class DeliveryOrderController extends Controller
                 'data' => $this->formatDeliveryOrder($updatedDeliveryOrder)
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Delivery order process failed');
         }
     }

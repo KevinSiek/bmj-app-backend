@@ -2,109 +2,71 @@
 
 namespace Database\Seeders;
 
-use App\Http\Controllers\EmployeeController;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use App\Models\Accesses;
 use App\Models\Employee;
 use App\Models\DetailAccesses;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class AccessRoleSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
     public function run()
     {
-        $menuRoles = [
-            [
-                'path' => '/director',
-                'name' => 'Director',
-                'feature' => [
-                    'dashboard',
-                    'quotation',
-                    'purchase_order',
-                    'proforma_invoice',
-                    'invoice',
-                    'spareparts',
-                    'back_order',
-                    'purchase',
-                    'employee',
-                    'work_order'
-                ],
-            ],
-            [
-                'path' => '/marketing',
-                'name' => 'Marketing',
-                'feature' => [
-                    'quotation',
-                    'purchase_order'
-                ],
-            ],
-            [
-                'path' => '/inventory',
-                'name' => 'Inventory',
-                'feature' => [
-                    'purchase_order',
-                    'spareparts',
-                    'back_order',
-                    'purchase'
-                ],
-            ],
-            [
-                'path' => '/finance',
-                'name' => 'Finance',
-                'feature' => [
-                    'quotation',
-                    'purchase_order',
-                    'proforma_invoice',
-                    'invoice'
-                ],
-            ],
-            [
-                'path' => '/service',
-                'name' => 'Service',
-                'feature' => [
-                    'purchase_order',
-                    'back_order',
-                    'work_order'
-                ],
-            ],
+        // Clear existing data
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DetailAccesses::truncate();
+        Accesses::truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        // Define all possible features/accesses in the system
+        $features = [
+            'dashboard',
+            'quotation',
+            'purchase-order',
+            'work-order',
+            'delivery-order',
+            'proforma-invoice',
+            'invoice',
+            'back-order',
+            'buy',
+            'sparepart',
+            'customer',
+            'employee',
+            'settings'
         ];
 
-        // Create all unique access features
-        $allFeatures = collect($menuRoles)
-            ->pluck('feature')
-            ->flatten()
-            ->unique()
-            ->values();
+        foreach ($features as $feature) {
+            Accesses::create(['access' => $feature]);
+        }
 
-        $allFeatures->each(function ($feature) {
-            Accesses::firstOrCreate(['access' => $feature]);
-        });
+        // Define which roles get which features
+        $roleAccesses = [
+            'Director' => $features, // Director gets all features
+            'Marketing' => ['dashboard', 'quotation', 'purchase-order', 'customer'],
+            'Inventory' => ['dashboard', 'back-order', 'buy', 'sparepart', 'delivery-order'],
+            'Finance' => ['dashboard', 'proforma-invoice', 'invoice', 'purchase-order'],
+            'Service' => ['dashboard', 'work-order'],
+        ];
 
-        // Create demo employees and their access mappings
-        foreach ($menuRoles as $role) {
-            $fullname = "Demo {$role['name']}";
-            $slug = Str::slug($fullname) . '-' . Str::random(6);
-            $employee = Employee::create([
-                'fullname' => $fullname,
-                'username' => 'username -' . $fullname,
-                'branch' => EmployeeController::SEMARANG,
-                'role' => $role['name'],
-                'email' => fake()->unique()->safeEmail(),
-                'password' => Hash::make('password'),
-                'temp_password' => null,
-                'temp_pass_already_use' => true,
-                'slug' => $slug
-            ]);
+        $employees = Employee::all();
+        $accesses = Accesses::all()->keyBy('access');
 
-            $accessIds = Accesses::whereIn('access', $role['feature'])
-                ->pluck('id');
-
-            foreach ($accessIds as $accessId) {
-                DetailAccesses::create([
-                    'accesses_id' => $accessId,
-                    'id_employee' => $employee->id,
-                ]);
+        foreach ($employees as $employee) {
+            if (isset($roleAccesses[$employee->role])) {
+                $featuresForRole = $roleAccesses[$employee->role];
+                foreach ($featuresForRole as $featureName) {
+                    if (isset($accesses[$featureName])) {
+                        DetailAccesses::create([
+                            'id_employee' => $employee->id,
+                            'accesses_id' => $accesses[$featureName]->id,
+                        ]);
+                    }
+                }
             }
         }
     }

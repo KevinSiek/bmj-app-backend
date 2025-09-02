@@ -3,71 +3,47 @@
 namespace Database\Seeders;
 
 use App\Http\Controllers\EmployeeController;
+use App\Models\Employee;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class EmployeeSeeder extends Seeder
 {
     public function run(): void
     {
-        DB::table('employees')->insert([
-            [
-                'email' => 'testingDirector@gmail.com',
-                'slug' => 'Testing-Director',
-                'branch' => EmployeeController::SEMARANG,
-                'role' => 'Director',
-                'fullname' => 'Fullname Director',
-                'username' => 'username -Director',
-                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            ]
-        ]);
+        $employees = [
+            // Directors
+            ['fullname' => 'Budi Hartono', 'role' => 'Director', 'branch' => EmployeeController::JAKARTA, 'email' => 'director.jkt@bmj.com', 'username' => 'director_jkt'],
+            ['fullname' => 'Susilo Bambang', 'role' => 'Director', 'branch' => EmployeeController::SEMARANG, 'email' => 'director.smg@bmj.com', 'username' => 'director_smg'],
+            // Marketing
+            ['fullname' => 'Citra Kirana', 'role' => 'Marketing', 'branch' => EmployeeController::JAKARTA, 'email' => 'citra.k@bmj.com', 'username' => 'citra_k'],
+            ['fullname' => 'Dewi Lestari', 'role' => 'Marketing', 'branch' => EmployeeController::JAKARTA, 'email' => 'dewi.l@bmj.com', 'username' => 'dewi_l'],
+            ['fullname' => 'Agus Salim', 'role' => 'Marketing', 'branch' => EmployeeController::SEMARANG, 'email' => 'agus.s@bmj.com', 'username' => 'agus_s'],
+            ['fullname' => 'Rina Wati', 'role' => 'Marketing', 'branch' => EmployeeController::SEMARANG, 'email' => 'rina.w@bmj.com', 'username' => 'rina_w'],
+            // Inventory
+            ['fullname' => 'Eko Prasetyo', 'role' => 'Inventory', 'branch' => EmployeeController::JAKARTA, 'email' => 'eko.p@bmj.com', 'username' => 'eko_p'],
+            ['fullname' => 'Indah Setiawati', 'role' => 'Inventory', 'branch' => EmployeeController::SEMARANG, 'email' => 'indah.s@bmj.com', 'username' => 'indah_s'],
+            // Finance
+            ['fullname' => 'Fajar Nugroho', 'role' => 'Finance', 'branch' => EmployeeController::JAKARTA, 'email' => 'fajar.n@bmj.com', 'username' => 'fajar_n'],
+            ['fullname' => 'Gita Permata', 'role' => 'Finance', 'branch' => EmployeeController::SEMARANG, 'email' => 'gita.p@bmj.com', 'username' => 'gita_p'],
+            // Service
+            ['fullname' => 'Hadi Santoso', 'role' => 'Service', 'branch' => EmployeeController::JAKARTA, 'email' => 'hadi.s@bmj.com', 'username' => 'hadi_s'],
+            ['fullname' => 'Joko Widodo', 'role' => 'Service', 'branch' => EmployeeController::SEMARANG, 'email' => 'joko.w@bmj.com', 'username' => 'joko_w'],
+        ];
 
-        DB::table('employees')->insert([
-            [
-                'email' => 'testingMarketing@gmail.com',
-                'slug' => 'Testing2-Marketing',
-                'branch' => EmployeeController::SEMARANG,
-                'role' => 'Marketing',
-                'fullname' => 'Fullname Marketing',
-                'username' => 'username -Marketing',
-                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            ]
-        ]);
-
-        DB::table('employees')->insert([
-            [
-                'email' => 'testingInventory@gmail.com',
-                'slug' => 'Testing3-Inventory',
-                'branch' => EmployeeController::SEMARANG,
-                'role' => 'Inventory',
-                'fullname' => 'Fullname Inventory',
-                'username' => 'username -Inventory',
-                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            ]
-        ]);
-
-        DB::table('employees')->insert([
-            [
-                'email' => 'testingFinance@gmail.com',
-                'slug' => 'Testing3-Finance',
-                'branch' => EmployeeController::SEMARANG,
-                'role' => 'Finance',
-                'fullname' => 'Fullname Finance',
-                'username' => 'username -Finance',
-                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            ]
-        ]);
-
-        DB::table('employees')->insert([
-            [
-                'email' => 'testingService@gmail.com',
-                'slug' => 'Testing3-Service',
-                'branch' => EmployeeController::JAKARTA,
-                'role' => 'Service',
-                'fullname' => 'Fullname Service',
-                'username' => 'username -Service',
-                'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            ]
-        ]);
+        foreach ($employees as $emp) {
+            Employee::create([
+                'fullname' => $emp['fullname'],
+                'branch' => $emp['branch'],
+                'slug' => Str::slug($emp['fullname']) . '-' . strtolower(Str::random(4)),
+                'role' => $emp['role'],
+                'email' => $emp['email'],
+                'username' => $emp['username'],
+                'password' => Hash::make('password'), // Common password for all seeded users
+                'temp_password' => null,
+                'temp_pass_already_use' => true,
+            ]);
+        }
     }
 }

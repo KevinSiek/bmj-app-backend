@@ -125,6 +125,7 @@ class QuotationController extends Controller
                 ->whereMonth('created_at', $currentMonth)
                 ->whereYear('created_at', $currentYear)
                 ->latest('id')
+                ->lockForUpdate() // Lock to prevent race condition on number generation
                 ->first();
             $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
             $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
@@ -285,9 +286,9 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            // Find the quotation by slug
+            // Find the quotation by slug and lock it for update
             $quotations = $this->getAccessedQuotation($request);
-            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+            $quotation = $quotations->where('slug', $slug)->lockForUpdate()->firstOrFail();
             $po = $quotation->purchaseOrder->first();
 
             $latestVersion = $this->getAccessedQuotation($request)->where('quotation_number', $quotation->quotation_number)
@@ -503,9 +504,9 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
+            // Retrieve the quotation and lock it for update
             $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->first();
+            $quotation = $quoatations->where('slug', $slug)->lockForUpdate()->first();
             $po = $quotation->purchaseOrder->first();
 
             if ($po) {
@@ -544,9 +545,9 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
+            // Retrieve the quotation and lock it for update
             $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->first();
+            $quotation = $quoatations->where('slug', $slug)->lockForUpdate()->first();
             $po = $quotation->purchaseOrder->first();
 
             if ($po) {
@@ -594,9 +595,9 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
+            // Retrieve the quotation and lock it for update
             $quoatations = $this->getAccessedQuotation($request);
-            $quotation = $quoatations->where('slug', $slug)->first();
+            $quotation = $quoatations->where('slug', $slug)->lockForUpdate()->first();
             $po = $quotation->purchaseOrder->first();
 
             if ($po) {
@@ -870,14 +871,14 @@ class QuotationController extends Controller
     {
         DB::beginTransaction();
         try {
-            // // Validate the there is notes
-            // $request->validate([
-            //     'notes' => 'required|string',
-            // ]);
+            // Validate the there is notes
+            $request->validate([
+                'notes' => 'required|string',
+            ]);
             $note = $request->input('notes');
 
             $quotations = $this->getAccessedQuotation($request);
-            $quotation = $quotations->where('slug', $slug)->first();
+            $quotation = $quotations->where('slug', $slug)->lockForUpdate()->first();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -929,6 +930,7 @@ class QuotationController extends Controller
                 $currentMonth = Carbon::now()->format('m'); // Two-digit month
                 $currentYear = Carbon::now()->format('Y'); // Four-digit year
                 $latestQuotation = Quotation::latest('id')
+                    ->lockForUpdate() // Lock to prevent race condition
                     ->first();
                 $lastestPo = $latestQuotation ? $latestQuotation->purchaseOrder : null;
                 $nextLatestId = $lastestPo ? $lastestPo->id + 1 : 1;
@@ -979,7 +981,7 @@ class QuotationController extends Controller
                 $hasBoSparepart = false;
                 // Process each sparepart
                 foreach ($spareparts as $sparepart) {
-                    $sparepartRecord = Sparepart::find($sparepart->sparepart_id);
+                    $sparepartRecord = Sparepart::where('id', $sparepart->sparepart_id)->lockForUpdate()->first();
                     if (!$sparepartRecord) {
                         DB::rollBack();
                         return response()->json([
@@ -1341,51 +1343,6 @@ class QuotationController extends Controller
         }
     }
 
-    public function changeStatusToInventory(Request $request, $quotation)
-    {
-        // Start a database transaction
-        DB::beginTransaction();
-
-        try {
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
-            }
-
-            $user = $request->user();
-            // Ensure status is initialized as an array
-            $currentStatus = $quotation->status ?? [];
-            if (!is_array($currentStatus)) {
-                $currentStatus = [];
-            }
-
-            // Append new status entry
-            $currentStatus[] = [
-                'state' => self::Inventory,
-                'employee' => $user->username,
-                'timestamp' => now()->toIso8601String(),
-            ];
-
-            // Update quotation with new status and current_status
-            $quotation->update([
-                'status' => $currentStatus,
-                'current_status' => self::Inventory
-            ]);
-
-            // Commit the transaction
-            DB::commit();
-
-            // Return the response with transformed data
-            return response()->json([
-                'message' => 'Success update status of the quotation to Inventory',
-                'data' => $quotation,
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            // Roll back the transaction if an error occurs
-            DB::rollBack();
-            return $this->handleError($th, 'Failed to update quotation status to Inventory');
-        }
-    }
-
     public function changeStatusToReady(Request $request, $quotation)
     {
         // Start a database transaction
@@ -1427,51 +1384,6 @@ class QuotationController extends Controller
             // Roll back the transaction if an error occurs
             DB::rollBack();
             return $this->handleError($th, 'Failed to update status ready for the quotation');
-        }
-    }
-
-    public function changeStatusToPaid(Request $request, $quotation, $isDpPaid)
-    {
-        // Start a database transaction
-        DB::beginTransaction();
-
-        try {
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
-            }
-
-            $user = $request->user();
-            // Ensure status is initialized as an array
-            $currentStatus = $quotation->status ?? [];
-            if (!is_array($currentStatus)) {
-                $currentStatus = [];
-            }
-
-            // Append new status entry
-            $currentStatus[] = [
-                'state' => $isDpPaid ? self::DP_PAID : self::FULL_PAID,
-                'employee' => $user->username,
-                'timestamp' => now()->toIso8601String(),
-            ];
-
-            // Update quotation with new status and current_status
-            $quotation->update([
-                'status' => $currentStatus,
-                'current_status' => $isDpPaid ? self::DP_PAID : self::FULL_PAID,
-            ]);
-
-            // Commit the transaction
-            DB::commit();
-
-            // Return the response with transformed data
-            return response()->json([
-                'message' => 'Success update status of the quotation to Paid',
-                'data' => $quotation,
-            ], Response::HTTP_OK);
-        } catch (\Throwable $th) {
-            // Roll back the transaction if an error occurs
-            DB::rollBack();
-            return $this->handleError($th, 'Failed to update quotation status to Paid');
         }
     }
 
@@ -1571,7 +1483,7 @@ class QuotationController extends Controller
         DB::beginTransaction();
 
         try {
-            $purchaseOrder =  PurchaseOrder::where('id', $id)->firstOrFail();
+            $purchaseOrder =  PurchaseOrder::where('id', $id)->lockForUpdate()->firstOrFail();
             $quotation = $purchaseOrder->quotation;
 
             if ($quotation->type === self::SERVICE) {
@@ -1602,7 +1514,7 @@ class QuotationController extends Controller
             // Restock returned spareparts
             $returnedItems = $request->input('returned', []);
             foreach ($returnedItems as $item) {
-                $sparepart = Sparepart::find($item['sparepart_id']);
+                $sparepart = Sparepart::where('id', $item['sparepart_id'])->lockForUpdate()->first();
                 if ($sparepart) {
                     $sparepart->total_unit += $item['quantity'];
                     $sparepart->save();
@@ -1772,7 +1684,7 @@ class QuotationController extends Controller
 
         try {
             $quotations = $this->getAccessedQuotation($request);
-            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+            $quotation = $quotations->where('slug', $slug)->lockForUpdate()->firstOrFail();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');
@@ -1894,7 +1806,7 @@ class QuotationController extends Controller
 
         try {
             $quotations = $this->getAccessedQuotation($request);
-            $quotation = $quotations->where('slug', $slug)->firstOrFail();
+            $quotation = $quotations->where('slug', $slug)->lockForUpdate()->firstOrFail();
 
             if (!$quotation) {
                 return $this->handleNotFound('Quotation not found');

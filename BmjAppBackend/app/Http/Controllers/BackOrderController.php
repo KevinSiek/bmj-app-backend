@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
 use App\Models\BackOrder;
 use App\Models\Buy;
 use App\Models\DetailBuy;
 use App\Models\DetailQuotation;
+use App\Models\PurchaseOrder;
+use App\Models\Sparepart;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -173,6 +176,9 @@ class BackOrderController extends Controller
 
     public function process(Request $request, $id)
     {
+        // The entire process is a single atomic operation.
+        DB::beginTransaction();
+
         try {
             // Check user role, only director and inventory that able process back order
             $user = $request->user();
@@ -180,22 +186,23 @@ class BackOrderController extends Controller
                 return $this->handleForbidden('You are not authorized to process back orders');
             }
 
-            DB::beginTransaction();
-
-            // Get the back order with all necessary relations
+            // Get the back order and lock it to prevent concurrent processing.
             $backOrder = $this->getAccessedBackOrder($request)
                 ->with([
-                    'detailBackOrders.sparepart',
-                    'purchaseOrder.quotation.detailQuotations'
+                    'detailBackOrders', // Eager load details
+                    'purchaseOrder.quotation' // Eager load PO and Quotation
                 ])
+                ->lockForUpdate() // Lock the back order row for this transaction
                 ->find($id);
 
             if (!$backOrder) {
+                DB::rollBack();
                 return $this->handleNotFound('Back order not found');
             }
 
-            // Check if back order is already processed
+            // Check if back order is already processed to prevent re-processing.
             if ($backOrder->current_status === self::READY) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Back order already processed'
                 ], Response::HTTP_BAD_REQUEST);
@@ -212,30 +219,27 @@ class BackOrderController extends Controller
                 'back_order_id' => $backOrder->id,
             ]);
 
+
             // Process each detail back order
-            $quotation = $backOrder->purchaseOrder->quotation;
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($backOrder->purchase_order_id);
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
                 // Skip if no back order quantity
                 if ($detailBackOrder->number_back_order <= 0) {
                     continue;
                 }
 
-                $sparepart = $detailBackOrder->sparepart;
+                // Lock the sparepart to prevent race conditions on stock update
+                $sparepart = Sparepart::lockForUpdate()->find($detailBackOrder->sparepart_id);
                 if (!$sparepart) {
-                    continue;
+                    throw new \Exception("Sparepart with ID {$detailBackOrder->sparepart_id} not found during processing.");
                 }
 
                 // Find the DetailSparepart with the lowest unit_price for this sparepart and seller
                 $cheapestDetailSparepart = $sparepart->detailSpareparts()
                     ->orderBy('unit_price', 'asc')
                     ->firstOrFail();
-
-                if (!$cheapestDetailSparepart) {
-                    DB::rollBack();
-                    return response()->json([
-                        'message' => 'No purchase history found for sparepart #' . $sparepart->sparepart_number
-                    ], Response::HTTP_BAD_REQUEST);
-                }
 
                 // Create DetailBuy record
                 $quantity = $detailBackOrder->number_back_order;
@@ -251,7 +255,7 @@ class BackOrderController extends Controller
 
                 $totalAmount += $subtotal;
 
-                // Update sparepart stock
+                // Update sparepart stock safely within the lock
                 $sparepart->total_unit += $quantity;
                 $sparepart->save();
 
@@ -259,7 +263,8 @@ class BackOrderController extends Controller
                 if ($quotation) {
                     $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
                         ->where('sparepart_id', $detailBackOrder->sparepart_id)
-                        ->firstOrFail();
+                        ->lockForUpdate() // Lock for safe update
+                        ->first();
 
                     if ($detailQuotation && $detailQuotation->is_indent) {
                         $detailQuotation->is_indent = false;
@@ -276,14 +281,27 @@ class BackOrderController extends Controller
             $backOrder->current_status = self::READY;
             $backOrder->save();
 
-            $quotation = $backOrder->purchaseOrder->quotation;
-            $purchaseOrder = $backOrder->purchaseOrder;
             // Update PO current status to PREPARE
             // It will become ready after user click "Sparepart ready" in PO
-            $purchaseOrder->update([
-                'current_status' => PurchaseOrderController::PREPARE
-            ]);
-            $this->quotationController->changeStatusToInventory($request, $quotation);
+            $purchaseOrder->current_status = PurchaseOrderController::PREPARE;
+            $purchaseOrder->save();
+
+            // The logic from quotationController->changeStatusToInventory is now inlined
+            // to avoid nested transactions and ensure atomicity.
+            $currentQuotationStatus = $quotation->status ?? [];
+            if (!is_array($currentQuotationStatus)) {
+                $currentQuotationStatus = [];
+            }
+
+            $currentQuotationStatus[] = [
+                'state' => QuotationController::Inventory,
+                'employee' => $user->username,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            $quotation->status = $currentQuotationStatus;
+            $quotation->current_status = QuotationController::Inventory;
+            $quotation->save();
 
             DB::commit();
 

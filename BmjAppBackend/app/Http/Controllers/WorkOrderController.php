@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\PurchaseOrder;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
 use App\Models\WorkOrder;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 
@@ -220,15 +223,18 @@ class WorkOrderController extends Controller
 
     public function update(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
-            $workOrder = $this->getAccessedWorkOrder($request)->find($id);
+            $workOrder = $this->getAccessedWorkOrder($request)->lockForUpdate()->find($id);
 
             if (!$workOrder) {
+                DB::rollBack();
                 return $this->handleNotFound('Work order not found');
             }
 
             $alreadyDone = $workOrder->is_done;
             if ($alreadyDone) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Work order already done'
                 ], Response::HTTP_BAD_REQUEST);
@@ -266,6 +272,7 @@ class WorkOrderController extends Controller
             ]);
 
             if ($validator->fails()) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
@@ -284,26 +291,31 @@ class WorkOrderController extends Controller
 
             $workOrder->update($validatedData);
 
+            DB::commit();
+
             return response()->json([
                 'message' => 'Work order updated successfully',
                 'data' => $workOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Work order update failed');
         }
     }
 
     public function process(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
-            $workOrder = $this->getAccessedWorkOrder($request)->find($id);
+            $workOrder = $this->getAccessedWorkOrder($request)->lockForUpdate()->find($id);
 
             if (!$workOrder) {
+                DB::rollBack();
                 return $this->handleNotFound('Work order not found');
             }
 
-            $alreadyDone = $workOrder->is_done;
-            if ($alreadyDone) {
+            if ($workOrder->is_done) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Work order already done'
                 ], Response::HTTP_BAD_REQUEST);
@@ -315,19 +327,39 @@ class WorkOrderController extends Controller
                 'end_date' => now()
             ]);
 
-            $purchaseOrder = $workOrder->purchaseOrder;
-            $quotation = $purchaseOrder->quotation;
-            $purchaseOrder->update([
-                'current_status' => self::DONE,
-            ]);
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($workOrder->purchase_order_id);
+            if ($purchaseOrder) {
+                $purchaseOrder->update([
+                    'current_status' => PurchaseOrderController::DONE,
+                ]);
 
-            $this->quotationController->changeStatusToDone($request, $quotation);
+                $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                if ($quotation) {
+                    // Inlined logic from QuotationController->changeStatusToDone
+                    $user = $request->user();
+                    $currentStatus = $quotation->status ?? [];
+                    if (!is_array($currentStatus)) {
+                        $currentStatus = [];
+                    }
+                    $currentStatus[] = [
+                        'state' => QuotationController::DONE,
+                        'employee' => $user->username,
+                        'timestamp' => now()->toIso8601String(),
+                    ];
+                    $quotation->status = $currentStatus;
+                    $quotation->current_status = QuotationController::DONE;
+                    $quotation->save();
+                }
+            }
+
+            DB::commit();
 
             return response()->json([
                 'message' => 'Work order processed successfully',
                 'data' => $workOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Work order process failed');
         }
     }

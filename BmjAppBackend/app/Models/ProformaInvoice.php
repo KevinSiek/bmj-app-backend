@@ -39,7 +39,7 @@ class ProformaInvoice extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function invoices()
+    public function invoice()
     {
         return $this->hasOne(Invoice::class);
     }

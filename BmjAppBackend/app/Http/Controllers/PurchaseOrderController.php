@@ -8,6 +8,7 @@ use App\Models\PurchaseOrder;
 use App\Models\WorkOrder;
 use App\Models\WoUnit;
 use App\Models\DeliveryOrder;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -324,18 +325,15 @@ class PurchaseOrderController extends Controller
             $request->validate([
                 'notes' => 'required|string',
             ]);
-            $notes = 'test dp';
+            $notes = $request->input('notes');
 
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->where('id', $id)
-                ->orderBy('version', 'asc')
+                ->lockForUpdate() // Lock the PO to prevent race conditions
                 ->firstOrFail();
 
-            if (!$purchaseOrder) {
-                return $this->handleNotFound('Purchase order not found');
-            }
-
             if ($purchaseOrder->proformaInvoice) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Purchase order already has a proforma invoice'
                 ], Response::HTTP_BAD_REQUEST);
@@ -354,10 +352,8 @@ class PurchaseOrderController extends Controller
                 $proformaInvoiceNumber = "PI-IN/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
-                $latestPurchaseOrder = PurchaseOrder::latest('id')
-                    ->first();
-                $lastestPi = $latestPurchaseOrder ? $latestPurchaseOrder->proformaInvoice : null;
-                $nextLastestPi = $lastestPi ? $lastestPi->id + 1 : 1;
+                $latestPi = ProformaInvoice::latest('id')->lockForUpdate()->first();
+                $nextLastestPi = $latestPi ? $latestPi->id + 1 : 1;
 
                 // Get user branch
                 $user = $request->user();
@@ -379,8 +375,23 @@ class PurchaseOrderController extends Controller
                 'is_full_paid' => false,
             ]);
 
-            $quotation = $purchaseOrder->quotation;
-            $this->quotationController->changeStatusToPi($request, $quotation);
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if ($quotation) {
+                // Inlined logic from QuotationController->changeStatusToPi
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::PI,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::PI;
+                $quotation->save();
+            }
 
             DB::commit();
 
@@ -401,6 +412,7 @@ class PurchaseOrderController extends Controller
         $status = $request->input('status');
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
 
             $purchaseOrder->current_status = $status;
@@ -425,6 +437,7 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
 
             // Update purchase order status
@@ -432,8 +445,23 @@ class PurchaseOrderController extends Controller
             $purchaseOrder->save();
 
             // Update status quotation for tracking
-            $quotation = $purchaseOrder->quotation;
-            $this->quotationController->changeStatusToReady($request, $quotation);
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if ($quotation) {
+                // Inlined logic from QuotationController->changeStatusToReady
+                $user = $request->user();
+                $status = $quotation->status ?? [];
+                if (!is_array($status)) {
+                    $status = [];
+                }
+                $status[] = [
+                    'state' => QuotationController::READY,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $status;
+                $quotation->current_status = QuotationController::READY;
+                $quotation->save();
+            }
 
             // Commit the transaction
             DB::commit();
@@ -447,7 +475,7 @@ class PurchaseOrderController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to release purchase order');
+            return $this->handleError($th, 'Failed to set purchase order to ready');
         }
     }
 
@@ -456,6 +484,7 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
 
             // Update purchase order status
@@ -463,8 +492,23 @@ class PurchaseOrderController extends Controller
             $purchaseOrder->save();
 
             // Update status quotation for tracking
-            $quotation = $purchaseOrder->quotation;
-            $this->quotationController->changeStatusToDone($request, $quotation);
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if ($quotation) {
+                // Inlined logic from QuotationController->changeStatusToDone
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::DONE,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::DONE;
+                $quotation->save();
+            }
 
             // Commit the transaction
             DB::commit();
@@ -478,7 +522,7 @@ class PurchaseOrderController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to release purchase order');
+            return $this->handleError($th, 'Failed to mark purchase order as done');
         }
     }
 
@@ -487,16 +531,21 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate() // Lock the PO to prevent concurrent modifications
                 ->findOrFail($id);
 
             $quotation = $purchaseOrder->quotation;
 
             // Check if quotation exists
             if (!$quotation) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Quotation not found for this purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
+
+            // Lock the quotation as well, since its state will be updated
+            $quotation = Quotation::lockForUpdate()->find($quotation->id);
 
             // Handle Service type quotations
             if ($quotation->type === QuotationController::SERVICE) {
@@ -526,6 +575,7 @@ class PurchaseOrderController extends Controller
                 ]);
 
                 if ($validator->fails()) {
+                    DB::rollBack();
                     return response()->json([
                         'message' => 'Validation failed',
                         'error' => $validator->errors()
@@ -533,22 +583,27 @@ class PurchaseOrderController extends Controller
                 }
 
                 // Check if work order already exists
-                if ($quotation->workOrder) {
+                if ($purchaseOrder->workOrder) {
+                    DB::rollBack();
                     return response()->json([
-                        'message' => 'Work order already exists for this quotation'
+                        'message' => 'Work order already exists for this purchase order'
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
                 // Check if quotation has PI with DP paid
                 $proformaInvoice = $purchaseOrder->proformaInvoice;
                 if (!$proformaInvoice || !$proformaInvoice->is_dp_paid) {
+                    DB::rollBack();
                     return response()->json([
                         'message' => 'Proforma invoice must exist and down payment must be paid'
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
-                // Generate work order number
-                $orderNumber = sprintf('%03d', WorkOrder::count() + 1);
+                // Generate work order number safely
+                $latestWorkOrder = WorkOrder::latest('id')->lockForUpdate()->first();
+                $orderNumber = $latestWorkOrder ? $latestWorkOrder->id + 1 : 1;
+                $orderNumber = sprintf('%03d', $orderNumber);
+
                 $randomString1 = strtoupper(Str::random(3));
                 $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
@@ -595,7 +650,21 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->current_status = self::RELEASE;
                 $purchaseOrder->save();
 
-                $this->quotationController->changeStatusToRelease($request, $quotation);
+                // Inlined logic from QuotationController->changeStatusToRelease
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::RELEASE,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::RELEASE;
+                $quotation->save();
+
 
                 // Commit the transaction
                 DB::commit();
@@ -611,15 +680,17 @@ class PurchaseOrderController extends Controller
             // Handle Sparepart type quotations
             else if ($quotation->type === QuotationController::SPAREPARTS) {
                 // Check if delivery order already exists
-                if ($quotation->deliveryOrder) {
+                if ($purchaseOrder->deliveryOrder) {
+                    DB::rollBack();
                     return response()->json([
-                        'message' => 'Delivery order already exists for this quotation'
+                        'message' => 'Delivery order already exists for this purchase order'
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
                 // Check if quotation has PI
                 $proformaInvoice = $purchaseOrder->proformaInvoice;
                 if (!$proformaInvoice) {
+                    DB::rollBack();
                     return response()->json([
                         'message' => 'Proforma invoice must exist for Sparepart type'
                     ], Response::HTTP_BAD_REQUEST);
@@ -638,6 +709,7 @@ class PurchaseOrderController extends Controller
                 ]);
 
                 if ($validator->fails()) {
+                    DB::rollBack();
                     return response()->json([
                         'message' => 'Validation failed',
                         'error' => $validator->errors()
@@ -645,8 +717,11 @@ class PurchaseOrderController extends Controller
                 }
 
 
-                // Generate delivery order number
-                $orderNumber = sprintf('%03d', DeliveryOrder::count() + 1);
+                // Generate delivery order number safely
+                $latestDeliveryOrder = DeliveryOrder::latest('id')->lockForUpdate()->first();
+                $orderNumber = $latestDeliveryOrder ? $latestDeliveryOrder->id + 1 : 1;
+                $orderNumber = sprintf('%03d', $orderNumber);
+
                 $randomString1 = strtoupper(Str::random(3));
                 $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
@@ -674,7 +749,20 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->current_status = self::RELEASE;
                 $purchaseOrder->save();
 
-                $this->quotationController->changeStatusToRelease($request, $quotation);
+                // Inlined logic from QuotationController->changeStatusToRelease
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::RELEASE,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::RELEASE;
+                $quotation->save();
 
                 // Commit the transaction
                 DB::commit();
@@ -687,6 +775,7 @@ class PurchaseOrderController extends Controller
                     ]
                 ], Response::HTTP_OK);
             } else {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Invalid quotation type. Only SERVICE or Sparepart types are supported'
                 ], Response::HTTP_BAD_REQUEST);
@@ -702,35 +791,43 @@ class PurchaseOrderController extends Controller
         // Start a database transaction
         DB::beginTransaction();
 
+        // Validate the there is notes for downPayment
+        $request->validate([
+            'notes' => 'required|string',
+        ]);
+        $notes = $request->input('notes');
+
         try {
             $user = $request->user();
             $role = $user->role;
             // Only allow Finance or Director to create PI
-            if ($role !== 'Finance' or $role !== 'Director') {
+            if ($role !== 'Finance' && $role !== 'Director') {
+                DB::rollBack();
                 return response()->json([
-                    'message' => 'You don\'t have access to create PI.'
+                    'message' => 'You don\'t have access to decline this.'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            // Retrieve the quotation
-            $purchaseOrders = $this->getAccessedPurchaseOrder($request);
-            $purchaseOrder = $purchaseOrders->find($id);
-            $pi = $purchaseOrder->proformaInvoice;
+            // Retrieve the purchase order and lock it
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate()
+                ->find($id);
 
-            if ($pi) {
+            if (!$purchaseOrder) {
+                DB::rollBack();
+                return $this->handleNotFound('Purchase order not found');
+            }
+
+            if ($purchaseOrder->proformaInvoice) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Can\'t decline, purchase order already processed.'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            if (!$purchaseOrder) {
-                return $this->handleNotFound('Purchase order not found');
-            }
-
             // Only allow director decline purchase order
-            $user = $request->user();
-            $role = $user->role;
             if ($role != 'Director') {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'You are not authorized to decline this purchase order'
                 ], Response::HTTP_BAD_REQUEST);
@@ -738,6 +835,7 @@ class PurchaseOrderController extends Controller
 
             // Change purchase order state
             $purchaseOrder->current_status = PurchaseOrderController::REJECTED;
+            $purchaseOrder->notes  = $notes;
             $purchaseOrder->save();
 
             // Commit the transaction
@@ -762,6 +860,7 @@ class PurchaseOrderController extends Controller
 
         try {
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate() // Lock the record
                 ->findOrFail($id);
 
             // Map camelCase input to snake_case for validation and update
@@ -794,6 +893,7 @@ class PurchaseOrderController extends Controller
             ]);
 
             if ($validator->fails()) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
@@ -915,9 +1015,13 @@ class PurchaseOrderController extends Controller
             if ($role == 'Marketing') {
                 $query->where('employee_id', $userId);
             } elseif ($role == 'Service') {
-                $query->where('type', QuotationController::SERVICE);
+                $query->whereHas('quotation', function ($q) {
+                    $q->where('type', QuotationController::SERVICE);
+                });
             } elseif ($role == 'Inventory') {
-                $query->where('type', QuotationController::SPAREPARTS);
+                $query->whereHas('quotation', function ($q) {
+                    $q->where('type', QuotationController::SPAREPARTS);
+                });
             }
 
             return $query;

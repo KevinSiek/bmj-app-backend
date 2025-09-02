@@ -4,32 +4,33 @@ namespace Database\Seeders;
 
 use App\Http\Controllers\BuyController;
 use App\Models\Buy;
-use App\Models\DetailBuy;
 use Illuminate\Database\Seeder;
 
 class BuySeeder extends Seeder
 {
     public function run(): void
     {
-        Buy::factory(15)
-            ->has(DetailBuy::factory()->count(5), 'detailBuys')
-            ->state([
-                'buy_number' => fn() => 'BUY-' . fake()->unique()->bothify('####-##'),
-                'review' => fake()->boolean(),
-                'current_status' => fake()->randomElement([
-                    BuyController::APPROVE,
-                    BuyController::WAIT_REVIEW,
-                    BuyController::DECLINE,
-                    BuyController::DONE,
-                ]),
-            ])
-            ->create([
-                'notes' => fake()->randomElement([
-                    'Order for customer x1',
-                    'Order for customer x2',
-                    'Order for customer x3',
-                    'Order for customer x4',
-                ]),
-            ]);
+        // This seeder simulates the review process of Buy orders created by BackOrderSeeder
+        $buysToReview = Buy::where('current_status', BuyController::WAIT_REVIEW)->get();
+
+        foreach ($buysToReview as $buy) {
+            $chance = rand(1, 10);
+            if ($chance <= 8) { // 80% get approved
+                $buy->update([
+                    'current_status' => BuyController::APPROVE,
+                    'review' => true
+                ]);
+
+                // 50% of approved ones get marked as Done
+                if (rand(0, 1) == 1) {
+                    $buy->update(['current_status' => BuyController::DONE]);
+                }
+            } else { // 20% get rejected
+                 $buy->update([
+                    'current_status' => BuyController::DECLINE,
+                    'review' => true
+                ]);
+            }
+        }
     }
 }

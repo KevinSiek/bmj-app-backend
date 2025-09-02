@@ -140,7 +140,7 @@ class InvoiceController extends Controller
             // Return like API contract
             $invoiceOrders =  $query
                 ->orderBy('invoice_date', 'DESC')
-                ->orderBy('id', 'DESC')
+                ->orderBy('id', 'asc')
                 ->get();
             // Return like API contract
             $invoices = $invoiceOrders->map(function ($invoice) {

@@ -12,6 +12,7 @@ use App\Http\Controllers\BackOrderController;
 use App\Http\Controllers\BuyController;
 use App\Http\Controllers\SparepartController;
 use App\Http\Controllers\WorkOrderController;
+use App\Http\Controllers\DashboardController; // Added DashboardController
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\GeneralController;
@@ -128,6 +129,10 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::post('/dpPaid/{id}', [ProformaInvoiceController::class, 'dpPaid']);
             Route::post('/fullPaid/{po_id}', [ProformaInvoiceController::class, 'fullPaid']);
             Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
+        });
+        // Dashboard Route
+        Route::prefix('dashboard')->group(function () {
+            Route::get('/summary', [DashboardController::class, 'getSummary']);
         });
     });
 
