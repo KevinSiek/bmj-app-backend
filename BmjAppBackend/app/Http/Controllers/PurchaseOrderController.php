@@ -442,12 +442,14 @@ class PurchaseOrderController extends Controller
 
             // Check if BackOrder exist then it must in READY state
             $backOrder = $purchaseOrder->backOrders;
-            $backOrderStatus = $backOrder->current_status;
-            if ($backOrderStatus !== BackOrderController::READY) {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'Please process back order first.'
-                ], Response::HTTP_BAD_REQUEST);
+            if ($backOrder) {
+                $backOrderStatus = $backOrder->current_status;
+                if ($backOrderStatus !== BackOrderController::READY) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'Please process back order first.'
+                    ], Response::HTTP_BAD_REQUEST);
+                }
             }
 
             // Update purchase order status
@@ -581,7 +583,7 @@ class PurchaseOrderController extends Controller
                     'units.*.quantity' => 'nullable|integer|min:1',
                     'date.startDate' => 'nullable|string',
                     'date.endDate' => 'nullable|string',
-                    'notes' => 'nullable|string',
+                    'description' => 'nullable|string',
                 ]);
 
                 if ($validator->fails()) {
@@ -635,7 +637,7 @@ class PurchaseOrderController extends Controller
                     'head_of_service' => $request->input('poc.headOfService'),
                     'approver' => $request->input('poc.approver'),
                     'is_done' => false,
-                    'notes' => $request->input('notes'),
+                    'notes' => $request->input('description'),
                     'spareparts' => json_encode($request->input('additional.spareparts')),
                     'backup_sparepart' => $request->input('additional.backupSparepart') ? json_encode($request->input('additional.backupSparepart')) : null,
                     'scope' => $request->input('additional.scope'),
