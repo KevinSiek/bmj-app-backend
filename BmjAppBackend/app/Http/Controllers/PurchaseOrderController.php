@@ -440,6 +440,16 @@ class PurchaseOrderController extends Controller
                 ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
 
+            // Check if BackOrder exist then it must in READY state
+            $backOrder = $purchaseOrder->backOrders;
+            $backOrderStatus = $backOrder->current_status;
+            if ($backOrderStatus !== BackOrderController::READY) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Please process back order first.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             // Update purchase order status
             $purchaseOrder->current_status = self::READY;
             $purchaseOrder->save();
