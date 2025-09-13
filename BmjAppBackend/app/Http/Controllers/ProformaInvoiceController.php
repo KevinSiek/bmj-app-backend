@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\ProformaInvoice;
+use App\Models\PurchaseOrder;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,8 +27,8 @@ class ProformaInvoiceController extends Controller
     {
         try {
             // Get all invoice numbers first to ensure we capture all versions
-            $proformaInvoiceNumbers = ProformaInvoice::select('proforma_invoice_number')
-                ->distinct();
+            $proformaInvoiceNumbers = $this->getAccessedProformaInvoice($request)
+                ->select('proforma_invoice_number');
 
             // Get query parameters
             $q = $request->query('search');
@@ -52,20 +54,19 @@ class ProformaInvoiceController extends Controller
                 }
             }
 
-            // Paginate the distinct quotation numbers
-            $paginatedProformaInvoiceNumbers = $proformaInvoiceNumbers->paginate(20);
+            // Paginate after groupBy proforma_invoice_number
+            $paginatedProformaInvoiceNumbers = $proformaInvoiceNumbers->groupBy('proforma_invoice_number')->paginate(20);
 
 
             // Get all quotations for the paginated quotation numbers
             $query = $this->getAccessedProformaInvoice($request)
                 ->whereIn('proforma_invoice_number', $paginatedProformaInvoiceNumbers->pluck('proforma_invoice_number'));
 
-            // Retrieve paginated proforma invoices
+            // Return like API format
             $proformaInvoice = $query
                 ->orderBy('proforma_invoice_date', 'desc')
-                ->paginate($request->input('per_page', 15)); // Default to 15 items per page
-
-            // Return like API format
+                ->orderBy('id', 'asc')
+                ->get();
             $proformaInvoices = $proformaInvoice->map(function ($pi) {
                 $purchaseOrder = $pi->purchaseOrder;
                 $quotation = $purchaseOrder->quotation;
@@ -103,6 +104,7 @@ class ProformaInvoiceController extends Controller
                         'type' => $quotation->type ?? '',
                         'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                         'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                        'date' => $pi->proforma_invoice_date->format('Y-m-d') ?? '',
                     ],
                     'customer' => [
                         'company_name' => $customer->company_name ?? '',
@@ -128,7 +130,6 @@ class ProformaInvoiceController extends Controller
                     'quotation_number' => $quotation ? $quotation->quotation_number : '',
                     'version' => $purchaseOrder->version,
                     'notes' => $pi->notes ?? '',
-                    'date' => $pi->created_at,
                     'spareparts' => $spareParts,
                     'services' => $services
                 ];
@@ -138,12 +139,12 @@ class ProformaInvoiceController extends Controller
                 'message' => 'List of proforma invoices retrieved successfully',
                 'data' => [
                     'data' => $proformaInvoices,
-                    'from' => $proformaInvoice->firstItem(),
-                    'to' => $proformaInvoice->lastItem(),
-                    'total' => $proformaInvoice->total(),
-                    'per_page' => $proformaInvoice->perPage(),
-                    'current_page' => $proformaInvoice->currentPage(),
-                    'last_page' => $proformaInvoice->lastPage(),
+                    'from' => $paginatedProformaInvoiceNumbers->firstItem(),
+                    'to' => $paginatedProformaInvoiceNumbers->lastItem(),
+                    'total' => $paginatedProformaInvoiceNumbers->total(),
+                    'per_page' => $paginatedProformaInvoiceNumbers->perPage(),
+                    'current_page' => $paginatedProformaInvoiceNumbers->currentPage(),
+                    'last_page' => $paginatedProformaInvoiceNumbers->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -198,6 +199,7 @@ class ProformaInvoiceController extends Controller
                     'type' => $quotation->type ?? '',
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
+                    'date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
@@ -222,7 +224,6 @@ class ProformaInvoiceController extends Controller
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
                 'version' => $purchaseOrder->version,
                 'notes' => $proformaInvoice->notes ?? '',
-                'date' => $proformaInvoice->created_at,
                 'status' => $quotation->status ?? [],
                 'spareparts' => $spareParts,
                 'services' => $services
@@ -242,13 +243,16 @@ class ProformaInvoiceController extends Controller
         DB::beginTransaction();
 
         try {
-            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->lockForUpdate()->find($id);
 
             if (!$proformaInvoice) {
+                DB::rollBack();
                 return $this->handleNotFound('Proforma invoice not found');
             }
 
-            if ($proformaInvoice->invoices) {
+            // Use a relationship check which is cleaner
+            if ($proformaInvoice->invoice()->exists()) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Proforma invoice already has an invoice'
                 ], Response::HTTP_BAD_REQUEST);
@@ -271,9 +275,7 @@ class ProformaInvoiceController extends Controller
                 $invoiceNumber = "IP/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
-                $currentMonth = Carbon::now()->format('m'); // Two-digit month
-                $latestInvoice = INVOICE::latest('id')
-                    ->first();
+                $latestInvoice = Invoice::latest('id')->lockForUpdate()->first();
                 $nextLastestInvoice = $latestInvoice ? $latestInvoice->id + 1 : 1;
 
                 // Get user branch
@@ -331,16 +333,18 @@ class ProformaInvoiceController extends Controller
 
     public function update(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
             // Validate the request data
             $validatedData = $request->validate([
                 'downPayment' => 'required|numeric|min:0',
             ]);
 
-            // Find the proforma invoice with access control
-            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+            // Find the proforma invoice with access control and lock it
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->lockForUpdate()->find($id);
 
             if (!$proformaInvoice) {
+                DB::rollBack();
                 return $this->handleNotFound('Proforma invoice not found');
             }
 
@@ -348,6 +352,8 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice->update([
                 'down_payment' => $validatedData['downPayment'],
             ]);
+
+            DB::commit();
 
             return response()->json([
                 'message' => 'Down payment updated successfully',
@@ -358,6 +364,7 @@ class ProformaInvoiceController extends Controller
                 ],
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Failed to update down payment');
         }
     }
@@ -367,20 +374,39 @@ class ProformaInvoiceController extends Controller
         DB::beginTransaction();
 
         try {
-            $proformaInvoice = $this->getAccessedProformaInvoice($request)->find($id);
+            $proformaInvoice = $this->getAccessedProformaInvoice($request)->lockForUpdate()->find($id);
 
             if (!$proformaInvoice) {
+                DB::rollBack();
                 return $this->handleNotFound('Proforma invoice not found');
             }
 
-            $purchaseOrder = $proformaInvoice->purchaseOrder;
-            $purchaseOrder->current_status = QuotationController::DP_PAID;
-            $purchaseOrder->save();
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($proformaInvoice->purchase_order_id);
+            if ($purchaseOrder) {
+                $purchaseOrder->current_status = QuotationController::DP_PAID;
+                $purchaseOrder->save();
+
+                $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                if ($quotation) {
+                    // Inlined logic from QuotationController->changeStatusToPaid
+                    $user = $request->user();
+                    $currentStatus = $quotation->status ?? [];
+                    if (!is_array($currentStatus)) {
+                        $currentStatus = [];
+                    }
+                    $currentStatus[] = [
+                        'state' => QuotationController::DP_PAID,
+                        'employee' => $user->username,
+                        'timestamp' => now()->toIso8601String(),
+                    ];
+                    $quotation->status = $currentStatus;
+                    $quotation->current_status = QuotationController::DP_PAID;
+                    $quotation->save();
+                }
+            }
 
             $proformaInvoice->is_dp_paid = true;
             $proformaInvoice->save();
-            $quotation = $purchaseOrder->quotation;
-            $this->quotationController->changeStatusToPaid($request, $quotation, true);
 
             DB::commit();
 
@@ -390,7 +416,7 @@ class ProformaInvoiceController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to promote proforma invoice');
+            return $this->handleError($th, 'Failed to update payment status');
         }
     }
 
@@ -399,23 +425,45 @@ class ProformaInvoiceController extends Controller
         DB::beginTransaction();
 
         try {
-            // Search PI via PO id
-            $purchaseOrder = $this->purchaseOrderController->getAccessedPurchaseOrder($request)->find($po_id);
-            $proformaInvoice = $purchaseOrder->proformaInvoice;
+            // Search PI via PO id and lock the PO
+            $purchaseOrder = $this->purchaseOrderController->getAccessedPurchaseOrder($request)->lockForUpdate()->find($po_id);
 
-            if (!$proformaInvoice) {
-                return $this->handleNotFound('Proforma invoice not found');
+            if (!$purchaseOrder) {
+                DB::rollBack();
+                return $this->handleNotFound('Purchase order not found');
             }
 
-            $purchaseOrder = $proformaInvoice->purchaseOrder;
-            $quotation = $purchaseOrder->quotation;
+            $proformaInvoice = ProformaInvoice::where('purchase_order_id', $purchaseOrder->id)->lockForUpdate()->first();
+
+            if (!$proformaInvoice) {
+                DB::rollBack();
+                return $this->handleNotFound('Proforma invoice not found for this purchase order');
+            }
+
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+
             $purchaseOrder->current_status = QuotationController::FULL_PAID;
             $purchaseOrder->save();
 
             $proformaInvoice->is_full_paid = true;
             $proformaInvoice->save();
 
-            $this->quotationController->changeStatusToPaid($request, $quotation, false);
+            if ($quotation) {
+                // Inlined logic from QuotationController->changeStatusToPaid
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::FULL_PAID,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::FULL_PAID;
+                $quotation->save();
+            }
 
             DB::commit();
 
@@ -425,7 +473,7 @@ class ProformaInvoiceController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to promote proforma invoice');
+            return $this->handleError($th, 'Failed to update payment status');
         }
     }
 
@@ -439,6 +487,7 @@ class ProformaInvoiceController extends Controller
             $query = ProformaInvoice::query();
 
             // Only allow proforma invoices for authorized users
+            // Just in case we want enable this in future
             if ($role == 'Marketing') {
                 $query->where('employee_id', $userId);
             }

@@ -33,6 +33,7 @@ class BuyController extends Controller
 
     public function store(Request $request)
     {
+        DB::beginTransaction();
         try {
             // Validate the request data
             $validatedData = $request->validate([
@@ -86,11 +87,14 @@ class BuyController extends Controller
                 ]);
             }
 
+            DB::commit();
+
             return response()->json([
                 'message' => 'Buy created successfully',
                 'data' => $buy,
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Buy creation failed');
         }
     }
@@ -100,7 +104,7 @@ class BuyController extends Controller
         DB::beginTransaction();
 
         try {
-            $buy = Buy::find($id);
+            $buy = Buy::lockForUpdate()->find($id);
 
             if (!$buy) {
                 return $this->handleNotFound('Buy not found');
@@ -226,19 +230,23 @@ class BuyController extends Controller
 
     public function destroy($id)
     {
+        DB::beginTransaction();
         try {
-            $buy = Buy::find($id);
+            $buy = Buy::lockForUpdate()->find($id);
 
             if (!$buy) {
+                DB::rollBack();
                 return $this->handleNotFound('Buy not found');
             }
 
             $buy->delete();
+            DB::commit();
             return response()->json([
                 'message' => 'Buy deleted successfully',
                 'data' => null,
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Buy deletion failed');
         }
     }
@@ -334,9 +342,10 @@ class BuyController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
-            $buy = Buy::find($id);
+            // Retrieve the buy record and lock it for update
+            $buy = Buy::lockForUpdate()->find($id);
             if (!$buy) {
+                DB::rollBack();
                 return $this->handleNotFound('Purchase not found');
             }
 
@@ -366,9 +375,10 @@ class BuyController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
-            $buy = Buy::find($id);
+            // Retrieve the buy record and lock it for update
+            $buy = Buy::lockForUpdate()->find($id);
             if (!$buy) {
+                DB::rollBack();
                 return $this->handleNotFound('Purchase not found');
             }
 
@@ -398,9 +408,10 @@ class BuyController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
-            $buy = Buy::find($id);
+            // Retrieve the buy record and lock it for update
+            $buy = Buy::lockForUpdate()->find($id);
             if (!$buy) {
+                DB::rollBack();
                 return $this->handleNotFound('Purchase not found');
             }
 
@@ -498,9 +509,10 @@ class BuyController extends Controller
         DB::beginTransaction();
 
         try {
-            // Retrieve the quotation
-            $buy = Buy::find($id);
+            // Retrieve the buy record and lock it for update
+            $buy = Buy::lockForUpdate()->find($id);
             if (!$buy) {
+                DB::rollBack();
                 return $this->handleNotFound('Purchase not found');
             }
 

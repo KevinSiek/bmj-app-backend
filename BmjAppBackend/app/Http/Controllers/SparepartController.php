@@ -5,8 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Sparepart;
+use App\Models\DetailSparepart;
+use App\Models\Seller;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class SparepartController extends Controller
 {
@@ -18,6 +22,9 @@ class SparepartController extends Controller
      */
     public function updateAllData(Request $request)
     {
+        // TODO: This bulk update operation is highly susceptible to race conditions if multiple users
+        // upload files simultaneously. An application-level lock (e.g., using Redis, a database flag, or a queue)
+        // should be implemented to ensure only one import process can run at a time. Ignored for now as per instructions.
         try {
             // Validate file upload
             $validator = Validator::make($request->all(), [
@@ -62,7 +69,228 @@ class SparepartController extends Controller
         }
     }
 
-    // Extra function
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+        try {
+            $sparepart = Sparepart::lockForUpdate()->find($id);
+
+            if (!$sparepart) {
+                DB::rollBack();
+                return $this->handleNotFound('Sparepart not found');
+            }
+
+            $sparepart->delete();
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Sparepart deleted successfully',
+                'data' => null,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Sparepart deletion failed');
+        }
+    }
+
+    /**
+     * Store a new sparepart.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function store(Request $request)
+    {
+        // Start transaction
+        DB::beginTransaction();
+        try {
+            // Validate input data
+            $validator = Validator::make($request->all(), [
+                'sparepartNumber' => 'required|string|max:255',
+                'sparepartName' => 'required|string|max:255',
+                'totalUnit' => 'required|integer|min:0',
+                'unitPriceSell' => 'required|numeric|min:0',
+                'branch' => 'required|string|max:255',
+                'unitPriceBuy' => 'present|array',
+                'unitPriceBuy.*.seller' => 'required|string|max:255',
+                'unitPriceBuy.*.price' => 'required|numeric|min:0',
+                'unitPriceBuy.*.quantity' => 'required|integer|min:0',
+            ]);
+
+            // Map camelCase to snake_case
+            $data = [
+                'sparepart_number' => $request->input('sparepartNumber', ''),
+                'sparepart_name' => $request->input('sparepartName', ''),
+                'total_unit' => $request->input('totalUnit'),
+                'branch' => $request->input('branch'),
+                'unit_price_sell' => $request->input('unitPriceSell'),
+                'branch' => $request->input('branch', null),
+                'unit_price_buy' => $request->input('unitPriceBuy', []),
+            ];
+
+            // Check if sparepart with this number already exists
+            if (Sparepart::where('sparepart_number', $data['sparepart_number'])->exists()) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Sparepart already exists, please use edit function',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Generate slug from sparepart_name
+            $baseSlug = Str::slug($data['sparepart_name']);
+            $slug = $baseSlug;
+            $counter = 1;
+            while (Sparepart::where('slug', $slug)->exists()) {
+                $slug = $baseSlug . '-' . $counter++;
+            }
+            $data['slug'] = $slug;
+
+            // Create sparepart
+            $sparepart = Sparepart::create($data);
+
+            // Create or find sellers and create detail spareparts
+            foreach ($data['unit_price_buy'] as $buy) {
+                $seller = Seller::where('name', $buy['seller'])->first();
+                if (!$seller) {
+                    $seller = Seller::create([
+                        'name' => $buy['seller'],
+                        'type' => null, // Default to null as type is not provided
+                    ]);
+                }
+
+                DetailSparepart::create([
+                    'sparepart_id' => $sparepart->id,
+                    'seller_id' => $seller->id,
+                    'unit_price' => $buy['price'],
+                    'quantity' => $buy['quantity'] ?? 0,
+                ]);
+            }
+
+            DB::commit();
+
+            // Prepare response data
+            $formattedSparepart = $this->formatSparepartResponse($sparepart, $request->user());
+
+            return response()->json([
+                'message' => 'Sparepart created successfully',
+                'data' => $formattedSparepart,
+            ], Response::HTTP_CREATED);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Error creating sparepart');
+        }
+    }
+
+    /**
+     * Update an existing sparepart.
+     *
+     * @param Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function update(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            // Find sparepart and lock it for update
+            $sparepart = Sparepart::with('detailSpareparts.seller')->lockForUpdate()->findOrFail($id);
+
+            // Validate input data
+            $validator = Validator::make($request->all(), [
+                'sparepartNumber' => 'required|string|max:255',
+                'sparepartName' => 'required|string|max:255',
+                'totalUnit' => 'required|integer|min:0',
+                'unitPriceSell' => 'required|numeric|min:0',
+                'branch' => 'required|string|max:255',
+                'unitPriceBuy' => 'present|array',
+                'unitPriceBuy.*.seller' => 'required|string|max:255',
+                'unitPriceBuy.*.price' => 'required|numeric|min:0',
+                'unitPriceBuy.*.quantity' => 'required|integer|min:0',
+            ]);
+
+            // Map camelCase to snake_case
+            $data = [
+                'sparepart_number' => $request->input('sparepartNumber', ''),
+                'sparepart_name' => $request->input('sparepartName', ''),
+                'total_unit' => $request->input('totalUnit'),
+                'unit_price_sell' => $request->input('unitPriceSell'),
+                'unit_price_buy' => $request->input('unitPriceBuy', []),
+                'branch' => $request->input('branch', $sparepart->branch),
+            ];
+
+            // Check if sparepart_number changed and already exists
+            if (
+                $data['sparepart_number'] !== $sparepart->sparepart_number &&
+                Sparepart::where('sparepart_number', $data['sparepart_number'])->exists()
+            ) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Sparepart number already exists',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Generate new slug if sparepart_name changed
+            if ($data['sparepart_name'] !== $sparepart->sparepart_name) {
+                $baseSlug = Str::slug($data['sparepart_name']);
+                $slug = $baseSlug;
+                $counter = 1;
+                while (Sparepart::where('slug', $slug)->where('id', '!=', $id)->exists()) {
+                    $slug = $baseSlug . '-' . $counter++;
+                }
+                $data['slug'] = $slug;
+            } else {
+                $data['slug'] = $sparepart->slug;
+            }
+
+            // Update sparepart
+            $sparepart->update($data);
+
+            // Delete old detail spareparts
+            $sparepart->detailSpareparts()->delete();
+
+            // Create new detail spareparts
+            foreach ($data['unit_price_buy'] as $buy) {
+                $seller = Seller::where('name', $buy['seller'])->first();
+                if (!$seller) {
+                    $seller = Seller::create([
+                        'name' => $buy['seller'],
+                        'type' => null, // Default to null as type is not provided
+                    ]);
+                }
+
+                DetailSparepart::create([
+                    'sparepart_id' => $sparepart->id,
+                    'seller_id' => $seller->id,
+                    'unit_price' => $buy['price'],
+                    'quantity' => $buy['quantity'] ?? 0,
+                ]);
+            }
+
+            DB::commit();
+
+            // Prepare response data
+            $formattedSparepart = $this->formatSparepartResponse($sparepart->fresh(['detailSpareparts.seller']), $request->user());
+
+            return response()->json([
+                'message' => 'Sparepart updated successfully',
+                'data' => $formattedSparepart,
+            ], Response::HTTP_OK);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            return $this->handleNotFound('Sparepart not found');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Error updating sparepart');
+        }
+    }
+
+    /**
+     * Retrieve a single sparepart by ID.
+     *
+     * @param Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function get(Request $request, $id)
     {
         try {
@@ -71,21 +299,7 @@ class SparepartController extends Controller
                 ->where('id', $id)
                 ->firstOrFail();
 
-
-            $formattedSparepart = [
-                'id' => $sparepart->id ?? '',
-                'slug' => $sparepart->slug ?? '',
-                'sparepart_number' => $sparepart->sparepart_number ?? '',
-                'sparepart_name' => $sparepart->sparepart_name ?? '',
-                'total_unit' => $sparepart->total_unit,
-                'unit_price_sell' => $sparepart->unit_price_sell,
-                'unit_price_buy' => $sparepart->detailSpareparts->map(function ($detail) {
-                    return [
-                        'seller' => $detail->seller->name ?? '',
-                        'price' => $detail->unit_price ?? 0,
-                    ];
-                })->toArray(),
-            ];
+            $formattedSparepart = $this->formatSparepartResponse($sparepart, $request->user());
 
             return response()->json([
                 'message' => 'Sparepart retrieved successfully',
@@ -96,7 +310,12 @@ class SparepartController extends Controller
         }
     }
 
-
+    /**
+     * Retrieve all spareparts with pagination and search.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function getAll(Request $request)
     {
         try {
@@ -109,21 +328,8 @@ class SparepartController extends Controller
             })
                 ->with('detailSpareparts.seller');
 
-            $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) {
-                return [
-                    'id' => $data->id ?? '',
-                    'slug' => $data->slug ?? '',
-                    'sparepart_number' => $data->sparepart_number ?? '',
-                    'sparepart_name' => $data->sparepart_name ?? '',
-                    'total_unit' => $data->total_unit,
-                    'unit_price_sell' => $data->unit_price_sell,
-                    'unit_price_buy' => $data->detailSpareparts->map(function ($detail) {
-                        return [
-                            'seller' => $detail->seller->name ?? '',
-                            'price' => $detail->unit_price ?? 0,
-                        ];
-                    })->toArray(),
-                ];
+            $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) use ($request) {
+                return $this->formatSparepartResponse($data, $request->user());
             });
 
             return response()->json([
@@ -135,7 +341,46 @@ class SparepartController extends Controller
         }
     }
 
-    // Function to get spareparts by access role level
+    /**
+     * Format sparepart data for API response, respecting user role.
+     *
+     * @param Sparepart $sparepart
+     * @param \App\Models\User $user
+     * @return array
+     */
+    protected function formatSparepartResponse($sparepart, $user)
+    {
+        $response = [
+            'id' => $sparepart->id ?? '',
+            'slug' => $sparepart->slug ?? '',
+            'sparepart_number' => $sparepart->sparepart_number ?? '',
+            'sparepart_name' => $sparepart->sparepart_name ?? '',
+            'total_unit' => $sparepart->total_unit,
+            'branch' => $sparepart->branch,
+            'unit_price_sell' => $sparepart->unit_price_sell,
+            'unit_price_buy' => $sparepart->detailSpareparts->map(function ($detail) {
+                return [
+                    'seller' => $detail->seller->name ?? '',
+                    'price' => $detail->unit_price ?? 0,
+                    'quantity' => $detail->quantity ?? 0,
+                ];
+            })->toArray(),
+        ];
+
+        // Hide unitPriceSell for Inventory role
+        if ($user->role === 'Inventory') {
+            $response['unitPriceSell'] = null;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Get spareparts query based on user access role.
+     *
+     * @param Request $request
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     protected function getAccessedSparepart($request)
     {
         // Prevent unauthorized user to get buy or sell price of sparepart

@@ -8,7 +8,7 @@ class CustomerSeeder extends Seeder
 {
     public function run(): void
     {
-        Customer::factory(20)->create([
+        Customer::factory(50)->create([
             'urban' => fake()->citySuffix(),
             'subdistrict' => fake()->city(),
             'province' => fake()->state(),

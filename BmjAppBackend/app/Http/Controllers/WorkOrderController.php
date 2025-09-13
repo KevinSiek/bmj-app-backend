@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\PurchaseOrder;
+use App\Models\Quotation;
 use Illuminate\Http\Request;
 use App\Models\WorkOrder;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 
@@ -37,14 +40,14 @@ class WorkOrderController extends Controller
                 'id' => (string) $workOrder->id,
                 'service_order' => [
                     'no' => $workOrder->work_order_number,
-                    'date' => $workOrder->created_at,
+                    'date' => $workOrder->created_at->format('Y-m-d'),
                     'received_by' => $workOrder->received_by ?? '',
                     'start_date' => $workOrder->start_date,
                     'end_date' => $workOrder->end_date,
                 ],
                 'proforma_invoice' => [
                     'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
-                    'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date ?? '',
+                    'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
@@ -67,7 +70,7 @@ class WorkOrderController extends Controller
                     'start_date' => $workOrder->start_date,
                     'end_date' => $workOrder->end_date,
                 ],
-                'description' => $quotation->notes ?? '',
+                'description' => $workOrder->notes ?? '',
                 'status' => $quotation->status ?? [],
                 'current_status' => $workOrder->current_status ?? '',
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
@@ -137,7 +140,9 @@ class WorkOrderController extends Controller
             }
 
             // Paginate the results
-            $workOrders = $query->orderBy('start_date', 'desc')
+            $workOrders = $query
+                ->orderBy('start_date', 'desc')
+                ->orderBy('id', 'DESC')
                 ->paginate(20);
 
             // Transform the results
@@ -152,7 +157,7 @@ class WorkOrderController extends Controller
                     'id' => (string) $wo->id,
                     'service_order' => [
                         'no' => $wo->work_order_number,
-                        'date' => $wo->created_at,
+                        'date' => $wo->created_at->format('Y-m-d'),
                         'received_by' => $wo->received_by ?? '',
                         'start_date' => $wo->start_date,
                         'end_date' => $wo->end_date,
@@ -182,7 +187,7 @@ class WorkOrderController extends Controller
                         'start_date' => $wo->start_date,
                         'end_date' => $wo->end_date,
                     ],
-                    'description' => $quotation->notes ?? '',
+                    'description' => $wo->notes ?? '',
                     'status' => $quotation->status ?? [],
                     'current_status' => $wo->current_status ?? '',
                     'quotation_number' => $quotation ? $quotation->quotation_number : '',
@@ -218,15 +223,18 @@ class WorkOrderController extends Controller
 
     public function update(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
-            $workOrder = $this->getAccessedWorkOrder($request)->find($id);
+            $workOrder = $this->getAccessedWorkOrder($request)->lockForUpdate()->find($id);
 
             if (!$workOrder) {
+                DB::rollBack();
                 return $this->handleNotFound('Work order not found');
             }
 
             $alreadyDone = $workOrder->is_done;
             if ($alreadyDone) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Work order already done'
                 ], Response::HTTP_BAD_REQUEST);
@@ -264,6 +272,7 @@ class WorkOrderController extends Controller
             ]);
 
             if ($validator->fails()) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
@@ -282,26 +291,31 @@ class WorkOrderController extends Controller
 
             $workOrder->update($validatedData);
 
+            DB::commit();
+
             return response()->json([
                 'message' => 'Work order updated successfully',
                 'data' => $workOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Work order update failed');
         }
     }
 
     public function process(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
-            $workOrder = $this->getAccessedWorkOrder($request)->find($id);
+            $workOrder = $this->getAccessedWorkOrder($request)->lockForUpdate()->find($id);
 
             if (!$workOrder) {
+                DB::rollBack();
                 return $this->handleNotFound('Work order not found');
             }
 
-            $alreadyDone = $workOrder->is_done;
-            if ($alreadyDone) {
+            if ($workOrder->is_done) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Work order already done'
                 ], Response::HTTP_BAD_REQUEST);
@@ -313,19 +327,39 @@ class WorkOrderController extends Controller
                 'end_date' => now()
             ]);
 
-            $purchaseOrder = $workOrder->purchaseOrder;
-            $quotation = $purchaseOrder->quotation;
-            $purchaseOrder->update([
-                'current_status' => self::DONE,
-            ]);
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($workOrder->purchase_order_id);
+            if ($purchaseOrder) {
+                $purchaseOrder->update([
+                    'current_status' => PurchaseOrderController::DONE,
+                ]);
 
-            $this->quotationController->changeStatusToDone($request, $quotation);
+                $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                if ($quotation) {
+                    // Inlined logic from QuotationController->changeStatusToDone
+                    $user = $request->user();
+                    $currentStatus = $quotation->status ?? [];
+                    if (!is_array($currentStatus)) {
+                        $currentStatus = [];
+                    }
+                    $currentStatus[] = [
+                        'state' => QuotationController::DONE,
+                        'employee' => $user->username,
+                        'timestamp' => now()->toIso8601String(),
+                    ];
+                    $quotation->status = $currentStatus;
+                    $quotation->current_status = QuotationController::DONE;
+                    $quotation->save();
+                }
+            }
+
+            DB::commit();
 
             return response()->json([
                 'message' => 'Work order processed successfully',
                 'data' => $workOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th, 'Work order process failed');
         }
     }
@@ -333,18 +367,10 @@ class WorkOrderController extends Controller
     protected function getAccessedWorkOrder($request)
     {
         try {
-            $user = $request->user();
-            $userId = $user->id;
-            $role = $user->role;
+            // For now, there is no filter for this
+
 
             $query = WorkOrder::query();
-
-            // Only allow work orders for authorized users
-            if ($role == 'Service') {
-                $query->whereHas('purchaseOrder.quotation', function ($q) use ($userId) {
-                    $q->where('employee_id', $userId);
-                });
-            }
 
             return $query;
         } catch (\Throwable $th) {

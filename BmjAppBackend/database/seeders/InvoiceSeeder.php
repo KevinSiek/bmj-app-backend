@@ -5,15 +5,27 @@ namespace Database\Seeders;
 use App\Models\Invoice;
 use App\Models\ProformaInvoice;
 use Illuminate\Database\Seeder;
+use Carbon\Carbon;
 
 class InvoiceSeeder extends Seeder
 {
     public function run(): void
     {
-        Invoice::factory(15)->create([
-            'proforma_invoice_id' => ProformaInvoice::inRandomOrder()->first()->id,
-            'invoice_number' => fn() => 'INV-' . fake()->unique()->bothify('####-##-####'),
-            'term_of_payment' => fake()->randomElement(['CASH', '30 DAYS', '60 DAYS', 'DP 50%'])
-        ]);
+        $proformaInvoices = ProformaInvoice::where('is_full_paid', true)
+            ->whereDoesntHave('invoice')
+            ->get();
+
+        foreach ($proformaInvoices as $pi) {
+            $invoiceDate = Carbon::parse($pi->updated_at)->addDay();
+            Invoice::create([
+                'proforma_invoice_id' => $pi->id,
+                'invoice_number' => 'INV-' . str_replace('PI-', '', $pi->proforma_invoice_number),
+                'invoice_date' => $invoiceDate,
+                'employee_id' => $pi->employee_id,
+                'term_of_payment' => fake()->randomElement(['CASH', '30 DAYS']),
+                'created_at' => $invoiceDate,
+                'updated_at' => $invoiceDate,
+            ]);
+        }
     }
 }

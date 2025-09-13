@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Http\Controllers\QuotationController;
 use App\Models\DeliveryOrder;
 use App\Models\PurchaseOrder;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 
 class DeliveryOrderSeeder extends Seeder
@@ -14,26 +14,45 @@ class DeliveryOrderSeeder extends Seeder
      */
     public function run(): void
     {
-        $purchaseOrders = PurchaseOrder::whereHas('quotation', function ($query) {
-            $query->where('type', QuotationController::SPAREPARTS);
-        })->take(5)->get();
+        // Find Sparepart POs that are ready and don't have a Delivery Order
+        $purchaseOrders = PurchaseOrder::whereIn('current_status', ['Prepare', 'Ready'])
+            ->whereHas('quotation', fn ($q) => $q->where('type', 'Spareparts'))
+            ->whereDoesntHave('deliveryOrder')
+            ->get();
 
-        foreach ($purchaseOrders as $index => $purchaseOrder) {
-            DeliveryOrder::create([
-                'purchase_order_id' => $purchaseOrder->id,
-                'type' => QuotationController::SPAREPARTS,
-                'current_status' => 'Process',
-                'notes' => 'Sample delivery order for ' . $purchaseOrder->quotation->quotation_number,
-                'delivery_order_number' => 'DO-' . str_pad($index + 1, 4, '0', STR_PAD_LEFT),
-                'delivery_order_date' => now()->subDays($index)->toDateString(),
-                'received_by' => 'Receiver ' . ($index + 1),
-                'prepared_by' => 'Preparer ' . ($index + 1),
-                'picked_by' => 'Picker ' . ($index + 1),
-                'ship_mode' => 'Ground',
+        $inventoryEmployees = \App\Models\Employee::where('role', 'Inventory')->get();
+
+        foreach ($purchaseOrders as $po) {
+             $releaseDate = Carbon::parse($po->updated_at)->addDays(rand(1, 3));
+
+            $do = DeliveryOrder::create([
+                'purchase_order_id' => $po->id,
+                'type' => 'Spareparts',
+                'current_status' => 'On Progress',
+                'notes' => 'Delivery for PO ' . $po->purchase_order_number,
+                'delivery_order_number' => 'DO-' . $po->id,
+                'delivery_order_date' => $releaseDate,
+                'received_by' => 'Customer Reception',
+                'prepared_by' => $inventoryEmployees->random()->fullname,
+                'picked_by' => $inventoryEmployees->random()->fullname,
+                'ship_mode' => fake()->randomElement(['Truck', 'Courier', 'Air Freight']),
                 'order_type' => 'Standard',
-                'delivery' => 'Express',
-                'npwp' => 'NPWP' . str_pad($index + 1, 6, '0', STR_PAD_LEFT),
+                'created_at' => $releaseDate,
+                'updated_at' => $releaseDate,
             ]);
+
+            // Mark older Delivery Orders as Done
+            if (Carbon::parse($do->delivery_order_date)->diffInDays(now()) > 14) {
+                 $doneDate = $do->delivery_order_date->copy()->addDays(rand(3, 7));
+                 $do->update(['current_status' => 'Done', 'updated_at' => $doneDate]);
+                 $po->update(['current_status' => 'Done', 'updated_at' => $doneDate]);
+
+                 // Also update quotation status
+                 $quotation = $po->quotation;
+                 $status = $quotation->status;
+                 $status[] = ['state' => 'Done', 'employee' => 'System', 'timestamp' => $doneDate->toIso8601String()];
+                 $quotation->update(['current_status' => 'Done', 'status' => $status]);
+            }
         }
     }
 }
