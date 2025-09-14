@@ -104,7 +104,7 @@ class QuotationSeeder extends Seeder
                 $quotation->subtotal = $subtotal;
                 $quotation->ppn = $ppnAmount;
                 $quotation->grand_total = $grandTotal;
-                $quotation->quotation_number = sprintf('QUOT/%04d/BMJ/%s/%s/%s', $quotation->id, $marketing->branch == 'Jakarta' ? 'JKT' : 'SMG', $creationDate->format('m'), $creationDate->format('Y'));
+                $quotation->quotation_number = sprintf('QUOT/%03d/BMJ/%s/%s/%s/%s', $quotation->id, $marketing->branch == 'Jakarta' ? 'JKT' : 'SMG', $marketing->id, $creationDate->format('m'), $creationDate->format('Y'));
                 $quotation->project = $quotation->quotation_number;
                 $quotation->slug = Str::slug($quotation->quotation_number) . '-' . strtolower(Str::random(6));
 
