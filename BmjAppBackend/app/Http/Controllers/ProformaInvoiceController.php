@@ -64,6 +64,9 @@ class ProformaInvoiceController extends Controller
 
             // Return like API format
             $proformaInvoice = $query
+                // Sort primarily by the numeric part of the proforma_invoice number (e.g., 033 from PI-IN/033/...).
+                // The existing sorting logic is kept as secondary sorting criteria.
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(proforma_invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('proforma_invoice_date', 'desc')
                 ->orderBy('id', 'asc')
                 ->get();

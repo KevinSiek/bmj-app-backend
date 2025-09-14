@@ -196,6 +196,9 @@ class PurchaseOrderController extends Controller
 
             // Return like API contract
             $purchaseOrders =  $queryTwo
+                // Sort primarily by the numeric part of the purchase_order number (e.g., 033 from PO-IN/033/...).
+                // The existing sorting logic is kept as secondary sorting criteria.
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(purchase_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('purchase_order_date', 'DESC')
                 ->orderBy('id', 'DESC')
                 ->get();
@@ -349,6 +352,7 @@ class PurchaseOrderController extends Controller
                 $year = $parts[6]; // e.g., 24
                 $user = $request->user();
                 $userId = $user->id;
+                // Expected purchase_order_number format: PI-IN/001/BMJ-MEGAH/SMG/1/V/25
                 $proformaInvoiceNumber = "PI-IN/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year

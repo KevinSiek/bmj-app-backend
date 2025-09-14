@@ -754,8 +754,10 @@ class QuotationController extends Controller
                 }
             }
 
-            // Paginate the distinct quotation numbers
+            // Paginate the distinct quotation numbers, sorted by the numeric part of the quotation number
+            // to ensure pagination is consistent with the final sort order.
             $paginatedQuotationNumbers = $quotationNumbers->groupBy('quotation_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->paginate(20);
 
             // Get all quotations for the paginated quotation numbers
@@ -776,6 +778,9 @@ class QuotationController extends Controller
             }
 
             $quotations = $quotationsQuery
+                // Sort primarily by the numeric part of the quotation number (e.g., 033 from QUOT/033/...).
+                // The existing sorting logic is kept as secondary sorting criteria.
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('date', 'DESC')
                 ->orderBy('version', 'ASC')
                 ->orderBy('id', 'DESC')

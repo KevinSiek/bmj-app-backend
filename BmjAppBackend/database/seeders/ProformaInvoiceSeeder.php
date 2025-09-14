@@ -26,10 +26,9 @@ class ProformaInvoiceSeeder extends Seeder
             $piDate = Carbon::parse($po->created_at)->addDays(rand(1, 5));
             $grandTotal = $po->quotation->grand_total;
             $downPayment = $grandTotal * 0.3; // 30% DP
-
             $pi = ProformaInvoice::create([
                 'purchase_order_id' => $po->id,
-                'proforma_invoice_number' => 'PI-' . $po->purchase_order_number,
+                'proforma_invoice_number' => 'PI-IN/' . str_replace('PO-IN/', '', $po->purchase_order_number),
                 'proforma_invoice_date' => $piDate,
                 'down_payment' => $downPayment,
                 'grand_total' => $grandTotal,

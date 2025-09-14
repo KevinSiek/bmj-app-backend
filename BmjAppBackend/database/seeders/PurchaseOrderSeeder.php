@@ -30,7 +30,7 @@ class PurchaseOrderSeeder extends Seeder
 
             $po = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
-                'purchase_order_number' => 'PO-' . str_replace('QUOT/', '', $quotation->quotation_number),
+                'purchase_order_number' => 'PO-IN/' . str_replace('QUOT/', '', $quotation->quotation_number),
                 'purchase_order_date' => $poDate,
                 'payment_due' => $poDate->copy()->addDays(30),
                 'employee_id' => $quotation->employee_id,

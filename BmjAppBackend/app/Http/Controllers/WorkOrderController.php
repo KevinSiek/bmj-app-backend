@@ -141,7 +141,8 @@ class WorkOrderController extends Controller
 
             // Paginate the results
             $workOrders = $query
-                ->orderBy('start_date', 'desc')
+                // WO might want to order using 'start_date'
+                // ->orderBy('start_date', 'desc')
                 ->orderBy('id', 'DESC')
                 ->paginate(20);
 

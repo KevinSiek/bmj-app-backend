@@ -11,7 +11,7 @@ class InvoiceSeeder extends Seeder
 {
     public function run(): void
     {
-        $proformaInvoices = ProformaInvoice::where('is_full_paid', true)
+        $proformaInvoices = ProformaInvoice::where('is_dp_paid', true)
             ->whereDoesntHave('invoice')
             ->get();
 
@@ -19,7 +19,7 @@ class InvoiceSeeder extends Seeder
             $invoiceDate = Carbon::parse($pi->updated_at)->addDay();
             Invoice::create([
                 'proforma_invoice_id' => $pi->id,
-                'invoice_number' => 'INV-' . str_replace('PI-', '', $pi->proforma_invoice_number),
+                'invoice_number' => 'INV-IN' . str_replace('PI-IN', '', $pi->proforma_invoice_number),
                 'invoice_date' => $invoiceDate,
                 'employee_id' => $pi->employee_id,
                 'term_of_payment' => fake()->randomElement(['CASH', '30 DAYS']),
