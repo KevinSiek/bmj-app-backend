@@ -880,7 +880,7 @@ class QuotationController extends Controller
             $request->validate([
                 'notes' => 'required|string',
             ]);
-            $note = $request->input('notes');
+            $notes = $request->input('notes');
 
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->lockForUpdate()->first();
@@ -956,7 +956,7 @@ class QuotationController extends Controller
                 'purchase_order_number' => $purchaseOrderNumber,
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
-                'notes' => $note,
+                'notes' => $notes,
                 'current_status' => PurchaseOrderController::PREPARE,
                 'version' => 1
             ]);
