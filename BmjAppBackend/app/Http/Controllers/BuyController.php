@@ -519,6 +519,13 @@ class BuyController extends Controller
             $buy->current_status = self::DONE;
             $buy->save();
 
+            // Add sparepart quantity
+            $buy->detailBuys->map(function ($detail) {
+                $sparepart = $detail->sparepart;
+                $sparepart->total_unit += $detail->quantity;
+                $sparepart->save();
+            });
+
             // Commit the transaction
             DB::commit();
 
