@@ -57,7 +57,7 @@ class PurchaseOrderSeeder extends Seeder
                         if (!$backOrder) {
                             $backOrder = BackOrder::create([
                                 'purchase_order_id' => $po->id,
-                                'back_order_number' => 'BO-' . $po->id,
+                                'back_order_number' => 'BO/' . str_replace('PO-IN/', '', $po->purchase_order_number),
                                 'current_status' => 'Process',
                                 // FIX: Removed 'employee_id' as the back_orders table does not have this column.
                                 'created_at' => $poDate,

@@ -624,7 +624,7 @@ class PurchaseOrderController extends Controller
                 $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
-                $workOrderNumber = "WO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+                $workOrderNumber = "WO/{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
 
                 // Create work order
                 $workOrder = WorkOrder::create([
@@ -742,7 +742,7 @@ class PurchaseOrderController extends Controller
                 $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
-                $deliveryOrderNumber = "DO.{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+                $deliveryOrderNumber = "DO/{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
 
                 // Create delivery order
                 $deliveryOrder = DeliveryOrder::create([

@@ -143,6 +143,7 @@ class WorkOrderController extends Controller
             $workOrders = $query
                 // WO might want to order using 'start_date'
                 // ->orderBy('start_date', 'desc')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(work_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('id', 'DESC')
                 ->paginate(20);
 

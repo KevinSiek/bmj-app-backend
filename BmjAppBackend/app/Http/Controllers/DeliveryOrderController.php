@@ -139,6 +139,7 @@ class DeliveryOrderController extends Controller
             }
 
             $deliveryOrders = $query
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(delivery_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('delivery_order_date', 'DESC')
                 ->orderBy('id', 'DESC')
                 ->paginate(20)->through(function ($do) {

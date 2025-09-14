@@ -139,7 +139,7 @@ class InvoiceController extends Controller
 
             // Return like API contract
             $invoiceOrders =  $query
-                // Sort primarily by the numeric part of the invoice_number (e.g., 033 from INV-IN/033/...).
+                // Sort primarily by the numeric part of the invoice_number (e.g., 033 from IP/033/...).
                 // The existing sorting logic is kept as secondary sorting criteria.
                 ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('invoice_date', 'DESC')

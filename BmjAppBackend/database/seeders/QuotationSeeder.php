@@ -107,6 +107,7 @@ class QuotationSeeder extends Seeder
                 $quotation->quotation_number = sprintf('QUOT/%03d/BMJ/%s/%s/%s/%s', $quotation->id, $marketing->branch == 'Jakarta' ? 'JKT' : 'SMG', $marketing->id, $creationDate->format('m'), $creationDate->format('Y'));
                 $quotation->project = $quotation->quotation_number;
                 $quotation->slug = Str::slug($quotation->quotation_number) . '-' . strtolower(Str::random(6));
+                $quotation->notes = "Qutoation {$quotation->quotation_number}";
 
                 // Simulate Review Process
                 $statusHistory = [];

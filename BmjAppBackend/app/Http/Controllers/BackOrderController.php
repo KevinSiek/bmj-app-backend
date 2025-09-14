@@ -71,8 +71,11 @@ class BackOrderController extends Controller
                 'purchaseOrder.quotation.customer',
                 'detailBackOrders.sparepart',
             ])
+                // Sort primarily by the numeric part of the back_order_number (e.g., 033 from BO/033/...).
+                // The existing sorting logic is kept as secondary sorting criteria.
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(back_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('created_at', 'desc')
-                ->orderBy('id', 'DESC')
+                ->orderBy('id', 'asc')
                 ->paginate(20);
 
             // Transform the data to match the API contract

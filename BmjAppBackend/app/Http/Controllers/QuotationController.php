@@ -977,9 +977,14 @@ class QuotationController extends Controller
                 }
 
                 // Create BackOrder for Spareparts
+                $lastestBo = BackOrder::latest('id')
+                    ->lockForUpdate() // Lock to prevent race condition
+                    ->first();
+                $nextLatestBoId = $lastestBo ? $lastestBo->id + 1 : 1;
+
                 $backOrder = BackOrder::create([
                     'purchase_order_id' => $purchaseOrder->id,
-                    'back_order_number' => 'PT' . now()->format('YmdHis'),
+                    'back_order_number' => "BO/{$nextLatestBoId}/BMJ-MEGAH/{$romanMonth}/{$year}",
                     'current_status' => BackOrderController::PROCESS,
                 ]);
 

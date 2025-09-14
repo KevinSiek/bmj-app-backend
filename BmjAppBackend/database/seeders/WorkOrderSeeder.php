@@ -31,7 +31,7 @@ class WorkOrderSeeder extends Seeder
 
             $wo = WorkOrder::create([
                 'purchase_order_id' => $po->id,
-                'work_order_number' => 'WO-' . $po->id,
+                'work_order_number' => 'WO/' . str_replace('PO-IN/', '', $po->purchase_order_number),
                 'received_by' => $po->quotation->customer->company_name,
                 'start_date' => $releaseDate,
                 'end_date' => $releaseDate->copy()->addDays(rand(3, 10)),
