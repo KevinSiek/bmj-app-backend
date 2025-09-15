@@ -187,6 +187,23 @@ class QuotationController extends Controller
                 $customer = Customer::create($customerData);
             }
 
+            // Prevent an employee from creating a quotation for a customer handled by another employee.
+            // Directors are exempt from this rule.
+            if ($user->role !== 'Director') {
+                $existingQuotation = Quotation::where('customer_id', $customer->id)
+                    ->latest('created_at') // Get the most recent quotation for this customer
+                    ->first();
+
+                // If a quotation exists and it belongs to a different employee, block the creation.
+                if ($existingQuotation && $existingQuotation->employee_id !== $userId) {
+                    $handlingEmployee = $existingQuotation->employee;
+                    $employeeName = $handlingEmployee ? $handlingEmployee->username : 'another employee';
+                    return response()->json([
+                        'message' => 'This customer is already being handled by ' . $employeeName . '. Please contact them for assistance.',
+                    ], Response::HTTP_FORBIDDEN);
+                }
+            }
+
             // Generate a unique slug based on the 'project' field
             $slug = Str::slug($quotationData['project']);
             $quotationData['slug'] = $slug . '-' . Str::random(6); // Add randomness for uniqueness
