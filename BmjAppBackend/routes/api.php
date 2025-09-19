@@ -172,4 +172,13 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::delete('/{id}', [SparepartController::class, 'destroy']);
         Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
     });
+
+    // Customer Routes
+    Route::prefix('customer')->group(function () {
+        Route::get('/', [App\Http\Controllers\CustomerController::class, 'getAll']);
+        Route::get('/{slug}', [App\Http\Controllers\CustomerController::class, 'get']);
+        Route::post('/', [App\Http\Controllers\CustomerController::class, 'store']);
+        Route::put('/{slug}', [App\Http\Controllers\CustomerController::class, 'update']);
+        Route::delete('/{slug}', [App\Http\Controllers\CustomerController::class, 'destroy']);
+    });
 });

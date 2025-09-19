@@ -217,6 +217,10 @@ class QuotationController extends Controller
 
             // Handle Spareparts or Services based on type
             if ($quotationData['type'] === self::SPAREPARTS) {
+                // To count the actual price - price need to pay (after discount if yes)
+                $totalNormalPriceSparepart = 0;
+                $totalPaidPriceSparepart = 0;
+
                 foreach ($request->input('spareparts', []) as $sparepart) {
                     $sparepartId = $sparepart['sparepartId'];
                     $sparepartUnitPrice = $sparepart['unitPriceSell'];
@@ -231,6 +235,11 @@ class QuotationController extends Controller
                     // If unit price that employee give different with official unit price, then this quotation need review
                     $sparepartDbData = Sparepart::find($sparepartId);
                     $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
+
+                    // Store the total of actual what need to pay and normal price
+                    $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell;
+                    $totalPaidPriceSparepart  += $sparepartUnitPrice;
+
                     if ($sparepartUnitPrice != $sparepartDbUnitPriceSell && $sparepartUnitPrice < $sparepartDbUnitPriceSell) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
@@ -256,6 +265,14 @@ class QuotationController extends Controller
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
+                }
+                // Calculate the total of actual what need to pay and normal price
+                $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart  *  $discount;
+                if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
+                    $dicountInPercentage = $discount * 100;
+                    return response()->json([
+                        'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
+                    ], Response::HTTP_BAD_REQUEST);
                 }
             } elseif ($quotationData['type'] === self::SERVICE) {
                 foreach ($request->input('services', []) as $service) {

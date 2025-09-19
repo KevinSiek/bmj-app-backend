@@ -21,7 +21,8 @@ class Employee extends Authenticatable
         'username',
         'password',
         'temp_password',
-        'temp_pass_already_use'
+        'temp_pass_already_use',
+        'temp_pass_expires_at'
     ];
 
     public function quotations()

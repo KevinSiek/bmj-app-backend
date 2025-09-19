@@ -748,7 +748,7 @@ class PurchaseOrderController extends Controller
                 $deliveryOrder = DeliveryOrder::create([
                     'purchase_order_id' => $purchaseOrder->id,
                     'type' => 'Sparepart',
-                    'current_status' => 'Process',
+                    'current_status' => DeliveryOrderController::ON_PROGRESS,
                     'delivery_order_number' => $deliveryOrderNumber,
                     'delivery_order_date' => $request->input('deliveryOrder.deliveryOrderDate') ?? null,
                     'prepared_by' => $request->input('deliveryOrder.preparedBy'),

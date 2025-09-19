@@ -3,32 +3,47 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Customer;
 use Illuminate\Http\Request;
+use App\Models\Customer;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Str;
 
 class CustomerController extends Controller
 {
-    public function index()
+    public function getAll(Request $request)
     {
         try {
-            $customers = Customer::all();
+            $q = $request->query('search');
+            $query = Customer::query();
+
+            if ($q) {
+                $query->where('company_name', 'like', "%$q%")
+                    ->orWhere('office', 'like', "%$q%")
+                    ->orWhere('city', 'like', "%$q%");
+            }
+
+            $customers = $query->paginate(20);
+
             return response()->json([
                 'message' => 'Customers retrieved successfully',
                 'data' => $customers
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th);
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    public function show($id)
+    public function get(Request $request, $slug)
     {
         try {
-            $customer = Customer::find($id);
+            $customer = Customer::where('slug', $slug)->first();
 
             if (!$customer) {
-                return $this->handleNotFound('Customer not found');
+                return response()->json(['message' => 'Customer not found'], Response::HTTP_NOT_FOUND);
             }
 
             return response()->json([
@@ -36,74 +51,114 @@ class CustomerController extends Controller
                 'data' => $customer
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th);
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     public function store(Request $request)
     {
+        DB::beginTransaction();
         try {
-            $customer = Customer::create($request->all());
+            $validated = $request->validate([
+                'company_name' => 'required|string|max:255',
+                'office' => 'required|string|max:255',
+                'address' => 'required|string',
+                'urban' => 'required|string',
+                'subdistrict' => 'required|string',
+                'city' => 'required|string',
+                'province' => 'required|string',
+                'postal_code' => 'required|numeric',
+            ]);
+
+            $validated['slug'] = Str::slug($validated['company_name']) . '-' . Str::random(6);
+
+            $customer = Customer::create($validated);
+
+            DB::commit();
+
             return response()->json([
                 'message' => 'Customer created successfully',
                 'data' => $customer
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Customer creation failed');
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Customer creation failed',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $slug)
     {
+        DB::beginTransaction();
         try {
-            $customer = Customer::find($id);
-
+            $customer = Customer::where('slug', $slug)->lockForUpdate()->first();
             if (!$customer) {
-                return $this->handleNotFound('Customer not found');
+                DB::rollBack();
+                return response()->json(['message' => 'Customer not found'], Response::HTTP_NOT_FOUND);
             }
 
-            $customer->update($request->all());
+            $validated = $request->validate([
+                'company_name' => 'required|string|max:255',
+                'office' => 'required|string|max:255',
+                'address' => 'required|string',
+                'urban' => 'required|string',
+                'subdistrict' => 'required|string',
+                'city' => 'required|string',
+                'province' => 'required|string',
+                'postal_code' => 'required|numeric',
+            ]);
+
+            $customer->update($validated);
+
+            DB::commit();
+
             return response()->json([
                 'message' => 'Customer updated successfully',
                 'data' => $customer
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Customer update failed');
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Customer update failed',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    public function destroy($id)
+    public function destroy($slug)
     {
+        DB::beginTransaction();
         try {
-            $customer = Customer::find($id);
-
+            $customer = Customer::where('slug', $slug)->lockForUpdate()->first();
             if (!$customer) {
-                return $this->handleNotFound('Customer not found');
+                DB::rollBack();
+                return response()->json(['message' => 'Customer not found'], Response::HTTP_NOT_FOUND);
             }
 
-            $customer->delete();
+            $deleted = $customer->delete();
+
+            if (!$deleted) {
+                DB::rollBack();
+                return response()->json(['message' => 'Customer could not be deleted'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            }
+
+            DB::commit();
+
             return response()->json([
                 'message' => 'Customer deleted successfully',
-                'data' => null
+                'data' => $deleted
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
-            return $this->handleError($th, 'Customer deletion failed');
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Customer deletion failed',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
-    }
-
-    // Helper methods for consistent error handling
-    protected function handleError(\Throwable $th, $message = 'Internal server error')
-    {
-        return response()->json([
-            'message' => $message,
-            'error' => $th->getMessage()
-        ], Response::HTTP_INTERNAL_SERVER_ERROR);
-    }
-
-    protected function handleNotFound($message = 'Resource not found')
-    {
-        return response()->json([
-            'message' => $message
-        ], Response::HTTP_NOT_FOUND);
     }
 }

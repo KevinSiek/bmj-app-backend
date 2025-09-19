@@ -55,6 +55,7 @@ class EmployeeController extends Controller
             $validatedData['password'] = bcrypt($tempPassword);
             $validatedData['temp_password'] = $tempPassword;
             $validatedData['temp_pass_already_use'] = false;
+            $validatedData['temp_pass_expires_at'] = now()->addDay();
 
             // Create a slug for the employee
             $slug = Str::slug($validatedData['fullname']);
@@ -96,6 +97,7 @@ class EmployeeController extends Controller
                 ], Response::HTTP_NOT_FOUND);
             }
 
+
             // Validate the request data
             $validatedData = $request->validate([
                 'fullname' => 'required|string|max:255',
@@ -104,7 +106,7 @@ class EmployeeController extends Controller
                 'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
                 'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
             ]);
-
+            
             // Update only the provided fields
             $employee->update($validatedData);
 
@@ -144,6 +146,7 @@ class EmployeeController extends Controller
                 'temp_password' => $tempPassword,
                 'password' => $encryptPassword,
                 'temp_pass_already_use' => false,
+                'temp_pass_expires_at' => now()->addDay(),
             ]);
 
             DB::commit();
