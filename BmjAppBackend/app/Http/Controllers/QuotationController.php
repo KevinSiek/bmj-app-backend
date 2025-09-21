@@ -967,7 +967,6 @@ class QuotationController extends Controller
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PO number with current month and year
                 $currentMonth = Carbon::now()->format('m'); // Two-digit month
-                $currentYear = Carbon::now()->format('Y'); // Four-digit year
                 $latestQuotation = Quotation::latest('id')
                     ->lockForUpdate() // Lock to prevent race condition
                     ->first();
@@ -1010,68 +1009,87 @@ class QuotationController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
-                // Create BackOrder for Spareparts
-                $lastestBo = BackOrder::latest('id')
-                    ->lockForUpdate() // Lock to prevent race condition
-                    ->first();
-                $nextLatestBoId = $lastestBo ? $lastestBo->id + 1 : 1;
+                try {
+                    // Expected quotation_number format: QUOT/033/BMJ-MEGAH/SMG/1/07/2025
+                    $parts = explode('/', $quotation->quotation_number);
+                    $boNumber = $parts[1]; // e.g., 033
 
-                $backOrder = BackOrder::create([
-                    'purchase_order_id' => $purchaseOrder->id,
-                    'back_order_number' => "BO/{$nextLatestBoId}/BMJ-MEGAH/{$romanMonth}/{$year}",
-                    'current_status' => BackOrderController::PROCESS,
-                ]);
-
-                $hasBoSparepart = false;
-                // Process each sparepart
-                foreach ($spareparts as $sparepart) {
-                    $sparepartRecord = Sparepart::where('id', $sparepart->sparepart_id)->lockForUpdate()->first();
-                    if (!$sparepartRecord) {
-                        DB::rollBack();
-                        return response()->json([
-                            'message' => "Sparepart with ID {$sparepart->sparepart_id} not found"
-                        ], Response::HTTP_BAD_REQUEST);
-                    }
-
-                    $sparepartTotalUnit = $sparepartRecord->total_unit;
-                    $sparepartQuantityOrderInPo = $sparepart->quantity;
-                    $numberBoInBo = 0;
-                    $numberDoInBo = $sparepartQuantityOrderInPo;
-
-                    // Determine BO and DO quantities
-                    $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
-                    $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
-                    $stockIsNotExistBeforePo = $sparepartTotalUnit <= 0;
-
-                    if ($stockIsExistButAfterPoBecomeIndent) {
-                        $numberBoInBo = ($sparepartQuantityOrderInPo - $sparepartTotalUnit);
-                        $numberDoInBo = $sparepartTotalUnit;
-                    } elseif ($stockIsNotExistBeforePo) {
-                        $numberBoInBo = $sparepartQuantityOrderInPo;
-                        $numberDoInBo = 0;
-                    }
-
-                    // Decrease the number of sparepart
-                    $sparepartRecord->total_unit -= $sparepartQuantityOrderInPo;
-                    $sparepartRecord->save();
-
-                    // Change current status of PO to BO if there is a backorder
-                    if ($numberBoInBo) {
-                        $purchaseOrder->update(['current_status' => PurchaseOrderController::BO]);
-                        $hasBoSparepart = true;
-                    }
-
-                    // Create DetailBackOrder entry
-                    DetailBackOrder::create([
-                        'back_order_id' => $backOrder->id,
-                        'sparepart_id' => $sparepart->sparepart_id,
-                        'number_delivery_order' => $numberDoInBo,
-                        'number_back_order' => $numberBoInBo,
+                    $backOrder = BackOrder::create([
+                        'purchase_order_id' => $purchaseOrder->id,
+                        'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$romanMonth}/{$year}",
+                        'current_status' => BackOrderController::PROCESS,
+                    ]);
+                } catch (\Throwable $th) {
+                    // Create BackOrder for Spareparts
+                    $lastestBo = BackOrder::latest('id')
+                        ->lockForUpdate() // Lock to prevent race condition
+                        ->first();
+                    $boNumber = $lastestBo ? $lastestBo->id + 1 : 1;
+                    $backOrder = BackOrder::create([
+                        'purchase_order_id' => $purchaseOrder->id,
+                        'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$romanMonth}/{$year}",
+                        'current_status' => BackOrderController::PROCESS,
                     ]);
                 }
 
-                // If no backorder spareparts, update BackOrder to READY
-                if (!$hasBoSparepart) {
+                // Check for returned quotation, process return quotation will not reduce sparepart again
+                $thereIsQuotationReturned = $quotations->where('is_return', true)->first();
+
+                if (!$thereIsQuotationReturned) {
+                    $hasBoSparepart = false;
+                    // Process each sparepart
+                    foreach ($spareparts as $sparepart) {
+                        $sparepartRecord = Sparepart::where('id', $sparepart->sparepart_id)->lockForUpdate()->first();
+                        if (!$sparepartRecord) {
+                            DB::rollBack();
+                            return response()->json([
+                                'message' => "Sparepart with ID {$sparepart->sparepart_id} not found"
+                            ], Response::HTTP_BAD_REQUEST);
+                        }
+
+                        $sparepartTotalUnit = $sparepartRecord->total_unit;
+                        $sparepartQuantityOrderInPo = $sparepart->quantity;
+                        $numberBoInBo = 0;
+                        $numberDoInBo = $sparepartQuantityOrderInPo;
+
+                        // Determine BO and DO quantities
+                        $sparepartQuantityAfterPo = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
+                        $stockIsExistButAfterPoBecomeIndent = $sparepartQuantityAfterPo < 0 && $sparepartTotalUnit >= 0;
+                        $stockIsNotExistBeforePo = $sparepartTotalUnit <= 0;
+
+                        if ($stockIsExistButAfterPoBecomeIndent) {
+                            $numberBoInBo = ($sparepartQuantityOrderInPo - $sparepartTotalUnit);
+                            $numberDoInBo = $sparepartTotalUnit;
+                        } elseif ($stockIsNotExistBeforePo) {
+                            $numberBoInBo = $sparepartQuantityOrderInPo;
+                            $numberDoInBo = 0;
+                        }
+
+                        // Decrease the number of sparepart
+                        $sparepartRecord->total_unit -= $sparepartQuantityOrderInPo;
+                        $sparepartRecord->save();
+
+                        // Change current status of PO to BO if there is a backorder
+                        if ($numberBoInBo) {
+                            $purchaseOrder->update(['current_status' => PurchaseOrderController::BO]);
+                            $hasBoSparepart = true;
+                        }
+
+                        // Create DetailBackOrder entry
+                        DetailBackOrder::create([
+                            'back_order_id' => $backOrder->id,
+                            'sparepart_id' => $sparepart->sparepart_id,
+                            'number_delivery_order' => $numberDoInBo,
+                            'number_back_order' => $numberBoInBo,
+                        ]);
+                    }
+
+                    // If no backorder spareparts, update BackOrder to READY
+                    if (!$hasBoSparepart) {
+                        $backOrder->update(['current_status' => BackOrderController::READY]);
+                    }
+                } else {
+                    // Directly change BO status to ready if this quotation number has quotation that returned.
                     $backOrder->update(['current_status' => BackOrderController::READY]);
                 }
             }

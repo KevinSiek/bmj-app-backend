@@ -616,9 +616,8 @@ class PurchaseOrderController extends Controller
                 }
 
                 // Generate work order number safely
-                $latestWorkOrder = WorkOrder::latest('id')->lockForUpdate()->first();
-                $orderNumber = $latestWorkOrder ? $latestWorkOrder->id + 1 : 1;
-                $orderNumber = sprintf('%03d', $orderNumber);
+                $parts = explode('/', $purchaseOrder->purchase_order_number);
+                $orderNumber = $parts[1]; // e.g., 033
 
                 $randomString1 = strtoupper(Str::random(3));
                 $randomString2 = strtoupper(Str::random(3));
@@ -734,9 +733,9 @@ class PurchaseOrderController extends Controller
 
 
                 // Generate delivery order number safely
-                $latestDeliveryOrder = DeliveryOrder::latest('id')->lockForUpdate()->first();
-                $orderNumber = $latestDeliveryOrder ? $latestDeliveryOrder->id + 1 : 1;
-                $orderNumber = sprintf('%03d', $orderNumber);
+                // Generate work order number safely
+                $parts = explode('/', $purchaseOrder->purchase_order_number);
+                $orderNumber = $parts[1]; // e.g., 033
 
                 $randomString1 = strtoupper(Str::random(3));
                 $randomString2 = strtoupper(Str::random(3));
