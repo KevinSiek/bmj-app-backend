@@ -515,6 +515,17 @@ class QuotationController extends Controller
                 }
             }
 
+            // Change all need review quotation to be Changed
+            $existingQuotationOnReviews = Quotation::where('quotation_number', $baseQuotationNumber)
+                ->where('review', false)
+                ->where('version', '<', $quotationData['version'])
+                ->get();
+
+            foreach ($existingQuotationOnReviews as $quotationOnReview) {
+                $quotationOnReview->current_status = QuotationController::NEED_CHANGE;
+                $quotationOnReview->save();
+            }
+
             // Commit the transaction if everything is successful
             DB::commit();
 
