@@ -1201,6 +1201,8 @@ class QuotationController extends Controller
                             'date' => $quotation->date
                         ],
                         'price' => [
+                            'amount' => $quotation->amount,
+                            'discount' => $quotation->discount,
                             'subtotal' => $quotation->subtotal,
                             'ppn' => $quotation->ppn,
                             'grand_total' => $quotation->grand_total
@@ -1304,6 +1306,8 @@ class QuotationController extends Controller
                             'date' => $quotation->date
                         ],
                         'price' => [
+                            'amount' => $quotation->amount,
+                            'discount' => $quotation->discount,
                             'subtotal' => $quotation->subtotal,
                             'ppn' => $quotation->ppn,
                             'grand_total' => $quotation->grand_total
@@ -1848,6 +1852,8 @@ class QuotationController extends Controller
                     'date' => $quotation->date
                 ],
                 'price' => [
+                    'amount' => $quotation->amount,
+                    'discount' => $quotation->discount,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
                     'grand_total' => $quotation->grand_total
@@ -1965,6 +1971,8 @@ class QuotationController extends Controller
                     'date' => $quotation->date
                 ],
                 'price' => [
+                    'amount' => $quotation->amount,
+                    'discount' => $quotation->discount,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
                     'grand_total' => $quotation->grand_total
@@ -2117,6 +2125,8 @@ class QuotationController extends Controller
                 'date' => $quotation->date
             ],
             'price' => [
+                'amount' => $quotation->amount,
+                'discount' => $quotation->discount,
                 'subtotal' => $quotation->subtotal,
                 'ppn' => $quotation->ppn,
                 'grand_total' => $quotation->grand_total
