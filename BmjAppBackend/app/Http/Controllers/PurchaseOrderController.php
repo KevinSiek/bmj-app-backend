@@ -864,6 +864,27 @@ class PurchaseOrderController extends Controller
             $purchaseOrder->notes  = $notes;
             $purchaseOrder->save();
 
+            // Change quotation state and status
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            $user = $request->user();
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
+            }
+
+            // Append new status entry
+            $currentStatus[] = [
+                'state' => self::REJECTED,
+                'employee' => $user->username,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Update quotation with new status and current_status
+            $quotation->update([
+                'status' => $currentStatus,
+                'current_status' => self::REJECTED,
+            ]);
+
             // Commit the transaction
             DB::commit();
 
