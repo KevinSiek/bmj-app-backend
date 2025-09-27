@@ -119,20 +119,26 @@ class QuotationController extends Controller
             ]);
 
             // Generate quotation_number
+            $quotationNumber = '';
             $currentMonth = Carbon::now()->month; // e.g., 7 for July
             $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
+            $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+            $userId = $user->id;
             $latestQuotation = $this->getAllWithoutPermission($request)
                 ->whereMonth('created_at', $currentMonth)
                 ->whereYear('created_at', $currentYear)
                 ->latest('id')
                 ->lockForUpdate() // Lock to prevent race condition on number generation
                 ->first();
-            $parts = explode('/', $latestQuotation->quotation_number);
-            $nextLatestQuotationNumber = $parts[1]+1;
-            $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
-            $userId = $user->id;
-            $quotationNumber = "QUOT/{$nextLatestQuotationNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
+            if (!$latestQuotation) {
+                // No quotations found for the current month and year, start from 1
+                $quotationNumber = "QUOT/1/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
+            } else {
+                $parts = explode('/', $latestQuotation->quotation_number);
+                $nextLatestQuotationNumber = $parts[1]+1;
+                $quotationNumber = "QUOT/{$nextLatestQuotationNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
+            }
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
