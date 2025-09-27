@@ -196,7 +196,7 @@ class PurchaseOrderController extends Controller
 
             // Return like API contract
             $purchaseOrders =  $queryTwo
-                // Sort primarily by the numeric part of the purchase_order number (e.g., 033 from PO-IN/033/...).
+                // Sort primarily by the numeric part of the purchase_order number (e.g., 033 from PO/033/...).
                 // The existing sorting logic is kept as secondary sorting criteria.
                 ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(purchase_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('purchase_order_date', 'DESC')
@@ -351,7 +351,7 @@ class PurchaseOrderController extends Controller
 
             // Generate proforma invoice number from purchase order number
             try {
-                // Expected purchase_order_number format: PO-IN/001/BMJ-MEGAH/SMG/1/V/25
+                // Expected purchase_order_number format: PO/001/BMJ-MEGAH/SMG/1/V/25
                 $parts = explode('/', $purchaseOrder->purchase_order_number);
                 $piNumber = $parts[1]; // e.g., 033
                 $branch = $parts[3]; // e.g., V
@@ -359,8 +359,8 @@ class PurchaseOrderController extends Controller
                 $year = $parts[6]; // e.g., 24
                 $user = $request->user();
                 $userId = $user->id;
-                // Expected purchase_order_number format: PI-IN/001/BMJ-MEGAH/SMG/1/V/25
-                $proformaInvoiceNumber = "PI-IN/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
+                // Expected purchase_order_number format: PI/001/BMJ-MEGAH/SMG/1/V/25
+                $proformaInvoiceNumber = "PI/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
                 $latestPi = ProformaInvoice::latest('id')->lockForUpdate()->first();
@@ -373,7 +373,7 @@ class PurchaseOrderController extends Controller
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $proformaInvoiceNumber = "PI-IN/{$nextLastestPi}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
+                $proformaInvoiceNumber = "PI/{$nextLastestPi}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             }
 
             $proformaInvoice = ProformaInvoice::create([

@@ -64,7 +64,7 @@ class ProformaInvoiceController extends Controller
 
             // Return like API format
             $proformaInvoice = $query
-                // Sort primarily by the numeric part of the proforma_invoice number (e.g., 033 from PI-IN/033/...).
+                // Sort primarily by the numeric part of the proforma_invoice number (e.g., 033 from PI/033/...).
                 // The existing sorting logic is kept as secondary sorting criteria.
                 ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(proforma_invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
                 ->orderBy('proforma_invoice_date', 'desc')
@@ -266,7 +266,7 @@ class ProformaInvoiceController extends Controller
 
             // Generate proforma invoice number from purchase order number
             try {
-                // Expected purchase_order_number format: PI-IN/001/BMJ-MEGAH/JKT/1/V/25
+                // Expected purchase_order_number format: PI/001/BMJ-MEGAH/JKT/1/V/25
                 $parts = explode('/', $proformaInvoice->proforma_invoice_number);
                 $piNumber = $parts[1]; // e.g., 033
                 $branch = $parts[3]; // e.g., V
