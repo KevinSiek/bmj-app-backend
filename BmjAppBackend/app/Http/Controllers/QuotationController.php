@@ -119,7 +119,8 @@ class QuotationController extends Controller
             ]);
 
             // Generate quotation_number
-            $currentMonth = Carbon::now()->format('m'); // Two-digit month
+            $currentMonth = Carbon::now()->month; // e.g., 7 for July
+            $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
             $latestQuotation = $this->getAllWithoutPermission($request)
                 ->whereMonth('created_at', $currentMonth)
@@ -127,10 +128,11 @@ class QuotationController extends Controller
                 ->latest('id')
                 ->lockForUpdate() // Lock to prevent race condition on number generation
                 ->first();
-            $nextLatestId = $latestQuotation ? $latestQuotation->id + 1 : 1;
+            $parts = explode('/', $latestQuotation->quotation_number);
+            $nextLatestQuotationNumber = $parts[1]+1;
             $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
             $userId = $user->id;
-            $quotationNumber = "QUOT/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$currentMonth}/{$userId}/{$currentYear}";
+            $quotationNumber = "QUOT/{$nextLatestQuotationNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
@@ -975,7 +977,7 @@ class QuotationController extends Controller
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $purchaseOrderNumber = "PO-IN/{$poNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
+                $purchaseOrderNumber = "PO/{$poNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PO number with current month and year
                 $currentMonth = Carbon::now()->format('m'); // Two-digit month
@@ -992,7 +994,7 @@ class QuotationController extends Controller
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $purchaseOrderNumber = "PO-IN/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
+                $purchaseOrderNumber = "PO/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             }
 
             // Create PurchaseOrder with version 1
