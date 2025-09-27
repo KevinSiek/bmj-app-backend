@@ -100,7 +100,9 @@ class ProformaInvoiceController extends Controller
                     }
                 }
 
-                $advancedPayment = ($quotation->subtotal * $pi->down_payment)/100 ?? 0;
+                $advancePayment = ($quotation->subtotal * $pi->down_payment)/100 ?? 0;
+                $total = $quotation->subtotal - $advancePayment ?? 0;
+                $totalAmount = $total + $quotation->ppn ?? 0;
 
                 return [
                     'id' => (string) $pi->id,
@@ -125,10 +127,10 @@ class ProformaInvoiceController extends Controller
                         'amount' => $quotation->amount ?? 0,
                         'discount' => $quotation->discount ?? 0,
                         'subtotal' => $quotation->subtotal ?? 0,
-                        'advanced_payment' => $advancedPayment ?? 0,
-                        'total' => $quotation->grand_total ?? 0,
+                        'advance_payment' => $advancePayment,
+                        'total' => $total,
                         'ppn' => $quotation->ppn ?? 0,
-                        'total_amount' => $quotation->total_amount ?? 0,
+                        'total_amount' => $totalAmount,
                     ],
                     'down_payment' => $pi->down_payment ?? 0,
                     'status' => $quotation->status ?? [],
@@ -197,7 +199,9 @@ class ProformaInvoiceController extends Controller
                 }
             }
 
-            $advancedPayment = ($quotation->subtotal * $proformaInvoice->down_payment)/100 ?? 0;
+            $advancePayment = ($quotation->subtotal * $proformaInvoice->down_payment)/100 ?? 0;
+            $total = $quotation->subtotal - $advancePayment ?? 0;
+            $totalAmount = $total + $quotation->ppn ?? 0;
 
             $formattedProformaInvoice = [
                 'id' => (string) $proformaInvoice->id,
@@ -222,10 +226,10 @@ class ProformaInvoiceController extends Controller
                     'amount' => $quotation->amount ?? 0,
                     'discount' => $quotation->discount ?? 0,
                     'subtotal' => $quotation->subtotal ?? 0,
-                    'advance_payment' => $advancedPayment,
-                    'total' => $quotation->grand_total ?? 0,
+                    'advance_payment' => $advancePayment,
+                    'total' => $total,
                     'ppn' => $quotation->ppn ?? 0,
-                    'total_amount' => $quotation->total_amount ?? 0,
+                    'total_amount' => $totalAmount,
                 ],
                 'down_payment' => $proformaInvoice->down_payment ?? 0,
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',

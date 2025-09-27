@@ -143,7 +143,7 @@ class QuotationController extends Controller
             $priceDiscount = $totalAmount  * $discount;
             $subTotal = $totalAmount - $priceDiscount;
             $pricePpn = $subTotal  * $ppn;
-            $grandTotal = $subTotal - $pricePpn;
+            $grandTotal = $subTotal + $pricePpn;
 
             // Map API contract to database fields
             $quotationData = [
@@ -379,7 +379,7 @@ class QuotationController extends Controller
             $priceDiscount = $totalAmount  * $discount;
             $subTotal = $totalAmount - $priceDiscount;
             $pricePpn = $subTotal  * $ppn;
-            $grandTotal = $subTotal - $pricePpn;
+            $grandTotal = $subTotal + $pricePpn;
 
             // Map API contract to database fields
             $quotationData = [
@@ -1634,7 +1634,7 @@ class QuotationController extends Controller
             $priceDiscount = $totaNewAmount  * $discount;
             $subTotal = $totaNewAmount  - $priceDiscount;
             $pricePpn = $subTotal  * $ppn;
-            $grandTotal = $subTotal - $pricePpn;
+            $grandTotal = $subTotal + $pricePpn;
 
 
             // Create new PO version
