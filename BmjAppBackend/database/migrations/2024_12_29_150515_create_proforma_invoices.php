@@ -18,7 +18,6 @@ return new class extends Migration
             $table->date('proforma_invoice_date');
             $table->decimal('down_payment', 15, 2)->nullable();
             $table->decimal('grand_total', 15, 2)->nullable();
-            $table->decimal('total_amount', 15, 2)->nullable();
             $table->boolean('is_dp_paid')->nullable();
             $table->boolean('is_full_paid')->nullable();
             $table->string('total_amount_text')->nullable();

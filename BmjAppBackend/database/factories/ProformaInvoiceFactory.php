@@ -26,7 +26,6 @@ class ProformaInvoiceFactory extends Factory
             'proforma_invoice_date' => $this->faker->dateTimeBetween('2025-03-01', '2025-05-31'),
             'down_payment' => $this->faker->randomFloat(2, 1000, 5000),
             'grand_total' => $this->faker->randomFloat(2, 1000, 10000),
-            'total_amount' => $this->faker->randomFloat(2, 5000, 15000),
             'is_dp_paid' => $this->faker->boolean,
             'is_full_paid' => $this->faker->boolean,
             'total_amount_text' => $this->faker->words(3, true),

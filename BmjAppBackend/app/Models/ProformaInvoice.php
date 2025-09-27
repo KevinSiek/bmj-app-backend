@@ -15,7 +15,6 @@ class ProformaInvoice extends Model
         'proforma_invoice_date',
         'down_payment',
         'grand_total',
-        'total_amount',
         'is_dp_paid',
         'is_full_paid',
         'total_amount_text',

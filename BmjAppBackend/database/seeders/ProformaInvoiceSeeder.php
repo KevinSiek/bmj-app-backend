@@ -32,7 +32,6 @@ class ProformaInvoiceSeeder extends Seeder
                 'proforma_invoice_date' => $piDate,
                 'down_payment' => $downPayment,
                 'grand_total' => $grandTotal,
-                'total_amount' => $grandTotal, // Assuming total amount is grand total for now
                 'is_dp_paid' => false,
                 'is_full_paid' => false,
                 // FIX: Replaced NumberFormatter with a static placeholder to avoid dependency on the 'intl' PHP extension.
