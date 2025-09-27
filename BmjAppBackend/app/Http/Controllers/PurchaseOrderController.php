@@ -551,6 +551,9 @@ class PurchaseOrderController extends Controller
                 ->findOrFail($id);
 
             $quotation = $purchaseOrder->quotation;
+            $user = $request->user();
+            $userId = $user->id;
+            $branch = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
 
             // Check if quotation exists
             if (!$quotation) {
@@ -619,11 +622,9 @@ class PurchaseOrderController extends Controller
                 $parts = explode('/', $purchaseOrder->purchase_order_number);
                 $orderNumber = $parts[1]; // e.g., 033
 
-                $randomString1 = strtoupper(Str::random(3));
-                $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
-                $workOrderNumber = "WO/{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+                $workOrderNumber = "WO/{$orderNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$monthRoman}/{$year}";
 
                 // Create work order
                 $workOrder = WorkOrder::create([
@@ -666,7 +667,6 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->save();
 
                 // Inlined logic from QuotationController->changeStatusToRelease
-                $user = $request->user();
                 $currentStatus = $quotation->status ?? [];
                 if (!is_array($currentStatus)) {
                     $currentStatus = [];
@@ -731,17 +731,14 @@ class PurchaseOrderController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
-
                 // Generate delivery order number safely
                 // Generate work order number safely
                 $parts = explode('/', $purchaseOrder->purchase_order_number);
                 $orderNumber = $parts[1]; // e.g., 033
 
-                $randomString1 = strtoupper(Str::random(3));
-                $randomString2 = strtoupper(Str::random(3));
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
-                $deliveryOrderNumber = "DO/{$orderNumber}/{$randomString1}-{$randomString2}/{$monthRoman}/{$year}";
+                $deliveryOrderNumber = "DO/{$orderNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$monthRoman}/{$year}";
 
                 // Create delivery order
                 $deliveryOrder = DeliveryOrder::create([
@@ -765,7 +762,6 @@ class PurchaseOrderController extends Controller
                 $purchaseOrder->save();
 
                 // Inlined logic from QuotationController->changeStatusToRelease
-                $user = $request->user();
                 $currentStatus = $quotation->status ?? [];
                 if (!is_array($currentStatus)) {
                     $currentStatus = [];
