@@ -522,6 +522,7 @@ class QuotationController extends Controller
                 ->get();
 
             foreach ($existingQuotationOnReviews as $quotationOnReview) {
+                $quotationOnReview->review = false;
                 $quotationOnReview->current_status = QuotationController::NEED_CHANGE;
                 $quotationOnReview->save();
             }
