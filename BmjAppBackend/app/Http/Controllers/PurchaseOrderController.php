@@ -73,6 +73,8 @@ class PurchaseOrderController extends Controller
                 }
             }
 
+            $advancedPayment = $proformaInvoice ? ($quotation->subtotal * $proformaInvoice->down_payment)/100 : 0;
+
             $formattedPurchaseOrder = [
                 'id' => (string) ($purchaseOrder->id ?? ''),
                 'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
@@ -101,7 +103,7 @@ class PurchaseOrderController extends Controller
                     'amount' => $quotation ? $quotation->amount : 0,
                     'discount' => $quotation ? $quotation->discount : 0,
                     'subtotal' => $quotation ? $quotation->subtotal : 0,
-                    'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                    'advance_payment' => $advancedPayment,
                     'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
                     'ppn' => $quotation ? $quotation->ppn : 0,
                     'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
@@ -232,6 +234,7 @@ class PurchaseOrderController extends Controller
                         }
                     }
                 }
+                $advancedPayment = $proformaInvoice ? ($quotation->subtotal * $proformaInvoice->down_payment)/100 : 0;
 
                 return [
                     'id' => (string) ($po->id ?? ''),
@@ -261,7 +264,7 @@ class PurchaseOrderController extends Controller
                         'amount' => $quotation ? $quotation->amount : 0,
                         'discount' => $quotation ? $quotation->discount : 0,
                         'subtotal' => $quotation ? $quotation->subtotal : 0,
-                        'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                        'advance_payment' => $advancedPayment,
                         'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
                         'ppn' => $quotation ? $quotation->ppn : 0,
                         'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0
@@ -997,6 +1000,7 @@ class PurchaseOrderController extends Controller
                     }
                 }
             }
+            $advancedPayment = ($quotation->subtotal * $proformaInvoice->down_payment)/100 ?? 0;
 
             $formattedPurchaseOrder = [
                 'id' => (string)($updatedPurchaseOrder->id ?? ''),
@@ -1025,7 +1029,7 @@ class PurchaseOrderController extends Controller
                     'amount' => $quotation ? $quotation->amount : 0,
                     'discount' => $quotation ? $quotation->discount : 0,
                     'subtotal' => $quotation ? $quotation->subtotal : 0,
-                    'down_payment' => $proformaInvoice ? $proformaInvoice->down_payment : 0,
+                    'down_payment' => $advancedPayment,
                     'total' => $proformaInvoice ? $proformaInvoice->grand_total : 0,
                     'ppn' => $quotation ? $quotation->ppn : 0,
                     'total_amount' => $proformaInvoice ? $proformaInvoice->total_amount : 0

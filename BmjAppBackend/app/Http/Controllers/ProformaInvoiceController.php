@@ -100,6 +100,8 @@ class ProformaInvoiceController extends Controller
                     }
                 }
 
+                $advancedPayment = ($quotation->subtotal * $pi->down_payment)/100 ?? 0;
+
                 return [
                     'id' => (string) $pi->id,
                     'project' => [
@@ -123,7 +125,7 @@ class ProformaInvoiceController extends Controller
                         'amount' => $quotation->amount ?? 0,
                         'discount' => $quotation->discount ?? 0,
                         'subtotal' => $quotation->subtotal ?? 0,
-                        'down_payment' => $pi->down_payment ?? 0,
+                        'advanced_payment' => $advancedPayment ?? 0,
                         'total' => $quotation->grand_total ?? 0,
                         'ppn' => $quotation->ppn ?? 0,
                         'total_amount' => $quotation->total_amount ?? 0,
@@ -195,6 +197,8 @@ class ProformaInvoiceController extends Controller
                 }
             }
 
+            $advancedPayment = ($quotation->subtotal * $proformaInvoice->down_payment)/100 ?? 0;
+
             $formattedProformaInvoice = [
                 'id' => (string) $proformaInvoice->id,
                 'project' => [
@@ -218,7 +222,7 @@ class ProformaInvoiceController extends Controller
                     'amount' => $quotation->amount ?? 0,
                     'discount' => $quotation->discount ?? 0,
                     'subtotal' => $quotation->subtotal ?? 0,
-                    'down_payment' => $proformaInvoice->down_payment ?? 0,
+                    'advance_payment' => $advancedPayment,
                     'total' => $quotation->grand_total ?? 0,
                     'ppn' => $quotation->ppn ?? 0,
                     'total_amount' => $quotation->total_amount ?? 0,
