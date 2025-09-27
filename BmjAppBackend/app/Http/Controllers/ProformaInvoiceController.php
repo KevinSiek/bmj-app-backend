@@ -469,6 +469,7 @@ class ProformaInvoiceController extends Controller
             $purchaseOrder->current_status = QuotationController::FULL_PAID;
             $purchaseOrder->save();
 
+            $proformaInvoice->grand_total = $quotation->grand_total;
             $proformaInvoice->is_full_paid = true;
             $proformaInvoice->save();
 
