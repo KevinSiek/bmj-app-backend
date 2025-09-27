@@ -30,7 +30,7 @@ class PurchaseOrderSeeder extends Seeder
 
             $po = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
-                'purchase_order_number' => 'PO-IN/' . str_replace('QUOT/', '', $quotation->quotation_number),
+                'purchase_order_number' => 'PO/' . str_replace('QUOT/', '', $quotation->quotation_number),
                 'purchase_order_date' => $poDate,
                 'payment_due' => $poDate->copy()->addDays(30),
                 'employee_id' => $quotation->employee_id,
@@ -57,7 +57,7 @@ class PurchaseOrderSeeder extends Seeder
                         if (!$backOrder) {
                             $backOrder = BackOrder::create([
                                 'purchase_order_id' => $po->id,
-                                'back_order_number' => 'BO/' . str_replace('PO-IN/', '', $po->purchase_order_number),
+                                'back_order_number' => 'BO/' . str_replace('PO/', '', $po->purchase_order_number),
                                 'current_status' => 'Process',
                                 // FIX: Removed 'employee_id' as the back_orders table does not have this column.
                                 'created_at' => $poDate,

@@ -19,7 +19,7 @@ class InvoiceSeeder extends Seeder
             $invoiceDate = Carbon::parse($pi->updated_at)->addDay();
             Invoice::create([
                 'proforma_invoice_id' => $pi->id,
-                'invoice_number' => 'IP' . str_replace('PI-IN', '', $pi->proforma_invoice_number),
+                'invoice_number' => 'IP' . str_replace('PI', '', $pi->proforma_invoice_number),
                 'invoice_date' => $invoiceDate,
                 'employee_id' => $pi->employee_id,
                 'term_of_payment' => fake()->randomElement(['CASH', '30 DAYS']),
