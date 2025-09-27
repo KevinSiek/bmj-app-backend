@@ -385,6 +385,12 @@ class ProformaInvoiceController extends Controller
             }
 
             $purchaseOrder = PurchaseOrder::lockForUpdate()->find($proformaInvoice->purchase_order_id);
+            if ($purchaseOrder->current_status === QuotationController::REJECTED) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Cannot full paid a rejected purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
             if ($purchaseOrder) {
                 $purchaseOrder->current_status = QuotationController::DP_PAID;
                 $purchaseOrder->save();
@@ -434,6 +440,13 @@ class ProformaInvoiceController extends Controller
             if (!$purchaseOrder) {
                 DB::rollBack();
                 return $this->handleNotFound('Purchase order not found');
+            }
+
+            if ($purchaseOrder->current_status === QuotationController::REJECTED) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Cannot full paid a rejected purchase order'
+                ], Response::HTTP_BAD_REQUEST);
             }
 
             $proformaInvoice = ProformaInvoice::where('purchase_order_id', $purchaseOrder->id)->lockForUpdate()->first();

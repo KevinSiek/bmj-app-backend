@@ -335,6 +335,13 @@ class PurchaseOrderController extends Controller
                 ->lockForUpdate() // Lock the PO to prevent race conditions
                 ->firstOrFail();
 
+            if ($purchaseOrder->current_status === QuotationController::REJECTED) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Cannot create PI for a rejected purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             if ($purchaseOrder->proformaInvoice) {
                 DB::rollBack();
                 return response()->json([
@@ -443,6 +450,13 @@ class PurchaseOrderController extends Controller
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
+
+            if ($purchaseOrder->current_status === QuotationController::REJECTED) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Cannot set to ready a rejected purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
             // Check if BackOrder exist then it must in READY state
             $backOrder = $purchaseOrder->backOrders;
@@ -560,6 +574,14 @@ class PurchaseOrderController extends Controller
                 DB::rollBack();
                 return response()->json([
                     'message' => 'Quotation not found for this purchase order'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // if Status rejected, purchase order cannot be released
+            if ($purchaseOrder->current_status === QuotationController::REJECTED) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Cannot release a rejected purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -827,13 +849,6 @@ class PurchaseOrderController extends Controller
             if (!$purchaseOrder) {
                 DB::rollBack();
                 return $this->handleNotFound('Purchase order not found');
-            }
-
-            if ($purchaseOrder->proformaInvoice) {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'Can\'t decline, purchase order already processed.'
-                ], Response::HTTP_BAD_REQUEST);
             }
 
             // Only allow director decline purchase order
