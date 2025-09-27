@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Buy;
 use App\Models\Seller;
+use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ class BuyController extends Controller
     const DECLINE = "Rejected";
     const NEED_CHANGE = "Need Change";
     const WAIT_REVIEW = "Wait for Review";
-    const DONE = "Done";
+    const RECEIVED = "Received";
 
     public function index()
     {
@@ -29,6 +30,25 @@ class BuyController extends Controller
         } catch (\Throwable $th) {
             return $this->handleError($th);
         }
+    }
+
+    protected function getRomanMonth($month)
+    {
+        $romanNumerals = [
+            1 => 'I',
+            2 => 'II',
+            3 => 'III',
+            4 => 'IV',
+            5 => 'V',
+            6 => 'VI',
+            7 => 'VII',
+            8 => 'VIII',
+            9 => 'IX',
+            10 => 'X',
+            11 => 'XI',
+            12 => 'XII'
+        ];
+        return $romanNumerals[$month] ?? 'I';
     }
 
     public function store(Request $request)
@@ -46,9 +66,31 @@ class BuyController extends Controller
                 'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
             ]);
 
+            $buyNumber = '';
+            $currentMonth = Carbon::now()->month; // e.g., 7 for July
+            $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
+            $currentYear = Carbon::now()->format('Y'); // Four-digit year
+            $user = $request->user();
+            $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+            $userId = $user->id;
+            $latestBuy = Buy::query()
+                ->whereMonth('created_at', $currentMonth)
+                ->whereYear('created_at', $currentYear)
+                ->latest('id')
+                ->lockForUpdate() // Lock to prevent race condition on number generation
+                ->first();
+            if (!$latestBuy) {
+                // No buys found for the current month and year, start from 1
+                $buyNumber = "BUY/1/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
+            } else {
+                $parts = explode('/', $latestBuy->buy_number);
+                $nextLatestBuyNumber = $parts[1]+1;
+                $buyNumber = "BUY/{$nextLatestBuyNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
+            }
+
             // Map API contract to database fields
             $buyData = [
-                'buy_number' => 'id',
+                'buy_number' => $buyNumber,
                 'review' => false,
                 'current_status' => SELF::WAIT_REVIEW,
                 'back_order_id' => 1,
@@ -265,6 +307,7 @@ class BuyController extends Controller
             // Get spare parts details
             $spareParts = $buy->detailBuys->map(function ($detail) {
                 return [
+                    'sparepart_id' => $detail->sparepart->id,
                     'sparepart_name' => $detail->sparepart->sparepart_name,
                     'sparepart_number' => $detail->sparepart->sparepart_number,
                     'quantity' => $detail->quantity,
@@ -516,7 +559,7 @@ class BuyController extends Controller
                 return $this->handleNotFound('Purchase not found');
             }
 
-            $buy->current_status = self::DONE;
+            $buy->current_status = self::RECEIVED;
             $buy->save();
 
             // Add sparepart quantity

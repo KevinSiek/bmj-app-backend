@@ -217,7 +217,7 @@ class BackOrderController extends Controller
                 'buy_number' => 'BUY-' . Str::random(8),
                 'total_amount' => 0, // Will be updated after calculating
                 'review' => true, // Process means it already approved
-                'current_status' => BuyController::DONE, // Process means it already done
+                'current_status' => BuyController::RECEIVED, // Process means it already done
                 'notes' => 'Auto-generated from BackOrder #' . $backOrder->back_order_number,
                 'back_order_id' => $backOrder->id,
             ]);

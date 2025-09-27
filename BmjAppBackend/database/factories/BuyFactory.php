@@ -29,7 +29,7 @@ class BuyFactory extends Factory
                 BuyController::APPROVE,
                 BuyController::WAIT_REVIEW,
                 BuyController::DECLINE,
-                BuyController::DONE,
+                BuyController::RECEIVED,
             ]),
             'notes' => $this->faker->sentence,
         ];

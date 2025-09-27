@@ -23,7 +23,7 @@ class BuySeeder extends Seeder
 
                 // 50% of approved ones get marked as Done
                 if (rand(0, 1) == 1) {
-                    $buy->update(['current_status' => BuyController::DONE]);
+                    $buy->update(['current_status' => BuyController::RECEIVED]);
                 }
             } else { // 20% get rejected
                  $buy->update([
