@@ -84,7 +84,9 @@ class BuyController extends Controller
                 $buyNumber = "BUY/1/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
             } else {
                 $parts = explode('/', $latestBuy->buy_number);
-                $nextLatestBuyNumber = $parts[1]+1;
+                $nextLatestBuyNumber = (isset($parts[1]) && is_numeric($parts[1]))
+                    ? ((int)$parts[1] + 1)
+                    : 1;
                 $buyNumber = "BUY/{$nextLatestBuyNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
             }
 
@@ -164,7 +166,7 @@ class BuyController extends Controller
                 'spareparts' => 'sometimes|array',
                 'spareparts.*.sparepartId' => 'required_with:spareparts|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required_with:spareparts|integer|min:1',
-                'spareparts.*.unitPrice' => 'required_with:spareparts|numeric|min:1',
+                'spareparts.*.unitPriceSell' => 'required_with:spareparts|numeric|min:1',
             ]);
 
             if ($validator->fails()) {
@@ -210,7 +212,7 @@ class BuyController extends Controller
                     $sparepartValidator = Validator::make($sparepart, [
                         'sparepartId' => 'required|exists:spareparts,id',
                         'quantity' => 'required|integer|min:1',
-                        'unitPrice' => 'required|numeric|min:1',
+                        'unitPriceSell' => 'required|numeric|min:1',
                     ]);
 
                     if ($sparepartValidator->fails()) {
@@ -222,7 +224,7 @@ class BuyController extends Controller
                         'buy_id' => $buy->id,
                         'sparepart_id' => $sparepart['sparepartId'],
                         'quantity' => $sparepart['quantity'],
-                        'unit_price' => $sparepart['unitPrice'],
+                        'unit_price' => $sparepart['unitPriceSell'],
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
