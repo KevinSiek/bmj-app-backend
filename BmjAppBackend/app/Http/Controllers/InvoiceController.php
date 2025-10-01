@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
@@ -130,23 +131,68 @@ class InvoiceController extends Controller
                 }
             }
 
-            // Paginate the distinct quotation numbers
-            $paginatedInvoiceNumbers = $invoiceNumbers->groupBy('invoice_number')->paginate(20);
+            // Build base builder with filters
+            $baseBuilder = $this->getAccessedInvoice($request);
 
-            // Get all quotations for the paginated quotation numbers
-            $query = $this->getAccessedInvoice($request)
-                ->whereIn('invoice_number', $paginatedInvoiceNumbers->pluck('invoice_number'));
+            if ($q) {
+                $baseBuilder->where(function ($base) use ($q) {
+                    $base->where('invoice_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('proformaInvoice.purchaseOrder.quotation.customer', function ($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
+                });
+            }
 
-            // Return like API contract
-            $invoiceOrders =  $query
-                // Sort primarily by the numeric part of the invoice_number (e.g., 033 from IP/033/...).
-                // The existing sorting logic is kept as secondary sorting criteria.
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('invoice_date', 'DESC')
-                ->orderBy('id', 'asc')
+            if ($year) {
+                $baseBuilder->whereYear('invoice_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $baseBuilder->whereMonth('invoice_date', $monthNumber);
+                }
+            }
+
+            // Group to get representative ids per invoice_number
+            $grouped = (clone $baseBuilder)
+                ->getQuery()
+                ->select('invoice_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('invoice_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('invoice_number', 'max_id')
+                ->paginate(20);
+
+            $groupNumbers = $paginatedGroups->pluck('invoice_number')->filter()->all();
+
+            if (empty($groupNumbers)) {
+                return response()->json([
+                    'message' => 'List of invoices retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+            // Fetch all Invoice rows for the paginated group numbers and preserve group ordering
+            $invoiceOrders = Invoice::with(['proformaInvoice.purchaseOrder.quotation.customer', 'proformaInvoice.purchaseOrder.quotation.detailQuotations.sparepart'])
+                ->whereIn('invoice_number', $groupNumbers)
                 ->get();
+
+            // Order by the page group order then by version asc within each group
+            $ordered = $invoiceOrders->sortBy(function ($inv) use ($groupNumbers) {
+                $groupIndex = array_search($inv->invoice_number, $groupNumbers);
+                $version = intval($inv->proformaInvoice->purchaseOrder->version ?? 0);
+                return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
+            })->values();
+
             // Return like API contract
-            $invoices = $invoiceOrders->map(function ($invoice) {
+            $invoices = $ordered->map(function ($invoice) {
                 $proformaInvoice = $invoice->proformaInvoice;
                 $purchaseOrder = $proformaInvoice->purchaseOrder;
                 $quotation = $purchaseOrder->quotation;
@@ -221,12 +267,12 @@ class InvoiceController extends Controller
                 'message' => 'List of invoices retrieved successfully',
                 'data' => [
                     'data' => $invoices,
-                    'from' => $paginatedInvoiceNumbers->firstItem(),
-                    'to' => $paginatedInvoiceNumbers->lastItem(),
-                    'total' => $paginatedInvoiceNumbers->total(),
-                    'per_page' => $paginatedInvoiceNumbers->perPage(),
-                    'current_page' => $paginatedInvoiceNumbers->currentPage(),
-                    'last_page' => $paginatedInvoiceNumbers->lastPage(),
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {

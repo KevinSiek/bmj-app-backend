@@ -65,28 +65,72 @@ class BackOrderController extends Controller
                 $backOrderQuery->whereBetween('created_at', [$startDate, $endDate]);
             }
 
-            // Paginate the results with all required relationships
-            $backOrders = $backOrderQuery->with([
+            // Build grouped pagination to keep stable pages while returning all versions per back_order_number
+            $grouped = (clone $backOrderQuery)
+                ->getQuery()
+                ->select('back_order_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('back_order_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(back_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('back_order_number', 'max_id')
+                ->paginate(20);
+
+            $groupNumbers = $paginatedGroups->pluck('back_order_number')->filter()->all();
+
+            if (empty($groupNumbers)) {
+                return response()->json([
+                    'message' => 'List of all back orders retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+
+            // Fetch all BackOrder rows for the paginated group numbers and eager-load relationships
+            $backOrdersCollection = BackOrder::with([
                 'purchaseOrder.quotation',
                 'purchaseOrder.quotation.customer',
                 'detailBackOrders.sparepart',
-            ])
-                // Sort primarily by the numeric part of the back_order_number (e.g., 033 from BO/033/...).
-                // The existing sorting logic is kept as secondary sorting criteria.
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(back_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('created_at', 'desc')
-                ->orderBy('id', 'asc')
-                ->paginate(20);
+            ])->whereIn('back_order_number', $groupNumbers)
+                ->get();
 
-            // Transform the data to match the API contract
-            $formattedBackOrders = $backOrders->getCollection()->map(function ($backOrder) {
+            // Order by the page group order then by created_at desc (newest first) and id asc within group
+            $ordered = $backOrdersCollection->sortBy(function ($bo) use ($groupNumbers) {
+                $groupIndex = array_search($bo->back_order_number, $groupNumbers);
+                $timestamp = $bo->created_at ? strtotime($bo->created_at) : 0;
+                // Use array to perform lexicographic comparison: [groupIndex, -timestamp, id]
+                return [
+                    $groupIndex === false ? PHP_INT_MAX : $groupIndex,
+                    -intval($timestamp),
+                    intval($bo->id ?? 0)
+                ];
+            })->values();
+
+            // Map to API shape
+            $formattedBackOrders = $ordered->map(function ($backOrder) {
                 return $this->formatBackOrder($backOrder);
             });
 
             // Return paginated response with transformed data
             return response()->json([
                 'message' => 'List of all back orders retrieved successfully',
-                'data' => $backOrders->setCollection($formattedBackOrders),
+                'data' => [
+                    'data' => $formattedBackOrders,
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

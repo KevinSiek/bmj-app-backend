@@ -138,17 +138,93 @@ class DeliveryOrderController extends Controller
                 }
             }
 
-            $deliveryOrders = $query
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(delivery_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('delivery_order_date', 'DESC')
-                ->orderBy('id', 'DESC')
-                ->paginate(20)->through(function ($do) {
-                    return $this->formatDeliveryOrder($do);
+            // Build a base builder (apply access rules and initial filters) to derive groups
+            $baseBuilder = $this->getAccessedDeliveryOrder($request);
+
+            // Re-apply the same filters to the base builder
+            if ($q) {
+                $baseBuilder->where(function ($query) use ($q) {
+                    $query->where('type', 'like', '%' . $q . '%')
+                        ->orWhere('current_status', 'like', '%' . $q . '%')
+                        ->orWhere('work_order_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('purchaseOrder.quotation', function ($qry) use ($q) {
+                            $qry->where('quotation_number', 'like', '%' . $q . '%')
+                                ->orWhere('project', 'like', '%' . $q . '%');
+                        })
+                        ->orWhereHas('purchaseOrder', function ($qry) use ($q) {
+                            $qry->where('purchase_order_number', 'like', '%' . $q . '%');
+                        })
+                        ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
                 });
+            }
+
+            if ($year) {
+                $baseBuilder->whereYear('delivery_order_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $baseBuilder->whereMonth('delivery_order_date', $monthNumber);
+                }
+            }
+
+            // Build grouped query selecting a representative id per delivery_order_number
+            $grouped = (clone $baseBuilder)
+                ->getQuery()
+                ->select('delivery_order_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('delivery_order_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(delivery_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            // Paginate the grouped results (one group per paginator row)
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('delivery_order_number', 'max_id')
+                ->paginate(20);
+
+            $groupNumbers = $paginatedGroups->pluck('delivery_order_number')->filter()->all();
+
+            if (empty($groupNumbers)) {
+                return response()->json([
+                    'message' => 'List of delivery orders retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+
+            // Fetch all DeliveryOrder rows for the paginated group numbers and preserve group ordering
+            $deliveryOrdersCollection = DeliveryOrder::with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
+                ->whereIn('delivery_order_number', $groupNumbers)
+                ->get();
+
+            // Order by the page group order then by purchaseOrder.version asc within each group
+            $ordered = $deliveryOrdersCollection->sortBy(function ($do) use ($groupNumbers) {
+                $groupIndex = array_search($do->delivery_order_number, $groupNumbers);
+                $version = intval($do->purchaseOrder->version ?? 0);
+                return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
+            })->values();
+
+            $mapped = $ordered->map(function ($do) {
+                return $this->formatDeliveryOrder($do);
+            });
 
             return response()->json([
                 'message' => 'List of delivery orders retrieved successfully',
-                'data' => $deliveryOrders,
+                'data' => [
+                    'data' => $mapped,
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

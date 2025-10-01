@@ -125,9 +125,11 @@ class QuotationController extends Controller
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
             $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
             $userId = $user->id;
+            // Use the stored 'date' field (not 'created_at') when checking month/year
+            // so the quotation numeric sequence resets correctly each month.
             $latestQuotation = $this->getAllWithoutPermission($request)
-                ->whereMonth('created_at', $currentMonth)
-                ->whereYear('created_at', $currentYear)
+                ->whereMonth('date', $currentMonth)
+                ->whereYear('date', $currentYear)
                 ->latest('id')
                 ->lockForUpdate() // Lock to prevent race condition on number generation
                 ->first();
@@ -136,7 +138,7 @@ class QuotationController extends Controller
                 $quotationNumber = "QUOT/1/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
             } else {
                 $parts = explode('/', $latestQuotation->quotation_number);
-                $nextLatestQuotationNumber = $parts[1]+1;
+                $nextLatestQuotationNumber = $parts[1] + 1;
                 $quotationNumber = "QUOT/{$nextLatestQuotationNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$currentYear}";
             }
 
@@ -146,10 +148,6 @@ class QuotationController extends Controller
             $ppn = $general ? $general->ppn : 0;
 
             $totalAmount = $request->input('price.amount');
-            $priceDiscount = $totalAmount  * $discount;
-            $subTotal = $totalAmount - $priceDiscount;
-            $pricePpn = $subTotal  * $ppn;
-            $grandTotal = $subTotal + $pricePpn;
 
             // Map API contract to database fields
             $quotationData = [
@@ -158,12 +156,12 @@ class QuotationController extends Controller
                 'type' => $request->input('project.type'),
                 'date' => now(),
                 'amount' => $totalAmount,
-                'grand_total' => $grandTotal,
+                'grand_total' => 0,
                 'notes' => $request->input('notes'),
                 'project' => $quotationNumber, // Using quotationNumber as project name
-                'discount' => $priceDiscount,
-                'ppn' => $pricePpn,
-                'subtotal' => $subTotal,
+                'discount' => 0,
+                'ppn' => 0,
+                'subtotal' => 0,
             ];
 
             // Handle Customer Data
@@ -282,6 +280,16 @@ class QuotationController extends Controller
                         'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
                     ], Response::HTTP_BAD_REQUEST);
                 }
+                $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
+                $subTotal = $totalAmount - $priceDiscount;
+                $pricePpn = $subTotal  * $ppn;
+                $grandTotal = $subTotal + $pricePpn;
+                $quotation->update([
+                    'grand_total' => $grandTotal,
+                    'discount' => $priceDiscount,
+                    'ppn' => $pricePpn,
+                    'subtotal' => $subTotal,
+                ]);
             } elseif ($quotationData['type'] === self::SERVICE) {
                 foreach ($request->input('services', []) as $service) {
                     $serviceValidator = Validator::make($service, [
@@ -459,6 +467,10 @@ class QuotationController extends Controller
 
             // Handle Spareparts or Services based on type
             if ($quotationData['type'] === self::SPAREPARTS) {
+                // To count the actual price - price need to pay (after discount if yes)
+                $totalNormalPriceSparepart = 0;
+                $totalPaidPriceSparepart = 0;
+
                 foreach ($request->input('spareparts', []) as $sparepart) {
                     $sparepartId = $sparepart['sparepartId'];
                     $sparepartUnitPrice = $sparepart['unitPriceSell'];
@@ -473,6 +485,12 @@ class QuotationController extends Controller
                     // If unit price that employee give different with official unit price, then this quotation need review
                     $sparepartDbData = Sparepart::find($sparepartId);
                     $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
+
+                    // Store the total of actual what need to pay and normal price
+                    $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell;
+                    $totalPaidPriceSparepart  += $sparepartUnitPrice;
+
+
                     if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
@@ -500,6 +518,16 @@ class QuotationController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
+                $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
+                $subTotal = $totalAmount - $priceDiscount;
+                $pricePpn = $subTotal  * $ppn;
+                $grandTotal = $subTotal + $pricePpn;
+                $quotation->update([
+                    'grand_total' => $grandTotal,
+                    'discount' => $priceDiscount,
+                    'ppn' => $pricePpn,
+                    'subtotal' => $subTotal,
+                ]);
             } elseif ($quotationData['type'] === self::SERVICE) {
                 foreach ($request->input('services', []) as $service) {
                     $serviceValidator = Validator::make($service, [
@@ -783,61 +811,100 @@ class QuotationController extends Controller
             $q = $request->query('search');
             $month = $request->query('month');
             $year = $request->query('year');
+            // Build a base query with access rules and filters. We'll use this to derive
+            // a distinct set of quotation groups (one representative id per quotation_number)
+            // and paginate those groups in a stable manner.
+            $baseBuilder = $this->getAccessedQuotation($request);
 
-            // Get all quotation numbers first to ensure we capture all versions
-            $quotationNumbers = $this->getAccessedQuotation($request)
-                ->select('quotation_number')
-                ->where(function ($query) use ($q) {
-                    if ($q) {
-                        $query->where('project', 'like', "%$q%")
-                            ->orWhere('quotation_number', 'like', "%$q%")
-                            ->orWhere('type', 'like', "%$q%");
-                    }
-                })
-                ->where(function ($query) {
-                    $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
-                        $subQuery->where('version', '>', 1);
-                    })->orWhereDoesntHave('purchaseOrder');
+            // Apply the same search filter as before
+            if ($q) {
+                $baseBuilder->where(function ($query) use ($q) {
+                    $query->where('project', 'like', "%$q%")
+                        ->orWhere('quotation_number', 'like', "%$q%")
+                        ->orWhere('type', 'like', "%$q%");
                 });
+            }
+
+            // Exclude quotations that have a purchaseOrder with version > 1 (same logic as original)
+            $baseBuilder->where(function ($query) {
+                $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
+                    $subQuery->where('version', '>', 1);
+                })->orWhereDoesntHave('purchaseOrder');
+            });
 
             if ($year) {
-                $quotationNumbers->whereYear('date', $year);
+                $baseBuilder->whereYear('date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $quotationNumbers->whereMonth('date', $monthNumber);
+                    $baseBuilder->whereMonth('date', $monthNumber);
                 }
             }
 
-            // Paginate the distinct quotation numbers, sorted by the numeric part of the quotation number
-            // to ensure pagination is consistent with the final sort order.
-            $paginatedQuotationNumbers = $quotationNumbers->groupBy('quotation_number')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
+            // Create a grouped query that selects the maximum id for each quotation_number.
+            // Using MAX(id) ensures we pick a single representative quotation row for each group
+            // (commonly the most recent row), which makes pagination stable and consistent
+            // with ordering by the numeric part of quotation_number.
+            $grouped = (clone $baseBuilder)
+                ->getQuery() // switch to base query so aggregate/select works reliably
+                ->select('quotation_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('quotation_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            // Paginate the grouped results (one row per quotation_number)
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('quotation_number', 'max_id')
                 ->paginate(20);
 
-            // Get all quotations for the paginated quotation numbers
-            $quotationsQuery = $this->getAccessedQuotation($request)
-                ->whereIn('quotation_number', $paginatedQuotationNumbers->pluck('quotation_number'))
-                ->where(function ($query) {
-                    $query->whereDoesntHave('purchaseOrder', function ($subQuery) {
-                        $subQuery->where('version', '>', 1);
-                    })->orWhereDoesntHave('purchaseOrder');
-                });
+            // If there are no groups, return empty result
+            $groupIds = $paginatedGroups->pluck('max_id')->filter()->all();
 
-            if ($year) {
-                $quotationsQuery->whereYear('date', $year);
-                if ($month) {
-                    $monthNumber = date('m', strtotime($month));
-                    $quotationsQuery->whereMonth('date', $monthNumber);
-                }
+            if (empty($groupIds)) {
+                return response()->json([
+                    'message' => 'List of all quotations retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
             }
 
-            $quotations = $quotationsQuery
-                // Sort primarily by the numeric part of the quotation number (e.g., 033 from QUOT/033/...).
-                // The existing sorting logic is kept as secondary sorting criteria.
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('date', 'DESC')
+            // Instead of fetching only representative ids, fetch all versions for the
+            // quotation_numbers returned by the paginated groups. This preserves the
+            // UI expectation that a quotation_number can appear multiple times (different
+            // versions) while keeping pagination stable (one group per page item).
+            $groupQuotationNumbers = $paginatedGroups->pluck('quotation_number')->filter()->all();
+
+            if (empty($groupQuotationNumbers)) {
+                return response()->json([
+                    'message' => 'List of all quotations retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+
+            // Preserve the ordering of groups (quotation_number order) using FIELD,
+            // and within each group order by version ASC so versions appear in sequence.
+            $orderedQNumbers = implode(',', array_map(function ($s) {
+                return "'" . addslashes($s) . "'";
+            }, $groupQuotationNumbers));
+
+            $quotations = Quotation::with('customer')
+                ->whereIn('quotation_number', $groupQuotationNumbers)
+                ->orderByRaw("FIELD(quotation_number, {$orderedQNumbers})")
                 ->orderBy('version', 'ASC')
-                ->orderBy('id', 'DESC')
                 ->get();
 
             $grouped = $quotations->map(function ($quotation) {
@@ -912,13 +979,44 @@ class QuotationController extends Controller
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
                 'data' => [
-                    'data' => $grouped,
-                    'from' => $paginatedQuotationNumbers->firstItem(),
-                    'to' => $paginatedQuotationNumbers->lastItem(),
-                    'total' => $paginatedQuotationNumbers->total(),
-                    'per_page' => $paginatedQuotationNumbers->perPage(),
-                    'current_page' => $paginatedQuotationNumbers->currentPage(),
-                    'last_page' => $paginatedQuotationNumbers->lastPage(),
+                    'data' => $quotations->map(function ($q) {
+                        return [
+                            'quotation_number' => $q->quotation_number,
+                            'version' => $q->version,
+                            'slug' => $q->slug,
+                            'current_status' => $q->current_status,
+                            'status' => $q->status,
+                            'notes' => $q->notes,
+                            'project' => [
+                                'quotation_number' => $q->quotation_number,
+                                'type' => $q->type,
+                                'date' => $q->date
+                            ],
+                            'price' => [
+                                'amount' => $q->amount,
+                                'discount' => $q->discount,
+                                'subtotal' => $q->subtotal,
+                                'ppn' => $q->ppn,
+                                'grand_total' => $q->grand_total
+                            ],
+                            'customer' => [
+                                'company_name' => $q->customer->company_name ?? '',
+                                'address' => $q->customer->address ?? '',
+                                'city' => $q->customer->city ?? '',
+                                'province' => $q->customer->province ?? '',
+                                'office' => $q->customer->office ?? '',
+                                'urban' => $q->customer->urban ?? '',
+                                'subdistrict' => $q->customer->subdistrict ?? '',
+                                'postal_code' => $q->customer->postal_code ?? ''
+                            ]
+                        ];
+                    }),
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -1155,10 +1253,12 @@ class QuotationController extends Controller
                 }
             }
 
-            // Paginate the results
-            $quotations = $quotationNeedReview->orderBy('quotation_number', 'ASC')
-                ->orderBy('version', 'ASC') // Sort by version
-                ->paginate(20)->through(function ($quotation) {
+            // Paginate all versions but sort by numeric part of quotation_number DESC then by version ASC
+            $quotations = $quotationNeedReview
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, "/", 2), "/", -1) AS UNSIGNED) DESC')
+                ->orderBy('version', 'ASC')
+                ->paginate(20)
+                ->through(function ($quotation) {
                     $customer = $quotation->customer;
                     $spareParts = [];
                     $services = [];
@@ -1190,7 +1290,7 @@ class QuotationController extends Controller
                         'id' => (string) $quotation->id,
                         'slug' => $quotation->slug,
                         'quotation_number' => $quotation->quotation_number,
-                        'version' => $quotation->version, // Include version
+                        'version' => $quotation->version,
                         'customer' => [
                             'company_name' => $customer->company_name ?? '',
                             'address' => $customer->address ?? '',
@@ -1222,7 +1322,6 @@ class QuotationController extends Controller
                     ];
                 });
 
-            // Return the response with transformed data and pagination details
             return response()->json([
                 'message' => $isNeedReview ? 'List of all quotations that need to be reviewed' : 'List of all quotations that do not need to be reviewed',
                 'data' => $quotations,
@@ -1260,77 +1359,120 @@ class QuotationController extends Controller
                 }
             }
 
-            // Paginate the results
-            $quotations = $quotationNeedReturn->orderBy('quotation_number', 'ASC')
-                ->orderBy('version', 'ASC') // Sort by version
-                ->paginate(20)->through(function ($quotation) {
-                    $customer = $quotation->customer;
-                    $spareParts = [];
-                    $services = [];
-                    if ($quotation && $quotation->detailQuotations) {
-                        foreach ($quotation->detailQuotations as $detail) {
-                            if ($detail->sparepart_id) {
-                                $sparepart = $detail->sparepart;
-                                $spareParts[] = [
-                                    'sparepart_id' => $sparepart ? $sparepart->id : '',
-                                    'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
-                                    'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
-                                    'quantity' => $detail->quantity ?? 0,
-                                    'unit_price_sell' => $detail->unit_price ?? 0,
-                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
-                                    'stock' => $detail->is_indent ? 'indent' : 'available'
-                                ];
-                            } else {
-                                $services[] = [
-                                    'service' => $detail->service ?? '',
-                                    'unit_price_sell' => $detail->unit_price ?? 0,
-                                    'quantity' => $detail->quantity ?? 0,
-                                    'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
-                                ];
-                            }
+            // To avoid the group-by / paginate mismatch (where paginating distinct quotation_number
+            // then fetching rows later produces a different ordering), we paginate groups of
+            // quotation_number by selecting a representative id (MAX(id)) per group, then fetch the
+            // exact quotation rows for those ids preserving the paginated order. Also order DESC by
+            // the numeric part of quotation_number so newest numbers appear first.
+
+            // Build grouped query selecting representative id per quotation_number
+            $grouped = (clone $quotationNeedReturn)
+                ->getQuery()
+                ->select('quotation_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('quotation_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(quotation_number, "/", 2), "/", -1) AS UNSIGNED) DESC');
+
+            // Paginate the grouped results (one row per quotation_number)
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('quotation_number', 'max_id')
+                ->paginate(20);
+
+            $groupIds = $paginatedGroups->pluck('max_id')->filter()->all();
+
+            if (empty($groupIds)) {
+                return response()->json([
+                    'message' => $isNeedReturn ? 'List of all quotations that need to be returned' : 'List of all quotations that do not need to be returned',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+
+            // Fetch exact quotation rows for the current page, preserving order
+            $orderedIds = implode(',', $groupIds);
+            $quotationsCollection = Quotation::with('customer')
+                ->whereIn('id', $groupIds)
+                ->orderByRaw("FIELD(id, {$orderedIds})")
+                ->get();
+
+            // Map the results to the same shape as before
+            $mapped = $quotationsCollection->map(function ($quotation) {
+                $customer = $quotation->customer;
+                $spareParts = [];
+                $services = [];
+                if ($quotation && $quotation->detailQuotations) {
+                    foreach ($quotation->detailQuotations as $detail) {
+                        if ($detail->sparepart_id) {
+                            // minimal sparepart mapping (keeps previous behavior)
+                            $spareParts[] = [
+                                'sparepart_id' => $detail->sparepart_id,
+                                'quantity' => $detail->quantity,
+                                'unit_price_sell' => $detail->unit_price_sell,
+                            ];
+                        } else {
+                            $services[] = [
+                                'service' => $detail->service,
+                                'quantity' => $detail->quantity,
+                                'unit_price_sell' => $detail->unit_price_sell,
+                            ];
                         }
                     }
+                }
 
-                    return [
-                        'id' => (string) $quotation->id,
-                        'slug' => $quotation->slug,
+                return [
+                    'id' => (string) $quotation->id,
+                    'slug' => $quotation->slug,
+                    'quotation_number' => $quotation->quotation_number,
+                    'version' => $quotation->version,
+                    'customer' => [
+                        'company_name' => $customer->company_name ?? '',
+                        'address' => $customer->address ?? '',
+                        'city' => $customer->city ?? '',
+                        'province' => $customer->province ?? '',
+                        'office' => $customer->office ?? '',
+                        'urban' => $customer->urban ?? '',
+                        'subdistrict' => $customer->subdistrict ?? '',
+                        'postal_code' => $customer->postal_code ?? ''
+                    ],
+                    'project' => [
                         'quotation_number' => $quotation->quotation_number,
-                        'version' => $quotation->version, // Include version
-                        'customer' => [
-                            'company_name' => $customer->company_name ?? '',
-                            'address' => $customer->address ?? '',
-                            'city' => $customer->city ?? '',
-                            'province' => $customer->province ?? '',
-                            'office' => $customer->office ?? '',
-                            'urban' => $customer->urban ?? '',
-                            'subdistrict' => $customer->subdistrict ?? '',
-                            'postal_code' => $customer->postal_code ?? ''
-                        ],
-                        'project' => [
-                            'quotation_number' => $quotation->quotation_number,
-                            'type' => $quotation->type,
-                            'date' => $quotation->date
-                        ],
-                        'price' => [
-                            'amount' => $quotation->amount,
-                            'discount' => $quotation->discount,
-                            'subtotal' => $quotation->subtotal,
-                            'ppn' => $quotation->ppn,
-                            'grand_total' => $quotation->grand_total
-                        ],
-                        'current_status' => $quotation->current_status,
-                        'status' => $quotation->status,
-                        'notes' => $quotation->notes,
-                        'spareparts' => $spareParts,
-                        'servies' => $services,
+                        'type' => $quotation->type,
                         'date' => $quotation->date
-                    ];
-                });
+                    ],
+                    'price' => [
+                        'amount' => $quotation->amount,
+                        'discount' => $quotation->discount,
+                        'subtotal' => $quotation->subtotal,
+                        'ppn' => $quotation->ppn,
+                        'grand_total' => $quotation->grand_total
+                    ],
+                    'current_status' => $quotation->current_status,
+                    'status' => $quotation->status,
+                    'notes' => $quotation->notes,
+                    'spareparts' => $spareParts,
+                    'services' => $services,
+                    'date' => $quotation->date
+                ];
+            });
 
-            // Return the response with transformed data and pagination details
             return response()->json([
-                'message' => $isNeedReturn ? 'List of all quotations that need to be returned' : 'List of all quotations that do not need to be returned',
-                'data' => $quotations,
+                'message' => $isNeedReturn ? 'List of all quotations that need to be reviewed' : 'List of all quotations that do not need to be reviewed',
+                'data' => [
+                    'data' => $mapped,
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

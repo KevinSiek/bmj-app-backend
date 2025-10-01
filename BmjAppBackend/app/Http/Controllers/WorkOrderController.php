@@ -139,16 +139,77 @@ class WorkOrderController extends Controller
                 }
             }
 
-            // Paginate the results
-            $workOrders = $query
-                // WO might want to order using 'start_date'
-                // ->orderBy('start_date', 'desc')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(work_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('id', 'DESC')
+            // Build a base query (apply access rules and initial filters) to derive groups
+            $baseBuilder = $this->getAccessedWorkOrder($request);
+
+            // Re-apply the same filters to the base builder
+            if ($q) {
+                $baseBuilder->where(function ($base) use ($q) {
+                    $base->where('work_order_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('purchaseOrder.quotation', function ($qry) use ($q) {
+                            $qry->where('quotation_number', 'like', '%' . $q . '%')
+                                ->orWhere('project', 'like', '%' . $q . '%')
+                                ->orWhere('type', 'like', '%' . $q . '%')
+                                ->orWhere('current_status', 'like', '%' . $q . '%');
+                        })
+                        ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
+                });
+            }
+
+            if ($year) {
+                $baseBuilder->whereYear('start_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $baseBuilder->whereMonth('start_date', $monthNumber);
+                }
+            }
+
+            // Build grouped query selecting a representative id per work_order_number
+            $grouped = (clone $baseBuilder)
+                ->getQuery()
+                ->select('work_order_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('work_order_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(work_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            // Paginate the grouped results (one group per page row)
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('work_order_number', 'max_id')
                 ->paginate(20);
 
-            // Transform the results
-            $workOrders->getCollection()->transform(function ($wo) {
+            $groupNumbers = $paginatedGroups->pluck('work_order_number')->filter()->all();
+
+            if (empty($groupNumbers)) {
+                return response()->json([
+                    'message' => 'List of work orders retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+
+            // Fetch all WorkOrder rows for the paginated group numbers and preserve group ordering
+            $workOrdersCollection = WorkOrder::with(['purchaseOrder', 'purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart', 'woUnits'])
+                ->whereIn('work_order_number', $groupNumbers)
+                ->get();
+
+            // Order by the page group order then by purchaseOrder.version asc within each group
+            $ordered = $workOrdersCollection->sortBy(function ($wo) use ($groupNumbers) {
+                $groupIndex = array_search($wo->work_order_number, $groupNumbers);
+                $version = intval($wo->purchaseOrder->version ?? 0);
+                return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
+            })->values();
+
+            // Map to the existing response shape
+            $mapped = $ordered->map(function ($wo) {
                 $purchaseOrder = $wo->purchaseOrder;
                 $quotation = $purchaseOrder->quotation ?? null;
                 $proformaInvoice = $purchaseOrder->proformaInvoice ?? null;
@@ -216,7 +277,15 @@ class WorkOrderController extends Controller
 
             return response()->json([
                 'message' => 'List of work orders retrieved successfully',
-                'data' => $workOrders,
+                'data' => [
+                    'data' => $mapped,
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
+                ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th);

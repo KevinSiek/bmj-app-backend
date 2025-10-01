@@ -160,17 +160,13 @@ class PurchaseOrderController extends Controller
                 }
             }
 
-            // Paginate the distinct quotation numbers
-            $paginatedPurchaseOrders = $purchaseOrderNumbers->groupBy('purchase_order_number')->paginate(20);
+            // Build a base query (apply access rules and initial filters) to derive groups
+            $baseBuilder = $this->getAccessedPurchaseOrder($request);
 
-            $queryTwo = $this->getAccessedPurchaseOrder($request)
-                ->whereIn('purchase_order_number', $paginatedPurchaseOrders->pluck('purchase_order_number'))
-                ->orderBy('version', 'asc');
-
-            // Aply q
+            // Apply search term filter if 'q' is provided
             if ($q) {
-                $queryTwo->where(function ($queryTwo) use ($q) {
-                    $queryTwo->where('purchase_order_number', 'like', '%' . $q . '%')
+                $baseBuilder->where(function ($base) use ($q) {
+                    $base->where('purchase_order_number', 'like', '%' . $q . '%')
                         ->orWhereHas('quotation', function ($qry) use ($q) {
                             $qry->where('quotation_number', 'like', '%' . $q . '%')
                                 ->orWhere('project', 'like', '%' . $q . '%')
@@ -183,24 +179,57 @@ class PurchaseOrderController extends Controller
                 });
             }
 
-            // Apply year and month filter
+            // Apply year and month filters
             if ($year) {
-                $queryTwo->whereYear('purchase_order_date', $year);
+                $baseBuilder->whereYear('purchase_order_date', $year);
                 if ($month) {
                     $monthNumber = date('m', strtotime($month));
-                    $queryTwo->whereMonth('purchase_order_date', $monthNumber);
+                    $baseBuilder->whereMonth('purchase_order_date', $monthNumber);
                 }
             }
 
-            // Return like API contract
-            $purchaseOrders =  $queryTwo
-                // Sort primarily by the numeric part of the purchase_order number (e.g., 033 from PO/033/...).
-                // The existing sorting logic is kept as secondary sorting criteria.
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(purchase_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('purchase_order_date', 'DESC')
-                ->orderBy('id', 'DESC')
+            // Build a grouped query selecting a representative id (MAX(id)) per purchase_order_number
+            $grouped = (clone $baseBuilder)
+                ->getQuery()
+                ->select('purchase_order_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('purchase_order_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(purchase_order_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            // Paginate the grouped results
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('purchase_order_number', 'max_id')
+                ->paginate(20);
+
+            $groupNumbers = $paginatedGroups->pluck('purchase_order_number')->filter()->all();
+
+            if (empty($groupNumbers)) {
+                return response()->json([
+                    'message' => 'List of purchase orders retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+            // Fetch all PurchaseOrder rows for the paginated group numbers and preserve group ordering
+            $purchaseOrders = PurchaseOrder::with(['quotation.customer', 'proformaInvoice'])
+                ->whereIn('purchase_order_number', $groupNumbers)
                 ->get();
-            $grouped = $purchaseOrders->map(function ($po) {
+
+            // Order by the page group order then by version asc within each group
+            $ordered = $purchaseOrders->sortBy(function ($po) use ($groupNumbers) {
+                $groupIndex = array_search($po->purchase_order_number, $groupNumbers);
+                $version = intval($po->version ?? 0);
+                return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
+            })->values();
+
+            $grouped = $ordered->map(function ($po) {
                 $quotation = $po->quotation;
                 $customer = $quotation ? $quotation->customer : null;
                 $proformaInvoice = $po->proformaInvoice ? $po->proformaInvoice : null;
@@ -277,12 +306,12 @@ class PurchaseOrderController extends Controller
                 'message' => 'List of purchase orders retrieved successfully',
                 'data' => [
                     'data' => $grouped,
-                    'from' => $paginatedPurchaseOrders->firstItem(),
-                    'to' => $paginatedPurchaseOrders->lastItem(),
-                    'total' => $paginatedPurchaseOrders->total(),
-                    'per_page' => $paginatedPurchaseOrders->perPage(),
-                    'current_page' => $paginatedPurchaseOrders->currentPage(),
-                    'last_page' => $paginatedPurchaseOrders->lastPage(),
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {

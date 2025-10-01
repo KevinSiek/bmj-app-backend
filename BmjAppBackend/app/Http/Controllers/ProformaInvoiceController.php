@@ -54,23 +54,68 @@ class ProformaInvoiceController extends Controller
                 }
             }
 
-            // Paginate after groupBy proforma_invoice_number
-            $paginatedProformaInvoiceNumbers = $proformaInvoiceNumbers->groupBy('proforma_invoice_number')->paginate(20);
+            // Build a base query with same filters and access rules
+            $baseBuilder = $this->getAccessedProformaInvoice($request);
 
+            if ($q) {
+                $baseBuilder->where(function ($base) use ($q) {
+                    $base->where('proforma_invoice_number', 'like', '%' . $q . '%')
+                        ->orWhereHas('purchaseOrder.quotation.customer', function ($qry) use ($q) {
+                            $qry->where('company_name', 'like', '%' . $q . '%');
+                        });
+                });
+            }
 
-            // Get all quotations for the paginated quotation numbers
-            $query = $this->getAccessedProformaInvoice($request)
-                ->whereIn('proforma_invoice_number', $paginatedProformaInvoiceNumbers->pluck('proforma_invoice_number'));
+            if ($year) {
+                $baseBuilder->whereYear('proforma_invoice_date', $year);
+                if ($month) {
+                    $monthNumber = date('m', strtotime($month));
+                    $baseBuilder->whereMonth('proforma_invoice_date', $monthNumber);
+                }
+            }
 
-            // Return like API format
-            $proformaInvoice = $query
-                // Sort primarily by the numeric part of the proforma_invoice number (e.g., 033 from PI/033/...).
-                // The existing sorting logic is kept as secondary sorting criteria.
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(proforma_invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC')
-                ->orderBy('proforma_invoice_date', 'desc')
-                ->orderBy('id', 'asc')
+            // Build grouped query selecting representative id per proforma_invoice_number
+            $grouped = (clone $baseBuilder)
+                ->getQuery()
+                ->select('proforma_invoice_number', DB::raw('MAX(id) as max_id'))
+                ->groupBy('proforma_invoice_number')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(proforma_invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+
+            // Paginate the grouped results
+            $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
+                ->mergeBindings($grouped)
+                ->select('proforma_invoice_number', 'max_id')
+                ->paginate(20);
+
+            $groupNumbers = $paginatedGroups->pluck('proforma_invoice_number')->filter()->all();
+
+            if (empty($groupNumbers)) {
+                return response()->json([
+                    'message' => 'List of proforma invoices retrieved successfully',
+                    'data' => [
+                        'data' => [],
+                        'from' => $paginatedGroups->firstItem(),
+                        'to' => $paginatedGroups->lastItem(),
+                        'total' => $paginatedGroups->total(),
+                        'per_page' => $paginatedGroups->perPage(),
+                        'current_page' => $paginatedGroups->currentPage(),
+                        'last_page' => $paginatedGroups->lastPage(),
+                    ]
+                ], Response::HTTP_OK);
+            }
+            // Fetch all ProformaInvoice rows for the paginated group numbers and preserve group ordering
+            $proformaInvoice = ProformaInvoice::with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
+                ->whereIn('proforma_invoice_number', $groupNumbers)
                 ->get();
-            $proformaInvoices = $proformaInvoice->map(function ($pi) {
+
+            // Order by the page group order then by version asc within each group
+            $ordered = $proformaInvoice->sortBy(function ($pi) use ($groupNumbers) {
+                $groupIndex = array_search($pi->proforma_invoice_number, $groupNumbers);
+                $version = intval($pi->purchaseOrder->version ?? 0);
+                return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
+            })->values();
+
+            $proformaInvoices = $ordered->map(function ($pi) {
                 $purchaseOrder = $pi->purchaseOrder;
                 $quotation = $purchaseOrder->quotation;
                 $customer = $quotation->customer;
@@ -100,7 +145,7 @@ class ProformaInvoiceController extends Controller
                     }
                 }
 
-                $advancePayment = ($quotation->subtotal * $pi->down_payment)/100 ?? 0;
+                $advancePayment = ($quotation->subtotal * $pi->down_payment) / 100 ?? 0;
                 $total = $quotation->subtotal - $advancePayment ?? 0;
                 $totalAmount = $total + $quotation->ppn ?? 0;
 
@@ -146,12 +191,12 @@ class ProformaInvoiceController extends Controller
                 'message' => 'List of proforma invoices retrieved successfully',
                 'data' => [
                     'data' => $proformaInvoices,
-                    'from' => $paginatedProformaInvoiceNumbers->firstItem(),
-                    'to' => $paginatedProformaInvoiceNumbers->lastItem(),
-                    'total' => $paginatedProformaInvoiceNumbers->total(),
-                    'per_page' => $paginatedProformaInvoiceNumbers->perPage(),
-                    'current_page' => $paginatedProformaInvoiceNumbers->currentPage(),
-                    'last_page' => $paginatedProformaInvoiceNumbers->lastPage(),
+                    'from' => $paginatedGroups->firstItem(),
+                    'to' => $paginatedGroups->lastItem(),
+                    'total' => $paginatedGroups->total(),
+                    'per_page' => $paginatedGroups->perPage(),
+                    'current_page' => $paginatedGroups->currentPage(),
+                    'last_page' => $paginatedGroups->lastPage(),
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
@@ -199,7 +244,7 @@ class ProformaInvoiceController extends Controller
                 }
             }
 
-            $advancePayment = ($quotation->subtotal * $proformaInvoice->down_payment)/100 ?? 0;
+            $advancePayment = ($quotation->subtotal * $proformaInvoice->down_payment) / 100 ?? 0;
             $total = $quotation->subtotal - $advancePayment ?? 0;
             $totalAmount = $total + $quotation->ppn ?? 0;
 
