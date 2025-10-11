@@ -311,6 +311,15 @@ class QuotationController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
+                $subTotal = $totalAmount;
+                $pricePpn = $subTotal  * $ppn;
+                $grandTotal = $subTotal + $pricePpn;
+                $quotation->update([
+                    'grand_total' => $grandTotal,
+                    'discount' => 0,
+                    'ppn' => $pricePpn,
+                    'subtotal' => $subTotal,
+                ]);
             }
 
             // Commit the transaction if everything is successful
@@ -557,6 +566,15 @@ class QuotationController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
+                $subTotal = $totalAmount;
+                $pricePpn = $subTotal  * $ppn;
+                $grandTotal = $subTotal + $pricePpn;
+                $quotation->update([
+                    'grand_total' => $grandTotal,
+                    'discount' => 0,
+                    'ppn' => $pricePpn,
+                    'subtotal' => $subTotal,
+                ]);
             }
 
             // Change all need review quotation to be Changed
