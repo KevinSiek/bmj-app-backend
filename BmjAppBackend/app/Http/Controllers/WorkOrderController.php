@@ -82,7 +82,8 @@ class WorkOrderController extends Controller
                     'vaccine' => $workOrder->vaccine,
                     'apd' => $workOrder->apd,
                     'execution_time' => $workOrder->execution_time,
-                    'peduli_lindungi' => $workOrder->peduli_lindungi
+                    'peduli_lindungi' => $workOrder->peduli_lindungi,
+                    'execution_time' => $workOrder->execution_time,
                 ],
                 'units' => $workOrder->woUnits->map(function ($woUnit) {
                     return [
@@ -262,7 +263,8 @@ class WorkOrderController extends Controller
                         'vaccine' => $wo->vaccine,
                         'apd' => $wo->apd,
                         'execution_time' => $wo->execution_time,
-                        'peduli_lindungi' => $wo->peduli_lindungi
+                        'peduli_lindungi' => $wo->peduli_lindungi,
+                        'execution_time' => $wo->execution_time,
                     ],
                     'units' => $wo->woUnits->map(function ($woUnit) {
                         return [
