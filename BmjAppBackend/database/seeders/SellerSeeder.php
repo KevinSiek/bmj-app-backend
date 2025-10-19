@@ -15,16 +15,9 @@ class SellerSeeder extends Seeder
     public function run()
     {
         $sellers = [
-            ['name' => 'PT Sparepart Jaya', 'type' => 'Distributor'],
-            ['name' => 'CV Mesin Handal', 'type' => 'Supplier'],
-            ['name' => 'Sumber Teknik', 'type' => 'Retailer'],
-            ['name' => 'Generator Parts Indonesia', 'type' => 'Distributor'],
-            ['name' => 'Dunia Diesel', 'type' => 'Supplier'],
-            ['name' => 'Central Auto Parts', 'type' => 'Retailer'],
-            ['name' => 'Mega Teknik Mandiri', 'type' => 'Distributor'],
-            ['name' => 'Bintang Jaya Diesel', 'type' => 'Supplier'],
-            ['name' => 'Asia Parts Supply', 'type' => 'Importer'],
-            ['name' => ' Nusantara Parts', 'type' => 'Supplier'],
+            ['name' => 'PT Sparepart Jaya', 'type' => 'Distributor', 'code' => '1'],
+            ['name' => 'CV Mesin Handal', 'type' => 'Supplier', 'code' => '2'],
+            ['name' => 'Sumber Teknik', 'type' => 'Retailer', 'code' => '3'],
         ];
 
         foreach ($sellers as $seller) {

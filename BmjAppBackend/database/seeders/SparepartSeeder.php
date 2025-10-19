@@ -19,10 +19,11 @@ class SparepartSeeder extends Seeder
             $sellers = Seller::all();
         }
 
-        Sparepart::factory(200)->make()->each(function ($sparepart) use ($sellers) {
+        Sparepart::factory(50)->make()->each(function ($sparepart) use ($sellers) {
             $baseBuyPrice = fake()->numberBetween(50000, 20000000);
             $margin = fake()->randomFloat(2, 0.2, 0.5); // 20% to 50% margin
 
+            $sparepart->unit_price_buy = $baseBuyPrice; // Base buy price
             $sparepart->unit_price_sell = $baseBuyPrice * (1 + $margin);
             $sparepart->total_unit = fake()->randomElement([0, rand(1, 5), rand(6, 20), rand(21, 100)]); // Varied stock levels
             $sparepart->branch = fake()->randomElement([EmployeeController::SEMARANG, EmployeeController::JAKARTA]);

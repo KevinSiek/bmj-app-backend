@@ -18,6 +18,8 @@ return new class extends Migration
             $table->decimal('unit_price', 10, 2);
             $table->integer('quantity')->nullable();
             $table->timestamps();
+
+            $table->unique(['sparepart_id', 'seller_id']);
         });
     }
 

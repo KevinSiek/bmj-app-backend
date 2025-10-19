@@ -14,8 +14,9 @@ return new class extends Migration
         Schema::create('spareparts', function (Blueprint $table) {
             $table->id();
             $table->string('slug');
-            $table->string('sparepart_number');
+            $table->string('sparepart_number')->unique();
             $table->string('sparepart_name');
+            $table->decimal('unit_price_buy', 15, 2)->nullable();
             $table->decimal('unit_price_sell', 15, 2)->nullable();
             $table->integer('total_unit')->nullable();
             $table->string('branch')->nullable();

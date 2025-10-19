@@ -7,10 +7,14 @@ use Illuminate\Http\Request;
 use App\Models\Sparepart;
 use App\Models\DetailSparepart;
 use App\Models\Seller;
+use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use App\Imports\SparepartImport;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class SparepartController extends Controller
 {
@@ -32,20 +36,20 @@ class SparepartController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json([
-                    'message' => 'Validation error',
-                    'errors' => $validator->errors(),
-                ], Response::HTTP_BAD_REQUEST);
+                return response(
+                    $validator->errors()->first('file'),
+                    Response::HTTP_BAD_REQUEST
+                );
             }
 
-            $import = new \App\Imports\SparepartImport();
+            $import = new SparepartImport();
 
             // Start transaction
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             try {
-                \Excel::import($import, $request->file('file'));
-                \DB::commit();
+                Excel::import($import, $request->file('file'));
+                DB::commit();
 
                 return response()->json([
                     'message' => 'Spareparts data updated successfully',
@@ -54,16 +58,99 @@ class SparepartController extends Controller
                         'updated_records' => $import->getUpdateCount(),
                     ],
                 ], Response::HTTP_OK);
-            } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-                \DB::rollBack();
+            } catch (ValidationException $e) {
+                DB::rollBack();
                 return response()->json([
                     'message' => 'Validation error in Excel file',
-                    'errors' => $e->failures(),
+                    'errors' => $e->errors(),
                 ], Response::HTTP_BAD_REQUEST);
             } catch (\Exception $e) {
-                \DB::rollBack();
+                DB::rollBack();
                 throw $e;
             }
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Error processing spareparts data');
+        }
+    }
+
+    public function uploadFile (Request $request)
+    {
+        // Log::info('Chunk received', [
+        //     'uuid' => $request->dzuuid,
+        //     'chunkIndex' => $request->dzchunkindex,
+        //     'totalChunks' => $request->dztotalchunkcount,
+        //     'fileExists' => file_exists(storage_path("app/uploads/chunks/{$request->dzuuid}/{$request->dzchunkindex}")),
+        // ]);
+        try {
+             // Dropzone chunk info
+            $uuid = $request->get('dzuuid');
+            $chunkIndex = (int) $request->get('dzchunkindex', 0);
+            $totalChunks = (int) $request->get('dztotalchunkcount', 1);
+            $file = $request->file('file');
+
+            // Temporary folder for chunks
+            $chunkPath = storage_path("app/uploads/chunks/{$uuid}");
+            if (!file_exists($chunkPath)) {
+                mkdir($chunkPath, 0777, true);
+            }
+
+            // Move uploaded chunk to temporary folder
+            $fileName = $chunkIndex . '.part';
+            $file->move($chunkPath, $fileName);
+
+            if ($chunkIndex + 1 < $totalChunks) {
+                return response()->json(['message' => "Chunk {$chunkIndex} uploaded"]);
+            }
+
+            // Last chunk received → merge all chunks
+            $finalPath = storage_path("app/uploads/chunks/{$uuid}.xlsx");
+            $output = fopen($finalPath, 'ab');
+
+            for ($i = 0; $i < $totalChunks; $i++) {
+                $chunkFile = $chunkPath . '/' . $i . '.part';
+                if (!file_exists($chunkFile)) {
+                    return response()->json(['error' => "Missing chunk {$i}"], 422);
+                }
+
+                $chunk = file_get_contents($chunkFile);
+                fwrite($output, $chunk);
+            }
+
+            fclose($output);
+
+            // Clean up temporary chunks
+            array_map('unlink', glob("$chunkPath/*"));
+            rmdir($chunkPath);
+
+            $import = new SparepartImport();
+
+            // Start transaction
+            DB::beginTransaction();
+
+            try {
+                Excel::import($import, $finalPath);
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'Spareparts data updated successfully',
+                    'data' => [
+                        'new_records' => $import->getNewCount(),
+                        'updated_records' => $import->getUpdateCount(),
+                    ],
+                ], Response::HTTP_OK);
+            } catch (ValidationException $e) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Validation error in Excel file',
+                    'errors' => $e->errors(),
+                ], Response::HTTP_BAD_REQUEST);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+            // Cleanup final file
+            unlink($finalPath);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Error processing spareparts data');
         }
@@ -109,12 +196,13 @@ class SparepartController extends Controller
                 'sparepartNumber' => 'required|string|max:255',
                 'sparepartName' => 'required|string|max:255',
                 'totalUnit' => 'required|integer|min:0',
+                'unitPriceBuy' => 'nullable|numeric|min:0',
                 'unitPriceSell' => 'required|numeric|min:0',
                 'branch' => 'required|string|max:255',
-                'unitPriceBuy' => 'present|array',
-                'unitPriceBuy.*.seller' => 'required|string|max:255',
-                'unitPriceBuy.*.price' => 'required|numeric|min:0',
-                'unitPriceBuy.*.quantity' => 'required|integer|min:0',
+                'unitPriceSeller' => 'present|array',
+                'unitPriceSeller.*.seller' => 'required|string|max:255',
+                'unitPriceSeller.*.price' => 'required|numeric|min:0',
+                'unitPriceSeller.*.quantity' => 'required|integer|min:0'
             ]);
 
             // Map camelCase to snake_case
@@ -123,9 +211,10 @@ class SparepartController extends Controller
                 'sparepart_name' => $request->input('sparepartName', ''),
                 'total_unit' => $request->input('totalUnit'),
                 'branch' => $request->input('branch'),
+                'unit_price_buy' => $request->input('unitPriceBuy'),
                 'unit_price_sell' => $request->input('unitPriceSell'),
                 'branch' => $request->input('branch', null),
-                'unit_price_buy' => $request->input('unitPriceBuy', []),
+                'unit_price_seller' => $request->input('unitPriceSeller', []),
             ];
 
             // Check if sparepart with this number already exists
@@ -136,8 +225,8 @@ class SparepartController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            // Generate slug from sparepart_name
-            $baseSlug = Str::slug($data['sparepart_name']);
+            // Generate slug from sparepart_number
+            $baseSlug = Str::slug($data['sparepart_number']);
             $slug = $baseSlug;
             $counter = 1;
             while (Sparepart::where('slug', $slug)->exists()) {
@@ -149,7 +238,7 @@ class SparepartController extends Controller
             $sparepart = Sparepart::create($data);
 
             // Create or find sellers and create detail spareparts
-            foreach ($data['unit_price_buy'] as $buy) {
+            foreach ($data['unit_price_seller'] as $buy) {
                 $seller = Seller::where('name', $buy['seller'])->first();
                 if (!$seller) {
                     $seller = Seller::create([
@@ -200,12 +289,13 @@ class SparepartController extends Controller
                 'sparepartNumber' => 'required|string|max:255',
                 'sparepartName' => 'required|string|max:255',
                 'totalUnit' => 'required|integer|min:0',
+                'unitPriceBuy' => 'nullable|numeric|min:0',
                 'unitPriceSell' => 'required|numeric|min:0',
                 'branch' => 'required|string|max:255',
-                'unitPriceBuy' => 'present|array',
-                'unitPriceBuy.*.seller' => 'required|string|max:255',
-                'unitPriceBuy.*.price' => 'required|numeric|min:0',
-                'unitPriceBuy.*.quantity' => 'required|integer|min:0',
+                'unitPriceSeller' => 'present|array',
+                'unitPriceSeller.*.seller' => 'required|string|max:255',
+                'unitPriceSeller.*.price' => 'required|numeric|min:0',
+                'unitPriceSeller.*.quantity' => 'required|integer|min:0',
             ]);
 
             // Map camelCase to snake_case
@@ -213,8 +303,9 @@ class SparepartController extends Controller
                 'sparepart_number' => $request->input('sparepartNumber', ''),
                 'sparepart_name' => $request->input('sparepartName', ''),
                 'total_unit' => $request->input('totalUnit'),
+                'unit_price_buy' => $request->input('unitPriceBuy'),
                 'unit_price_sell' => $request->input('unitPriceSell'),
-                'unit_price_buy' => $request->input('unitPriceBuy', []),
+                'unit_price_seller' => $request->input('unitPriceSeller', []),
                 'branch' => $request->input('branch', $sparepart->branch),
             ];
 
@@ -249,7 +340,7 @@ class SparepartController extends Controller
             $sparepart->detailSpareparts()->delete();
 
             // Create new detail spareparts
-            foreach ($data['unit_price_buy'] as $buy) {
+            foreach ($data['unit_price_seller'] as $buy) {
                 $seller = Seller::where('name', $buy['seller'])->first();
                 if (!$seller) {
                     $seller = Seller::create([
@@ -258,9 +349,10 @@ class SparepartController extends Controller
                     ]);
                 }
 
-                DetailSparepart::create([
+                DetailSparepart::updateOrCreate([
                     'sparepart_id' => $sparepart->id,
-                    'seller_id' => $seller->id,
+                    'seller_id' => $seller->id
+                ],[
                     'unit_price' => $buy['price'],
                     'quantity' => $buy['quantity'] ?? 0,
                 ]);
@@ -357,9 +449,11 @@ class SparepartController extends Controller
             'sparepart_name' => $sparepart->sparepart_name ?? '',
             'total_unit' => $sparepart->total_unit,
             'branch' => $sparepart->branch,
+            'unit_price_buy' => $sparepart->unit_price_buy,
             'unit_price_sell' => $sparepart->unit_price_sell,
-            'unit_price_buy' => $sparepart->detailSpareparts->map(function ($detail) {
+            'unit_price_seller' => $sparepart->detailSpareparts->map(function ($detail) {
                 return [
+                    'seller_id' => $detail->seller->id ?? '',
                     'seller' => $detail->seller->name ?? '',
                     'price' => $detail->unit_price ?? 0,
                     'quantity' => $detail->quantity ?? 0,

@@ -22,6 +22,7 @@ class SellerFactory extends Factory
         return [
             'name' => $this->faker->company,
             'type' => $this->faker->randomElement(['Distributor', 'Retailer', 'Manufacturer']),
+            'code' => $this->faker->randomElement(['1', '2', '3']),
         ];
     }
 }

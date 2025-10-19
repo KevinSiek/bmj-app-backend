@@ -170,7 +170,7 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/', [SparepartController::class, 'store']);
         Route::put('/{id}', [SparepartController::class, 'update']);
         Route::delete('/{id}', [SparepartController::class, 'destroy']);
-        Route::post('/updateAllData', [SparepartController::class, 'updateAllData']);
+        Route::post('/updateAllData', [SparepartController::class, 'uploadFile']);
     });
 
     // Customer Routes
@@ -180,5 +180,14 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::post('/', [App\Http\Controllers\CustomerController::class, 'store']);
         Route::put('/{slug}', [App\Http\Controllers\CustomerController::class, 'update']);
         Route::delete('/{slug}', [App\Http\Controllers\CustomerController::class, 'destroy']);
+    });
+
+    // Seller Routes
+    Route::prefix('seller')->group(function () {
+        Route::get('/', [App\Http\Controllers\SellerController::class, 'getAll']);
+        Route::get('/{slug}', [App\Http\Controllers\SellerController::class, 'get']);
+        Route::post('/', [App\Http\Controllers\SellerController::class, 'store']);
+        Route::put('/{slug}', [App\Http\Controllers\SellerController::class, 'update']);
+        Route::delete('/{slug}', [App\Http\Controllers\SellerController::class, 'destroy']);
     });
 });

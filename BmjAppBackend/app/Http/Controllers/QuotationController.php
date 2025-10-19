@@ -245,8 +245,10 @@ class QuotationController extends Controller
                     // Store the total of actual what need to pay and normal price
                     $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell;
                     $totalPaidPriceSparepart  += $sparepartUnitPrice;
+                    $totalPriceAfterDiscount = $sparepartUnitPrice - ($sparepartUnitPrice * $discount);
 
-                    if ($sparepartUnitPrice != $sparepartDbUnitPriceSell && $sparepartUnitPrice < $sparepartDbUnitPriceSell) {
+                    // Check if the total sparepart price is below the maximum discount allowed
+                    if ($sparepartUnitPrice < $totalPriceAfterDiscount) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
                         $quotation->update($quotationData);
@@ -273,13 +275,13 @@ class QuotationController extends Controller
                     ]);
                 }
                 // Calculate the total of actual what need to pay and normal price
-                $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart  *  $discount;
-                if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
-                    $dicountInPercentage = $discount * 100;
-                    return response()->json([
-                        'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
-                    ], Response::HTTP_BAD_REQUEST);
-                }
+                // $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart;
+                // if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
+                //     $dicountInPercentage = $discount * 100;
+                //     return response()->json([
+                //         'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
+                //     ], Response::HTTP_BAD_REQUEST);
+                // }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
                 $subTotal = $totalAmount - $priceDiscount;
                 $pricePpn = $subTotal  * $ppn;
@@ -399,10 +401,6 @@ class QuotationController extends Controller
             $ppn = $general ? $general->ppn : 0;
 
             $totalAmount = $request->input('price.amount');
-            $priceDiscount = $totalAmount  * $discount;
-            $subTotal = $totalAmount - $priceDiscount;
-            $pricePpn = $subTotal  * $ppn;
-            $grandTotal = $subTotal + $pricePpn;
 
             // Map API contract to database fields
             $quotationData = [
@@ -410,10 +408,10 @@ class QuotationController extends Controller
                 'type' => $request->input('project.type'),
                 'date' => $request->input('project.date'),
                 'amount' => $request->input('price.amount'),
-                'discount' => $priceDiscount,
-                'subtotal' => $subTotal,
-                'ppn' => $pricePpn,
-                'grand_total' => $grandTotal,
+                'discount' => 0,
+                'subtotal' => 0,
+                'ppn' => 0,
+                'grand_total' => 0,
                 'notes' => $request->input('notes'),
                 'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
             ];
@@ -498,9 +496,9 @@ class QuotationController extends Controller
                     // Store the total of actual what need to pay and normal price
                     $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell;
                     $totalPaidPriceSparepart  += $sparepartUnitPrice;
+                    $totalPriceAfterDiscount = $sparepartUnitPrice - ($sparepartUnitPrice * $discount);
 
-
-                    if ($sparepartUnitPrice != $sparepartDbUnitPriceSell) {
+                    if ($sparepartUnitPrice < $totalPriceAfterDiscount) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
                         $newQuotation->update($quotationData);
@@ -528,18 +526,18 @@ class QuotationController extends Controller
                     ]);
                 }
                 // Calculate the total of actual what need to pay and normal price
-                $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart  *  $discount;
-                if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
-                    $dicountInPercentage = $discount * 100;
-                    return response()->json([
-                        'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
-                    ], Response::HTTP_BAD_REQUEST);
-                }
+                // $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart  *  $discount;
+                // if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
+                //     $dicountInPercentage = $discount * 100;
+                //     return response()->json([
+                //         'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
+                //     ], Response::HTTP_BAD_REQUEST);
+                // }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
                 $subTotal = $totalAmount - $priceDiscount;
                 $pricePpn = $subTotal  * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
-                $quotation->update([
+                $newQuotation->update([
                     'grand_total' => $grandTotal,
                     'discount' => $priceDiscount,
                     'ppn' => $pricePpn,
@@ -569,7 +567,7 @@ class QuotationController extends Controller
                 $subTotal = $totalAmount;
                 $pricePpn = $subTotal  * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
-                $quotation->update([
+                $newQuotation->update([
                     'grand_total' => $grandTotal,
                     'discount' => 0,
                     'ppn' => $pricePpn,
@@ -1005,38 +1003,7 @@ class QuotationController extends Controller
             return response()->json([
                 'message' => 'List of all quotations retrieved successfully',
                 'data' => [
-                    'data' => $quotations->map(function ($q) {
-                        return [
-                            'quotation_number' => $q->quotation_number,
-                            'version' => $q->version,
-                            'slug' => $q->slug,
-                            'current_status' => $q->current_status,
-                            'status' => $q->status,
-                            'notes' => $q->notes,
-                            'project' => [
-                                'quotation_number' => $q->quotation_number,
-                                'type' => $q->type,
-                                'date' => $q->date
-                            ],
-                            'price' => [
-                                'amount' => $q->amount,
-                                'discount' => $q->discount,
-                                'subtotal' => $q->subtotal,
-                                'ppn' => $q->ppn,
-                                'grand_total' => $q->grand_total
-                            ],
-                            'customer' => [
-                                'company_name' => $q->customer->company_name ?? '',
-                                'address' => $q->customer->address ?? '',
-                                'city' => $q->customer->city ?? '',
-                                'province' => $q->customer->province ?? '',
-                                'office' => $q->customer->office ?? '',
-                                'urban' => $q->customer->urban ?? '',
-                                'subdistrict' => $q->customer->subdistrict ?? '',
-                                'postal_code' => $q->customer->postal_code ?? ''
-                            ]
-                        ];
-                    }),
+                    'data' => $grouped,
                     'from' => $paginatedGroups->firstItem(),
                     'to' => $paginatedGroups->lastItem(),
                     'total' => $paginatedGroups->total(),

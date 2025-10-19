@@ -63,7 +63,7 @@ class BuyController extends Controller
                 'spareparts' => 'required|array',
                 'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
-                'spareparts.*.unitPriceSell' => 'required|numeric|min:1',
+                'spareparts.*.unitPriceBuy' => 'required|numeric|min:1',
             ]);
 
             $buyNumber = '';
@@ -106,14 +106,14 @@ class BuyController extends Controller
             // Create DetailBuys from list of spareparts in this buy
             foreach ($request->input('spareparts') as $spareparts) {
                 $sparepartsId = $spareparts['sparepartId'];
-                $sparepartsUnitPrice = $spareparts['unitPriceSell'];
+                $sparepartsUnitPrice = $spareparts['unitPriceBuy'];
                 $quantityOrderSparepart = $spareparts['quantity'];
 
                 // Validate each spareparts data
                 $sparepartsValidator = Validator::make($spareparts, [
                     'sparepartId' => 'required|exists:spareparts,id',
                     'quantity' => 'required|integer|min:1',
-                    'unitPriceSell' => 'required|numeric|min:1',
+                    'unitPriceBuy' => 'required|numeric|min:1',
                 ]);
 
                 if ($sparepartsValidator->fails()) {
@@ -166,7 +166,7 @@ class BuyController extends Controller
                 'spareparts' => 'sometimes|array',
                 'spareparts.*.sparepartId' => 'required_with:spareparts|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required_with:spareparts|integer|min:1',
-                'spareparts.*.unitPriceSell' => 'required_with:spareparts|numeric|min:1',
+                'spareparts.*.unitPriceBuy' => 'required_with:spareparts|numeric|min:1',
             ]);
 
             if ($validator->fails()) {
@@ -212,7 +212,7 @@ class BuyController extends Controller
                     $sparepartValidator = Validator::make($sparepart, [
                         'sparepartId' => 'required|exists:spareparts,id',
                         'quantity' => 'required|integer|min:1',
-                        'unitPriceSell' => 'required|numeric|min:1',
+                        'unitPriceBuy' => 'required|numeric|min:1',
                     ]);
 
                     if ($sparepartValidator->fails()) {
@@ -224,7 +224,7 @@ class BuyController extends Controller
                         'buy_id' => $buy->id,
                         'sparepart_id' => $sparepart['sparepartId'],
                         'quantity' => $sparepart['quantity'],
-                        'unit_price' => $sparepart['unitPriceSell'],
+                        'unit_price' => $sparepart['unitPriceBuy'],
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
@@ -313,7 +313,7 @@ class BuyController extends Controller
                     'sparepart_name' => $detail->sparepart->sparepart_name,
                     'sparepart_number' => $detail->sparepart->sparepart_number,
                     'quantity' => $detail->quantity,
-                    'unit_price_sell' => $detail->unit_price,
+                    'unit_price_buy' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
                 ];
             });
@@ -342,6 +342,7 @@ class BuyController extends Controller
     {
         try {
             $buys = Buy::with('detailBuys.sparepart')
+                ->orderBy('created_at', 'DESC')
                 ->paginate(20)
                 ->through(function ($buy) {
                     // Calculate total purchase amount
@@ -355,7 +356,7 @@ class BuyController extends Controller
                             'sparepart_name' => $detail?->sparepart?->sparepart_name,
                             'sparepart_number' => $detail?->sparepart?->sparepart_number,
                             'quantity' => $detail?->quantity,
-                            'unit_price_sell' => $detail?->unit_price,
+                            'unit_price_buy' => $detail?->unit_price,
                             'total_price' => $detail?->quantity * $detail?->unit_price,
                         ];
                     });
@@ -568,6 +569,9 @@ class BuyController extends Controller
             $buy->detailBuys->map(function ($detail) {
                 $sparepart = $detail->sparepart;
                 $sparepart->total_unit += $detail->quantity;
+                if($detail->unit_price > $sparepart->unit_price_buy) {
+                    $sparepart->unit_price_buy = $detail->unit_price;
+                }
                 $sparepart->save();
             });
 

@@ -15,6 +15,7 @@ class Sparepart extends Model
         'sparepart_number',
         'sparepart_name',
         'unit_price_sell',
+        'unit_price_buy',
         'total_unit',
         'branch'
     ];

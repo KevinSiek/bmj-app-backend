@@ -45,6 +45,10 @@ class WorkOrderController extends Controller
                     'start_date' => $workOrder->start_date,
                     'end_date' => $workOrder->end_date,
                 ],
+                'purchase_order' => [
+                    'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                    'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
+                ],
                 'proforma_invoice' => [
                     'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
                     'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
@@ -225,6 +229,10 @@ class WorkOrderController extends Controller
                         'received_by' => $wo->received_by ?? '',
                         'start_date' => $wo->start_date,
                         'end_date' => $wo->end_date,
+                    ],
+                    'purchase_order' => [
+                        'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                        'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                     ],
                     'proforma_invoice' => [
                         'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
