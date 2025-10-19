@@ -50,63 +50,45 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::put('/{id}', [AccessesController::class, 'update']);
         Route::delete('/{id}', [AccessesController::class, 'destroy']);
     });
-    // Api to store general value in future, like discount etc
-    Route::prefix('general')->group(function () {
-        Route::get('/', [GeneralController::class, 'get']);
-        Route::put('/', [GeneralController::class, 'update']);
-    });
-    Route::prefix('quotation')->group(function () {
-        Route::get('/', [QuotationController::class, 'getAll']);
-        Route::get('/{slug}', [QuotationController::class, 'get']);
-        Route::post('/', [QuotationController::class, 'store']);
-        Route::put('/{slug}', [QuotationController::class, 'update']);
-        Route::post('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
-        Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
-        Route::get('/return/{isNeedReturn}', [QuotationController::class, 'isNeedReturn']);
-        Route::post('/needChange/{slug}', [QuotationController::class, 'needChange']);
-        Route::post('/approve/{slug}', [QuotationController::class, 'approve']);
-        Route::post('/reject/{slug}', [QuotationController::class, 'decline']);
 
-        // Api to change status of quotation in general
-        // Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
-        Route::post('/return/{id}', [QuotationController::class, 'changeStatusToReturn']);
-        Route::get('/rejectReturn/{slug}', [QuotationController::class, 'declineReturn']);
-        Route::get('/approveReturn/{slug}', [QuotationController::class, 'approveReturn']);
+    Route::middleware(['role:marketing,finance,director'])->group(function () {
+        Route::prefix('quotation')->group(function () {
+            Route::get('/', [QuotationController::class, 'getAll']);
+            Route::get('/{slug}', [QuotationController::class, 'get']);
+            Route::post('/', [QuotationController::class, 'store']);
+            Route::put('/{slug}', [QuotationController::class, 'update']);
+            Route::post('/moveToPo/{slug}', [QuotationController::class, 'moveToPo']);
+            Route::get('/review/{isNeedReview}', [QuotationController::class, 'isNeedReview']);
+            Route::get('/return/{isNeedReturn}', [QuotationController::class, 'isNeedReturn']);
+            Route::post('/needChange/{slug}', [QuotationController::class, 'needChange']);
+            Route::post('/approve/{slug}', [QuotationController::class, 'approve']);
+            Route::post('/reject/{slug}', [QuotationController::class, 'decline']);
+
+            // Api to change status of quotation in general
+            // Route::get('/done/{slug}', [QuotationController::class, 'changeStatusToDone']);
+            Route::post('/return/{id}', [QuotationController::class, 'changeStatusToReturn']);
+            Route::get('/rejectReturn/{slug}', [QuotationController::class, 'declineReturn']);
+            Route::get('/approveReturn/{slug}', [QuotationController::class, 'approveReturn']);
+        });
     });
 
-    Route::prefix('purchase-order')->group(function () {
-        Route::get('/', [PurchaseOrderController::class, 'getAll']);
-        Route::get('/{id}', [PurchaseOrderController::class, 'get']);
-        Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
-        Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
-        Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
-        Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
-        Route::post('/done/{id}', [PurchaseOrderController::class, 'done']);
-        Route::post('/decline/{id}', [PurchaseOrderController::class, 'decline']);
-        Route::put('/{id}', [PurchaseOrderController::class, 'update']);
-        Route::post('/reject/{id}', [PurchaseOrderController::class, 'decline']);
-    });
-
-    Route::prefix('delivery-order')->group(function () {
-        Route::get('/', [DeliveryOrderController::class, 'getAll']);
-        Route::get('/{id}', [DeliveryOrderController::class, 'get']);
-        Route::put('/{id}', [DeliveryOrderController::class, 'update']);
-        Route::post('/process/{id}', [DeliveryOrderController::class, 'process']);
-    });
-
-    Route::prefix('invoice')->group(function () {
-        Route::get('/', [InvoiceController::class, 'getAll']);
-        Route::get('/{id}', [InvoiceController::class, 'get']);
-    });
-
-    Route::prefix('back-order')->group(function () {
-        Route::get('/', [BackOrderController::class, 'getAll']);
-        Route::get('/{id}', [BackOrderController::class, 'get']);
-        Route::post('/process/{id}', [BackOrderController::class, 'process']);
+    Route::middleware(['role:marketing,finance,inventory,inventory_admin,director'])->group(function () {
+        Route::prefix('purchase-order')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'getAll']);
+            Route::get('/{id}', [PurchaseOrderController::class, 'get']);
+            Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
+            Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
+            Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
+            Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
+            Route::post('/done/{id}', [PurchaseOrderController::class, 'done']);
+            Route::post('/decline/{id}', [PurchaseOrderController::class, 'decline']);
+            Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+            Route::post('/reject/{id}', [PurchaseOrderController::class, 'decline']);
+        });
     });
 
     // Director
-    Route::middleware(['is_director'])->group(function () {
+    Route::middleware(['role:director'])->group(function () {
         // Employee Routes
         Route::prefix('employee')->group(function () {
             Route::get('/', [EmployeeController::class, 'getAll']);
@@ -117,10 +99,23 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/access/{slug}', [EmployeeController::class, 'getEmployeeAccess']);
             Route::post('/reset-password/{slug}', [EmployeeController::class, 'resetPassword']);
         });
+        // Api to store general value in future, like discount etc
+        Route::prefix('general')->group(function () {
+            Route::get('/', [GeneralController::class, 'get']);
+            Route::put('/', [GeneralController::class, 'update']);
+        });
+        // Dashboard Route
+        Route::prefix('dashboard')->group(function () {
+            Route::get('/summary', [DashboardController::class, 'getSummary']);
+        });
     });
 
     // Finance
-    Route::middleware(['is_finance'])->group(function () {
+    Route::middleware(['role:finance,director'])->group(function () {
+        Route::prefix('invoice')->group(function () {
+            Route::get('/', [InvoiceController::class, 'getAll']);
+            Route::get('/{id}', [InvoiceController::class, 'get']);
+        });
         // Employee Routes
         Route::prefix('proforma-invoice')->group(function () {
             Route::get('/', [ProformaInvoiceController::class, 'getAll']);
@@ -130,14 +125,10 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::post('/fullPaid/{po_id}', [ProformaInvoiceController::class, 'fullPaid']);
             Route::put('/{id}', [ProformaInvoiceController::class, 'update']);
         });
-        // Dashboard Route
-        Route::prefix('dashboard')->group(function () {
-            Route::get('/summary', [DashboardController::class, 'getSummary']);
-        });
     });
 
     // Service Middleware
-    Route::middleware(['is_service'])->group(function () {
+    Route::middleware(['role:service,inventory_admin,director'])->group(function () {
         Route::prefix('work-order')->group(function () {
             Route::get('/', [WorkOrderController::class, 'getAll']);
             Route::get('/{id}', [WorkOrderController::class, 'get']);
@@ -146,8 +137,8 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    // Inventory Middleware
-    Route::middleware(['is_inventory'])->group(function () {
+    // Buy
+    Route::middleware(['role:inventory_purchase,inventory,director'])->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);
@@ -163,14 +154,34 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
         });
     });
+
+    Route::middleware(['role:inventory_purchase,inventory,director'])->group(function () {
+        Route::prefix('delivery-order')->group(function () {
+            Route::get('/', [DeliveryOrderController::class, 'getAll']);
+            Route::get('/{id}', [DeliveryOrderController::class, 'get']);
+            Route::put('/{id}', [DeliveryOrderController::class, 'update']);
+            Route::post('/process/{id}', [DeliveryOrderController::class, 'process']);
+        });
+    });
+
+    Route::middleware(['role:inventory_purchase,inventory_admin,inventory,director'])->group(function () {
+        Route::prefix('back-order')->group(function () {
+            Route::get('/', [BackOrderController::class, 'getAll']);
+            Route::get('/{id}', [BackOrderController::class, 'get']);
+            Route::post('/process/{id}', [BackOrderController::class, 'process']);
+        });
+    });
+
     // Sparepart Routes
-    Route::prefix('sparepart')->group(function () {
-        Route::get('/', [SparepartController::class, 'getAll']);
-        Route::get('/{id}', [SparepartController::class, 'get']);
-        Route::post('/', [SparepartController::class, 'store']);
-        Route::put('/{id}', [SparepartController::class, 'update']);
-        Route::delete('/{id}', [SparepartController::class, 'destroy']);
-        Route::post('/updateAllData', [SparepartController::class, 'uploadFile']);
+    Route::middleware(['role:inventory_purchase,inventory_admin,marketing,inventory,director'])->group(function () {
+        Route::prefix('sparepart')->group(function () {
+            Route::get('/', [SparepartController::class, 'getAll']);
+            Route::get('/{id}', [SparepartController::class, 'get']);
+            Route::post('/', [SparepartController::class, 'store']);
+            Route::put('/{id}', [SparepartController::class, 'update']);
+            Route::delete('/{id}', [SparepartController::class, 'destroy']);
+            Route::post('/updateAllData', [SparepartController::class, 'uploadFile']);
+        });
     });
 
     // Customer Routes

@@ -21,6 +21,9 @@ class EmployeeController extends Controller
     const INVENTORY = 'Inventory';
     const FINANCE = 'Finance';
     const SERVICE = 'Service';
+    const INVENTORY_ADMIN = 'Inventory Admin';
+    const INVENTORY_PURCHASE = 'Inventory Purchase';
+
 
     public function index()
     {
@@ -106,7 +109,7 @@ class EmployeeController extends Controller
                 'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
                 'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
             ]);
-            
+
             // Update only the provided fields
             $employee->update($validatedData);
 
