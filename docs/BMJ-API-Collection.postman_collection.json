@@ -1,0 +1,250 @@
+{
+  "info": {
+    "name": "BMJ Business Management System API",
+    "description": "Complete API collection for BMJ Business Management System - Production Ready",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{
+      "key": "token",
+      "value": "{{auth_token}}",
+      "type": "string"
+    }]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login - Director Account",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"director.jkt@bmj.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Authenticated User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/user",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard Analytics",
+      "item": [
+        {
+          "name": "Executive Dashboard - All Branches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard?branch=all&start_date=2025-10-04&end_date=2025-11-02",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard"],
+              "query": [
+                {"key": "branch", "value": "all"},
+                {"key": "start_date", "value": "2025-10-04"},
+                {"key": "end_date", "value": "2025-11-02"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Revenue Analytics - Jakarta Branch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/revenue?branch=jakarta",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "revenue"],
+              "query": [{"key": "branch", "value": "jakarta"}]
+            }
+          }
+        },
+        {
+          "name": "Operations Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/operations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "operations"]
+            }
+          }
+        },
+        {
+          "name": "Inventory Alerts (12 Low Stock)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/inventory-alerts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "inventory-alerts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quotation Management",
+      "item": [
+        {
+          "name": "List Quotations (94 Pending)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/quotations?page=1&month=november&year=2025",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quotations"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "month", "value": "november"},
+                {"key": "year", "value": "2025"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Service Quotation",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branch_id\": \"jakarta\",\n  \"project_type\": \"service\",\n  \"customer\": {\n    \"company_name\": \"XYZ Services Co.\",\n    \"address\": \"Jl. Test Address 123\",\n    \"city\": \"Jakarta\",\n    \"province\": \"DKI Jakarta\",\n    \"office\": \"Head Office\",\n    \"urban\": \"Menteng\",\n    \"subdistrict\": \"Menteng\",\n    \"postal_code\": \"10310\"\n  },\n  \"items\": [{\n    \"service_name\": \"Annual Maintenance Contract\",\n    \"quantity\": 1,\n    \"unit_price\": 15000000,\n    \"total_price\": 15000000\n  }],\n  \"total_amount\": 15000000,\n  \"notes\": \"CRUD Test - Service quotation for annual maintenance\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/quotations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quotations"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Purchase Management",
+      "item": [
+        {
+          "name": "List Purchases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/purchases?page=1&month=november&year=2025",
+              "host": ["{{base_url}}"],
+              "path": ["api", "purchases"]
+            }
+          }
+        },
+        {
+          "name": "Create Purchase (Requires sparepartId)",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"spareparts\": [{\n    \"sparepartId\": \"uuid-required-from-spareparts-table\",\n    \"quantity\": 50,\n    \"unit_price\": 75000,\n    \"total_price\": 3750000\n  }],\n  \"description\": \"Purchase of 50 oil filters for inventory replenishment\",\n  \"total_purchase\": 3750000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/purchases",
+              "host": ["{{base_url}}"],
+              "path": ["api", "purchases"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employee Management",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/employees?page=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Create Marketing Employee",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"John Doe Test\",\n  \"username\": \"johndoe.test\",\n  \"email\": \"john.doe@test.bmj.com\",\n  \"role\": \"Marketing\",\n  \"branch\": \"Jakarta\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
