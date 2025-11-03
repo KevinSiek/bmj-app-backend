@@ -24,6 +24,7 @@ class Quotation extends Model
         'grand_total',
         'notes',
         'employee_id',
+        'branch_id',
         'current_status',
         'status',
         'is_return',
@@ -52,6 +53,11 @@ class Quotation extends Model
     public function purchaseOrder()
     {
         return $this->hasMany(PurchaseOrder::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
 }

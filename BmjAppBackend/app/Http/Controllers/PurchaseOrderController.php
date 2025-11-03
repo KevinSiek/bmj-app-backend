@@ -9,6 +9,7 @@ use App\Models\WorkOrder;
 use App\Models\WoUnit;
 use App\Models\DeliveryOrder;
 use App\Models\Quotation;
+use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -374,31 +375,36 @@ class PurchaseOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            $user = $request->user();
+            $userId = $user->id;
+            $branchModel = Branch::find(optional($purchaseOrder->quotation)->branch_id) ?? $this->resolveBranchModel($user->branch ?? null);
+            $branchFallbackCode = $branchModel?->code ?? 'JKT';
+
             // Generate proforma invoice number from purchase order number
             try {
                 // Expected purchase_order_number format: PO/001/BMJ-MEGAH/SMG/1/V/25
                 $parts = explode('/', $purchaseOrder->purchase_order_number);
-                $piNumber = $parts[1]; // e.g., 033
-                $branch = $parts[3]; // e.g., V
-                $romanMonth = $parts[5]; // e.g., 24
-                $year = $parts[6]; // e.g., 24
-                $user = $request->user();
-                $userId = $user->id;
-                // Expected purchase_order_number format: PI/001/BMJ-MEGAH/SMG/1/V/25
-                $proformaInvoiceNumber = "PI/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
+                $piNumber = $parts[1] ?? null; // e.g., 033
+                $branchCodeFromPo = $parts[3] ?? null;
+                $romanMonth = $parts[5] ?? $this->getRomanMonth(now()->month);
+                $year = $parts[6] ?? now()->format('y');
+
+                if (!$piNumber) {
+                    throw new \RuntimeException('Invalid purchase order number format.');
+                }
+
+                $branchCode = $branchCodeFromPo ?? $branchFallbackCode;
+
+                $proformaInvoiceNumber = "PI/{$piNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
-                // Fallback to timestamp-based PI number with current month and year
+                // Fallback to sequential PI number with current month and year
                 $latestPi = ProformaInvoice::latest('id')->lockForUpdate()->first();
                 $nextLastestPi = $latestPi ? $latestPi->id + 1 : 1;
 
-                // Get user branch
-                $user = $request->user();
-                $userId = $user->id;
-                $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
-                $currentMonth = now()->month; // e.g., 7 for July
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
-                $year = now()->format('y'); // e.g., 25 for 2025
-                $proformaInvoiceNumber = "PI/{$nextLastestPi}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
+                $currentMonth = now()->month;
+                $romanMonth = $this->getRomanMonth($currentMonth);
+                $year = now()->format('y');
+                $proformaInvoiceNumber = "PI/{$nextLastestPi}/BMJ-MEGAH/{$branchFallbackCode}/{$userId}/{$romanMonth}/{$year}";
             }
 
             $proformaInvoice = ProformaInvoice::create([
@@ -592,7 +598,8 @@ class PurchaseOrderController extends Controller
             $quotation = $purchaseOrder->quotation;
             $user = $request->user();
             $userId = $user->id;
-            $branch = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+            $branchModel = Branch::find(optional($quotation)->branch_id) ?? $this->resolveBranchModel($user->branch ?? null);
+            $branchCode = $branchModel?->code ?? 'JKT';
 
             // Check if quotation exists
             if (!$quotation) {
@@ -671,7 +678,7 @@ class PurchaseOrderController extends Controller
 
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
-                $workOrderNumber = "WO/{$orderNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$monthRoman}/{$year}";
+                $workOrderNumber = "WO/{$orderNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$monthRoman}/{$year}";
 
                 // Create work order
                 $workOrder = WorkOrder::create([
@@ -785,7 +792,7 @@ class PurchaseOrderController extends Controller
 
                 $monthRoman = $this->getRomanMonth(now()->month);
                 $year = now()->year;
-                $deliveryOrderNumber = "DO/{$orderNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$monthRoman}/{$year}";
+                $deliveryOrderNumber = "DO/{$orderNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$monthRoman}/{$year}";
 
                 // Create delivery order
                 $deliveryOrder = DeliveryOrder::create([
@@ -1099,6 +1106,20 @@ class PurchaseOrderController extends Controller
             // Return empty query builder
             return PurchaseOrder::whereNull('id');
         }
+    }
+
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
     }
 
     // Helper methods for consistent error handling

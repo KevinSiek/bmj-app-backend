@@ -18,9 +18,18 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\DetailQuotation;
 use App\Models\General;
 use Carbon\Carbon;
+use App\Models\Branch;
+use App\Services\SparepartStockService;
 
 class QuotationController extends Controller
 {
+    protected SparepartStockService $stockService;
+
+    public function __construct(SparepartStockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     // Quotation reviewing state in general
     const APPROVE = "Approved";
     const WAITING = "Waiting";
@@ -97,6 +106,7 @@ class QuotationController extends Controller
             $validatedData = $request->validate([
                 'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
                 'price.amount' => 'required|numeric',
+                'project.branch' => 'sometimes|string',
                 'notes' => 'sometimes|string',
                 // Customer validation
                 'customer.companyName' => 'required|string',
@@ -123,7 +133,18 @@ class QuotationController extends Controller
             $currentMonth = Carbon::now()->month; // e.g., 7 for July
             $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
-            $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+            $branchIdentifier = $request->input('project.branch', $user->branch);
+            $branchModel = $this->resolveBranchModel($branchIdentifier);
+
+            if (!$branchModel) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Branch not found. Please provide a valid branch name or code.',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $branchCode = $branchModel->code;
+            $branchId = $branchModel->id;
             $userId = $user->id;
             // Use the stored 'date' field (not 'created_at') when checking month/year
             // so the quotation numeric sequence resets correctly each month.
@@ -162,6 +183,8 @@ class QuotationController extends Controller
                 'discount' => 0,
                 'ppn' => 0,
                 'subtotal' => 0,
+                'employee_id' => $userId,
+                'branch_id' => $branchId,
             ];
 
             // Handle Customer Data
@@ -255,7 +278,8 @@ class QuotationController extends Controller
                     }
                     // Determine if current sparepart quantity is exist or not.
                     $sparepart['is_indent'] = false;
-                    if ($quantityOrderSparepart > $sparepartDbData->total_unit) {
+                    $availableStock = $this->stockService->getQuantity($sparepartDbData, $branchId);
+                    if ($quantityOrderSparepart > $availableStock) {
                         $sparepart['is_indent'] = true;
                     }
 
@@ -414,6 +438,8 @@ class QuotationController extends Controller
                 'grand_total' => 0,
                 'notes' => $request->input('notes'),
                 'project' => $request->input('project.quotationNumber'), // Using quotationNumber as project name
+                'employee_id' => $userId,
+                'branch_id' => $branchId,
             ];
 
             // Handle versioning using the version field
@@ -506,7 +532,8 @@ class QuotationController extends Controller
 
                     // Determine if current sparepart quantity is exist or not.
                     $sparepart['is_indent'] = false;
-                    if ($sparepart['quantity'] > $sparepartDbData->total_unit) {
+                    $availableStock = $this->stockService->getQuantity($sparepartDbData, $branchId);
+                    if ($sparepart['quantity'] > $availableStock) {
                         $sparepart['is_indent'] = true;
                     }
 
@@ -1063,34 +1090,33 @@ class QuotationController extends Controller
             // Update quotation status to Po
             $this->changeStatusToPo($request, $quotation);
 
+            $branchModel = Branch::find($this->ensureQuotationBranchId($quotation));
+            $branchCode = $branchModel?->code ?? 'JKT';
+            $user = $request->user();
+            $userId = $user->id;
+            $currentMonth = now()->month;
+            $romanMonth = $this->getRomanMonth($currentMonth);
+            $year = now()->format('y');
+
             // Generate purchase order number from quotation number
             try {
                 // Expected quotation_number format: QUOT/033/BMJ-MEGAH/SMG/1/07/2025
                 $parts = explode('/', $quotation->quotation_number);
-                $poNumber = $parts[1]; // e.g., 033
-                $branch = $parts[3]; // e.g., SMG or JKT
-                $user = $request->user();
-                $userId = $user->id;
-                $currentMonth = now()->month; // e.g., 7 for July
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
-                $year = now()->format('y'); // e.g., 25 for 2025
-                $purchaseOrderNumber = "PO/{$poNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
+                $poNumber = $parts[1] ?? null; // e.g., 033
+
+                if (!$poNumber) {
+                    throw new \RuntimeException('Invalid quotation number format.');
+                }
+
+                $purchaseOrderNumber = "PO/{$poNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
-                // Fallback to timestamp-based PO number with current month and year
-                $currentMonth = Carbon::now()->format('m'); // Two-digit month
+                // Fallback to sequential PO number with current month and year
                 $latestQuotation = Quotation::latest('id')
-                    ->lockForUpdate() // Lock to prevent race condition
+                    ->lockForUpdate()
                     ->first();
                 $lastestPo = $latestQuotation ? $latestQuotation->purchaseOrder : null;
                 $nextLatestId = $lastestPo ? $lastestPo->id + 1 : 1;
 
-                // Get user branch
-                $user = $request->user();
-                $userId = $user->id;
-                $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
-                $currentMonth = now()->month; // e.g., 7 for July
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
-                $year = now()->format('y'); // e.g., 25 for 2025
                 $purchaseOrderNumber = "PO/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
             }
 
@@ -1127,7 +1153,7 @@ class QuotationController extends Controller
 
                     $backOrder = BackOrder::create([
                         'purchase_order_id' => $purchaseOrder->id,
-                        'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$romanMonth}/{$year}",
+                        'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}",
                         'current_status' => BackOrderController::PROCESS,
                     ]);
                 } catch (\Throwable $th) {
@@ -1138,7 +1164,7 @@ class QuotationController extends Controller
                     $boNumber = $lastestBo ? $lastestBo->id + 1 : 1;
                     $backOrder = BackOrder::create([
                         'purchase_order_id' => $purchaseOrder->id,
-                        'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$romanMonth}/{$year}",
+                        'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}",
                         'current_status' => BackOrderController::PROCESS,
                     ]);
                 }
@@ -1158,7 +1184,9 @@ class QuotationController extends Controller
                             ], Response::HTTP_BAD_REQUEST);
                         }
 
-                        $sparepartTotalUnit = $sparepartRecord->total_unit;
+                        $quotationBranchId = $this->ensureQuotationBranchId($quotation);
+                        $branchStock = $this->stockService->ensureStockRecord($sparepartRecord, $quotationBranchId, true);
+                        $sparepartTotalUnit = $branchStock->quantity;
                         $sparepartQuantityOrderInPo = $sparepart->quantity;
                         $numberBoInBo = 0;
                         $numberDoInBo = $sparepartQuantityOrderInPo;
@@ -1177,8 +1205,10 @@ class QuotationController extends Controller
                         }
 
                         // Decrease the number of sparepart
-                        $sparepartRecord->total_unit -= $sparepartQuantityOrderInPo;
-                        $sparepartRecord->save();
+                        // TODO: What if we set it always 0 if bellow 0 and use better code to handle BO ?
+                        // $branchStock->quantity = max(0, $sparepartTotalUnit - $sparepartQuantityOrderInPo);
+                        $branchStock->quantity = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
+                        $branchStock->save();
 
                         // Change current status of PO to BO if there is a backorder
                         if ($numberBoInBo) {
@@ -1734,11 +1764,11 @@ class QuotationController extends Controller
 
             // Restock returned spareparts
             $returnedItems = $request->input('returned', []);
+            $quotationBranchId = $this->ensureQuotationBranchId($quotation);
             foreach ($returnedItems as $item) {
                 $sparepart = Sparepart::where('id', $item['sparepart_id'])->lockForUpdate()->first();
                 if ($sparepart) {
-                    $sparepart->total_unit += $item['quantity'];
-                    $sparepart->save();
+                    $this->stockService->increase($sparepart, $quotationBranchId, (int) $item['quantity']);
                 }
             }
 
@@ -1800,6 +1830,8 @@ class QuotationController extends Controller
                 'grand_total' => $grandTotal,
                 'notes' => $quotation->notes,
                 'project' => $quotation->quotation_number,
+                'employee_id' => $quotation->employee_id,
+                'branch_id' => $quotation->branch_id,
             ];
 
             // Handle versioning using the version field
@@ -2211,6 +2243,57 @@ class QuotationController extends Controller
         ], Response::HTTP_NOT_FOUND);
     }
 
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
+    }
+
+    protected function extractBranchCode(?string $identifier): ?string
+    {
+        if (!$identifier) {
+            return null;
+        }
+
+        $parts = explode('/', $identifier);
+
+        return $parts[3] ?? null;
+    }
+
+    protected function ensureQuotationBranchId(Quotation $quotation): int
+    {
+        if ($quotation->branch_id) {
+            return $quotation->branch_id;
+        }
+
+        if ($quotation->relationLoaded('branch') && $quotation->branch) {
+            return $quotation->branch->id;
+        }
+
+        $branch = $this->resolveBranchModel(optional($quotation->employee)->branch);
+
+        if (!$branch) {
+            $branch = $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
+        }
+
+        if (!$branch) {
+            throw new \RuntimeException('Unable to resolve branch for quotation ' . $quotation->id);
+        }
+
+        $quotation->branch_id = $branch->id;
+        $quotation->save();
+
+        return $branch->id;
+    }
+
     protected function formatQuotation($quotation)
     {
         $customer = $quotation->customer;
@@ -2275,6 +2358,8 @@ class QuotationController extends Controller
             'current_status' => $quotation->current_status,
             'status' => $quotation->status,
             'notes' => $quotation->notes,
+            'branch' => optional($quotation->branch)->name,
+            'branch_code' => optional($quotation->branch)->code,
             'discount' => $discount,
             'ppn' => $ppn,
             'spareparts' => $spareParts,

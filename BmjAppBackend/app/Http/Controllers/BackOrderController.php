@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quotation;
+use App\Models\Branch;
 use Illuminate\Http\Request;
 use App\Models\BackOrder;
 use App\Models\Buy;
@@ -14,6 +15,7 @@ use App\Models\Sparepart;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Services\SparepartStockService;
 
 class BackOrderController extends Controller
 {
@@ -24,9 +26,11 @@ class BackOrderController extends Controller
     const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
 
     protected $quotationController;
-    public function __construct(QuotationController $quotationController)
+    protected SparepartStockService $stockService;
+    public function __construct(QuotationController $quotationController, SparepartStockService $stockService)
     {
         $this->quotationController = $quotationController;
+        $this->stockService = $stockService;
     }
 
     public function getAll(Request $request)
@@ -98,7 +102,7 @@ class BackOrderController extends Controller
             $backOrdersCollection = BackOrder::with([
                 'purchaseOrder.quotation',
                 'purchaseOrder.quotation.customer',
-                'detailBackOrders.sparepart',
+                'detailBackOrders.sparepart.branchStocks.branch',
             ])->whereIn('back_order_number', $groupNumbers)
                 ->get();
 
@@ -178,6 +182,9 @@ class BackOrderController extends Controller
      */
     private function formatBackOrder(BackOrder $backOrder)
     {
+        $quotation = $backOrder->purchaseOrder?->quotation;
+        $branchId = $this->resolveQuotationBranchId($quotation);
+
         return [
             'id' => $backOrder->id,
             'back_order_number' => $backOrder->back_order_number,
@@ -205,14 +212,21 @@ class BackOrderController extends Controller
                 'delivery' => $backOrder->purchaseOrder?->quotation?->customer?->delivery ?? '', // Assuming nullable
             ],
             'notes' => $backOrder->notes ?? '',
-            'spareparts' => $backOrder->detailBackOrders->map(function ($detail) {
+            'spareparts' => $backOrder->detailBackOrders->map(function ($detail) use ($branchId) {
                 $order = $detail->number_back_order + $detail->number_delivery_order;
+                $totalUnit = 0;
+
+                if ($branchId && $detail->sparepart) {
+                    $totalUnit = $this->stockService->getQuantity($detail->sparepart, $branchId);
+                }
+
                 return [
                     'sparepart_name' => $detail->sparepart?->sparepart_name ?? '',
                     'sparepart_number' => $detail->sparepart?->sparepart_number ?? '',
                     'unit_price_sell' => $detail->sparepart?->unit_price_sell ?? 0, // Assuming in Sparepart
                     'total_price' => ($detail->quantity ?? 1) * ($detail->sparepart?->unit_price_sell ?? 0),
-                    'total_unit' => $detail->sparepart?->total_unit ?? 0, // Assuming total unit in Sparepart
+                    // 'total_unit' => $totalUnit,
+                    'total_unit' => $this->formatSparepartStocks($detail->sparepart),
                     'order' => $order ?? 0,
                     'delivery_order' => $detail->number_delivery_order ?? '',
                     'back_order' => $detail->number_back_order ?? '',
@@ -236,7 +250,7 @@ class BackOrderController extends Controller
             // Get the back order and lock it to prevent concurrent processing.
             $backOrder = $this->getAccessedBackOrder($request)
                 ->with([
-                    'detailBackOrders', // Eager load details
+                    'detailBackOrders.sparepart.branchStocks.branch', // Eager load details with branch stocks
                     'purchaseOrder.quotation' // Eager load PO and Quotation
                 ])
                 ->lockForUpdate() // Lock the back order row for this transaction
@@ -255,6 +269,9 @@ class BackOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            $quotation = $backOrder->purchaseOrder?->quotation;
+            $branchId = $this->resolveQuotationBranchId($quotation);
+
             // Create a new Buy record
             $totalAmount = 0;
             $buy = Buy::create([
@@ -264,6 +281,7 @@ class BackOrderController extends Controller
                 'current_status' => BuyController::RECEIVED, // Process means it already done
                 'notes' => 'Auto-generated from BackOrder #' . $backOrder->back_order_number,
                 'back_order_id' => $backOrder->id,
+                'branch_id' => $branchId,
             ]);
 
 
@@ -303,8 +321,9 @@ class BackOrderController extends Controller
                 $totalAmount += $subtotal;
 
                 // Update sparepart stock safely within the lock
-                $sparepart->total_unit += $quantity;
-                $sparepart->save();
+                if ($branchId && $sparepart) {
+                    $this->stockService->increase($sparepart, $branchId, (int) $quantity);
+                }
 
                 // Update detail quotation stock state from is_indent true to false
                 if ($quotation) {
@@ -354,7 +373,10 @@ class BackOrderController extends Controller
 
             return response()->json([
                 'message' => 'Back order processed successfully',
-                'data' => $backOrder->load('buy.detailBuys')
+                'data' => $backOrder->load([
+                    'buy.detailBuys',
+                    'detailBackOrders.sparepart.branchStocks.branch'
+                ])
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -382,6 +404,79 @@ class BackOrderController extends Controller
             // Return empty query builder
             return BackOrder::whereNull('id');
         }
+    }
+
+    protected function formatSparepartStocks(?Sparepart $sparepart): array
+    {
+        if (!$sparepart) {
+            return [];
+        }
+
+        $branchStocks = $sparepart->relationLoaded('branchStocks')
+            ? $sparepart->branchStocks
+            : $sparepart->branchStocks()->with('branch')->get();
+
+        return $branchStocks->map(function ($stock) {
+            return [
+                'name' => $stock->branch->name ?? '',
+                'stock' => (int) ($stock->quantity ?? 0),
+            ];
+        })->values()->toArray();
+    }
+
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
+    }
+
+    protected function extractBranchCode(?string $identifier): ?string
+    {
+        if (!$identifier) {
+            return null;
+        }
+
+        $parts = explode('/', $identifier);
+
+        return $parts[3] ?? null;
+    }
+
+    protected function resolveQuotationBranchId(?Quotation $quotation): ?int
+    {
+        if (!$quotation) {
+            return null;
+        }
+
+        if ($quotation->branch_id) {
+            return $quotation->branch_id;
+        }
+
+        if ($quotation->relationLoaded('branch') && $quotation->branch) {
+            return $quotation->branch->id;
+        }
+
+        $branch = $this->resolveBranchModel(optional($quotation->employee)->branch);
+
+        if (!$branch) {
+            $branch = $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
+        }
+
+        if (!$branch) {
+            return null;
+        }
+
+        $quotation->branch_id = $branch->id;
+        $quotation->save();
+
+        return $branch->id;
     }
 
     // Helper methods for consistent error handling

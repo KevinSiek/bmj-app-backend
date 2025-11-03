@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Buy;
 use App\Models\Seller;
+use App\Models\Branch;
+use App\Services\SparepartStockService;
 use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +15,13 @@ use Illuminate\Support\Facades\DB;
 
 class BuyController extends Controller
 {
+    protected SparepartStockService $stockService;
+
+    public function __construct(SparepartStockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     const APPROVE = "Approved";
     const DECLINE = "Rejected";
     const NEED_CHANGE = "Need Change";
@@ -71,7 +80,17 @@ class BuyController extends Controller
             $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
             $user = $request->user();
-            $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
+            $branchModel = Branch::query()
+                ->where('name', $user->branch)
+                ->orWhere('code', $user->branch)
+                ->first();
+
+            if (!$branchModel) {
+                throw new \RuntimeException('Branch for the current user could not be resolved.');
+            }
+
+            $branchCode = $branchModel->code;
+            $branchId = $branchModel->id;
             $userId = $user->id;
             $latestBuy = Buy::query()
                 ->whereMonth('created_at', $currentMonth)
@@ -98,6 +117,7 @@ class BuyController extends Controller
                 'back_order_id' => 1,
                 'total_amount' => $request->input('totalAmount'),
                 'notes' => $request->input('notes'),
+                'branch_id' => $branchId,
             ];
 
             // Create buy data
@@ -566,10 +586,16 @@ class BuyController extends Controller
             $buy->save();
 
             // Add sparepart quantity
-            $buy->detailBuys->map(function ($detail) {
+            $branchId = $this->ensureBuyBranchId($buy);
+            $buy->detailBuys->each(function ($detail) use ($branchId) {
                 $sparepart = $detail->sparepart;
-                $sparepart->total_unit += $detail->quantity;
-                if($detail->unit_price > $sparepart->unit_price_buy) {
+                if (!$sparepart) {
+                    return;
+                }
+
+                $this->stockService->increase($sparepart, $branchId, (int) $detail->quantity);
+
+                if ($detail->unit_price > $sparepart->unit_price_buy) {
                     $sparepart->unit_price_buy = $detail->unit_price;
                 }
                 $sparepart->save();
@@ -606,5 +632,52 @@ class BuyController extends Controller
         return response()->json([
             'message' => $message,
         ], Response::HTTP_NOT_FOUND);
+    }
+
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
+    }
+
+    protected function extractBranchCode(?string $identifier): ?string
+    {
+        if (!$identifier) {
+            return null;
+        }
+
+        $parts = explode('/', $identifier);
+
+        return $parts[3] ?? null;
+    }
+
+    protected function ensureBuyBranchId(Buy $buy): int
+    {
+        if ($buy->branch_id) {
+            return $buy->branch_id;
+        }
+
+        if ($buy->relationLoaded('branch') && $buy->branch) {
+            return $buy->branch->id;
+        }
+
+        $branch = $this->resolveBranchModel($this->extractBranchCode($buy->buy_number));
+
+        if (!$branch) {
+            throw new \RuntimeException('Unable to resolve branch for buy ' . $buy->id);
+        }
+
+        $buy->branch_id = $branch->id;
+        $buy->save();
+
+        return $branch->id;
     }
 }

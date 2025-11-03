@@ -7,6 +7,8 @@ use App\Models\Quotation;
 use App\Models\BackOrder;
 use App\Models\DetailBackOrder;
 use App\Models\Sparepart;
+use App\Models\Branch;
+use App\Services\SparepartStockService;
 use Illuminate\Database\Seeder;
 use Carbon\Carbon;
 
@@ -20,6 +22,7 @@ class PurchaseOrderSeeder extends Seeder
             ->get();
 
         $director = \App\Models\Employee::where('role', 'Director')->first();
+        $stockService = app(SparepartStockService::class);
 
         foreach ($quotations as $quotation) {
             // Simulate that not all approved quotations become a PO
@@ -51,6 +54,12 @@ class PurchaseOrderSeeder extends Seeder
             // Handle stock and back orders for 'Spareparts' type
             if ($quotation->type === 'Spareparts') {
                 $backOrder = null;
+                $branchModel = Branch::find($quotation->branch_id) ?? Branch::query()
+                    ->where('name', $quotation->employee->branch)
+                    ->orWhere('code', $quotation->employee->branch)
+                    ->first();
+                $branchId = $branchModel?->id;
+
                 foreach ($quotation->detailQuotations as $detail) {
                     if ($detail->is_indent) {
                         $hasIndent = true;
@@ -73,8 +82,8 @@ class PurchaseOrderSeeder extends Seeder
                     } else {
                         // Decrement stock for available items
                         $sparepart = Sparepart::find($detail->sparepart_id);
-                        if ($sparepart) {
-                            $sparepart->decrement('total_unit', $detail->quantity);
+                        if ($sparepart && $branchId) {
+                            $stockService->decrease($sparepart, $branchId, (int) $detail->quantity);
                         }
                     }
                 }

@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             GeneralSeeder::class,
             AccessRoleSeeder::class, // New: For permissions
             SellerSeeder::class,   // New: For sparepart suppliers
+            BranchSeeder::class,
 
             // 2. Core Entities
             EmployeeSeeder::class,

@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\ProformaInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quotation;
+use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -318,30 +319,34 @@ class ProformaInvoiceController extends Controller
             $currentDate = now();
 
             // Generate proforma invoice number from purchase order number
+            $user = $request->user();
+            $userId = $user->id;
+            $branchModel = Branch::find(optional($proformaInvoice->purchaseOrder?->quotation)->branch_id) ?? $this->resolveBranchModel($user->branch ?? null);
+            $branchFallbackCode = $branchModel?->code ?? 'JKT';
+
             try {
                 // Expected purchase_order_number format: PI/001/BMJ-MEGAH/JKT/1/V/25
                 $parts = explode('/', $proformaInvoice->proforma_invoice_number);
-                $piNumber = $parts[1]; // e.g., 033
-                $branch = $parts[3]; // e.g., V
+                $piNumber = $parts[1] ?? null; // e.g., 033
+                $branchCodeFromPi = $parts[3] ?? null; // e.g., SMG
+
+                if (!$piNumber) {
+                    throw new \RuntimeException('Invalid proforma invoice number format.');
+                }
+
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $user = $request->user();
-                $userId = $user->id;
-                $invoiceNumber = "IP/{$piNumber}/BMJ-MEGAH/{$branch}/{$userId}/{$romanMonth}/{$year}";
+                $invoiceNumber = "IP/{$piNumber}/BMJ-MEGAH/" . ($branchCodeFromPi ?? $branchFallbackCode) . "/{$userId}/{$romanMonth}/{$year}";
             } catch (\Throwable $th) {
                 // Fallback to timestamp-based PI number with current month and year
                 $latestInvoice = Invoice::latest('id')->lockForUpdate()->first();
                 $nextLastestInvoice = $latestInvoice ? $latestInvoice->id + 1 : 1;
 
-                // Get user branch
-                $user = $request->user();
-                $userId = $user->id;
-                $branchCode = $user->branch === EmployeeController::SEMARANG ? 'SMG' : 'JKT';
                 $currentMonth = now()->month; // e.g., 7 for July
                 $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
                 $year = now()->format('y'); // e.g., 25 for 2025
-                $invoiceNumber = "IP/{$nextLastestInvoice}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
+                $invoiceNumber = "IP/{$nextLastestInvoice}/BMJ-MEGAH/{$branchFallbackCode}/{$userId}/{$romanMonth}/{$year}";
             }
             $invoice = Invoice::create([
                 'proforma_invoice_id' => $proformaInvoice->id,
@@ -567,6 +572,20 @@ class ProformaInvoiceController extends Controller
             // Return empty query builder
             return ProformaInvoice::whereNull('id');
         }
+    }
+
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
     }
 
     // Helper methods for consistent error handling
