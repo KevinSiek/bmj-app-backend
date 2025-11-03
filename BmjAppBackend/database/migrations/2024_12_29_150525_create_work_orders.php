@@ -1,0 +1,49 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('work_orders', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('purchase_order_id')->constrained('purchase_orders');
+            $table->string('work_order_number');
+            $table->string('received_by')->nullable();
+            $table->integer('expected_days')->nullable();
+            $table->string('expected_start_date')->nullable();
+            $table->string('expected_end_date')->nullable();
+            $table->string('start_date')->nullable();
+            $table->string('end_date')->nullable();
+            $table->string('current_status')->nullable();
+            $table->string('worker')->nullable();
+            $table->string('compiled')->nullable();
+            $table->string('head_of_service')->nullable();
+            $table->string('approver')->nullable();
+            $table->boolean('is_done')->nullable();
+            $table->string('spareparts')->nullable();
+            $table->string('backup_sparepart')->nullable();
+            $table->string('scope')->nullable();
+            $table->string('vaccine')->nullable();
+            $table->string('apd')->nullable();
+            $table->string('peduli_lindungi')->nullable();
+            $table->string('execution_time')->nullable();
+            $table->string('notes')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('work_orders');
+    }
+};
