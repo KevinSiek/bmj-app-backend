@@ -8,14 +8,14 @@ use Illuminate\Support\Facades\Log; // Added for error logging
 use App\Models\Quotation;
 use App\Models\PurchaseOrder;
 use App\Models\ProformaInvoice;
-use App\Models\Invoice;
 use App\Models\DeliveryOrder;
 use App\Models\WorkOrder;
-use App\Models\Sparepart;
+use App\Models\BranchSparepart;
 use App\Models\BackOrder;
 use App\Models\Employee;
 use App\Models\Customer;
 use App\Models\DetailQuotation;
+use App\Models\Branch;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -29,50 +29,83 @@ class DashboardController extends Controller
     {
         try {
             // --- Time Interval Selection ---
-            $interval = $request->query('interval', '30d');
-            $startDate = now();
-            $endDate = now();
+            $interval = strtolower($request->query('interval', '30d'));
+            $branchParam = $request->query('branch');
+
+            $now = now();
+            $startDate = $now->copy();
+            $endDate = $now->copy()->endOfDay();
 
             switch ($interval) {
                 case '7d':
-                    $startDate = now()->subDays(6)->startOfDay();
+                    $startDate = $now->copy()->subDays(6)->startOfDay();
                     break;
                 case 'quarter':
-                    $startDate = now()->startOfQuarter();
+                    $startDate = $now->copy()->startOfQuarter()->startOfDay();
                     break;
                 case '6m':
-                    $startDate = now()->subMonths(5)->startOfMonth();
+                    $startDate = $now->copy()->subMonths(5)->startOfMonth()->startOfDay();
                     break;
                 case '12m':
-                    $startDate = now()->subMonths(11)->startOfMonth();
+                    $startDate = $now->copy()->subMonths(11)->startOfMonth()->startOfDay();
                     break;
                 case '30d':
                 default:
-                    $startDate = now()->subDays(29)->startOfDay();
+                    $startDate = $now->copy()->subDays(29)->startOfDay();
                     break;
             }
+
+            [$branch, $branchError] = $this->resolveBranchSelection($branchParam);
+            if ($branchError) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $branchError,
+                ], 400);
+            }
+            $branchId = $branch?->id;
+
+            $rangeDays = max($startDate->diffInDays($endDate) + 1, 1);
+            $comparisonEnd = $startDate->copy()->subDay()->endOfDay();
+            $comparisonStart = $comparisonEnd->copy()->subDays($rangeDays - 1)->startOfDay();
 
             // --- DYNAMIC KPIs (Based on selected interval) ---
             $revenueInInterval = Quotation::where('current_status', QuotationController::FULL_PAID)
                 ->whereNotIn('current_status', [QuotationController::REJECTED, QuotationController::CANCELLED])
                 ->whereBetween('date', [$startDate, $endDate])
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('grand_total');
 
             $potentialRevenue = Quotation::whereNotIn('current_status', [QuotationController::PO, QuotationController::REJECTED, QuotationController::CANCELLED])
                 ->whereBetween('date', [$startDate, $endDate])
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('grand_total');
 
-            $quotesInInterval = Quotation::whereBetween('created_at', [$startDate, $endDate])->count();
+            $quotesInInterval = Quotation::whereBetween('created_at', [$startDate, $endDate])
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                ->count();
             $posFromQuotesInInterval = PurchaseOrder::whereHas('quotation', function ($q) use ($startDate, $endDate) {
                 $q->whereBetween('created_at', [$startDate, $endDate]);
+            })->when($branchId, function ($query) use ($branchId) {
+                $query->whereHas('quotation', fn ($relation) => $relation->where('branch_id', $branchId));
             })->count();
             $quoteToPoConversionRate = $quotesInInterval > 0 ? ($posFromQuotesInInterval / $quotesInInterval) * 100 : 0;
+            $quotesPrev = Quotation::whereBetween('created_at', [$comparisonStart, $comparisonEnd])
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                ->count();
+            $posFromQuotesPrev = PurchaseOrder::whereHas('quotation', function ($q) use ($comparisonStart, $comparisonEnd) {
+                $q->whereBetween('created_at', [$comparisonStart, $comparisonEnd]);
+            })->when($branchId, function ($query) use ($branchId) {
+                $query->whereHas('quotation', fn ($relation) => $relation->where('branch_id', $branchId));
+            })->count();
+            $quoteToPoConversionRatePrev = $quotesPrev > 0 ? ($posFromQuotesPrev / $quotesPrev) * 100 : 0;
 
             $paidSparepartQuotes = ProformaInvoice::where('is_full_paid', true)
-                ->whereBetween('proforma_invoices.updated_at', [$startDate, $endDate])
+                // Use the invoice date to attribute revenue to the selected interval (more stable than updated_at)
+                ->whereBetween('proforma_invoice_date', [$startDate, $endDate])
                 ->join('purchase_orders', 'proforma_invoices.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('quotations', 'purchase_orders.quotation_id', '=', 'quotations.id')
                 ->where('quotations.type', 'Spareparts')
+                ->when($branchId, fn ($query) => $query->where('quotations.branch_id', $branchId))
                 ->select('quotations.id')
                 ->pluck('quotations.id');
 
@@ -92,35 +125,114 @@ class DashboardController extends Controller
 
             $grossProfitMargin = $totalRevenueSpareparts > 0 ? (($totalRevenueSpareparts - $totalCostSpareparts) / $totalRevenueSpareparts) * 100 : 0;
 
+            $paidSparepartQuotesPrev = ProformaInvoice::where('is_full_paid', true)
+                ->whereBetween('proforma_invoice_date', [$comparisonStart, $comparisonEnd])
+                ->join('purchase_orders', 'proforma_invoices.purchase_order_id', '=', 'purchase_orders.id')
+                ->join('quotations', 'purchase_orders.quotation_id', '=', 'quotations.id')
+                ->where('quotations.type', 'Spareparts')
+                ->when($branchId, fn ($query) => $query->where('quotations.branch_id', $branchId))
+                ->select('quotations.id')
+                ->pluck('quotations.id');
+
+            $totalRevenueSparepartsPrev = DetailQuotation::whereIn('quotation_id', $paidSparepartQuotesPrev)->sum(DB::raw('quantity * unit_price'));
+            $totalCostSparepartsPrev = DetailQuotation::whereIn('quotation_id', $paidSparepartQuotesPrev)
+                ->join('spareparts', 'detail_quotations.sparepart_id', '=', 'spareparts.id')
+                ->leftJoin(DB::raw('(SELECT sparepart_id, AVG(unit_price) as avg_cost FROM detail_spareparts GROUP BY sparepart_id) as costs'), function ($join) {
+                    $join->on('spareparts.id', '=', 'costs.sparepart_id');
+                })
+                ->sum(DB::raw('detail_quotations.quantity * COALESCE(costs.avg_cost, 0)'));
+
+            $grossProfitMarginPrev = $totalRevenueSparepartsPrev > 0 ? (($totalRevenueSparepartsPrev - $totalCostSparepartsPrev) / $totalRevenueSparepartsPrev) * 100 : 0;
+
+            $paidRevenueCurrent = (float) ProformaInvoice::where('is_full_paid', true)
+                ->whereBetween('proforma_invoice_date', [$startDate, $endDate])
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->sum('grand_total');
+            $paidRevenuePrevious = (float) ProformaInvoice::where('is_full_paid', true)
+                ->whereBetween('proforma_invoice_date', [$comparisonStart, $comparisonEnd])
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->sum('grand_total');
+            $totalInvoicedCurrent = (float) ProformaInvoice::whereBetween('proforma_invoice_date', [$startDate, $endDate])
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->sum('grand_total');
+            $totalInvoicedPrevious = (float) ProformaInvoice::whereBetween('proforma_invoice_date', [$comparisonStart, $comparisonEnd])
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->sum('grand_total');
+            $collectionRate = $totalInvoicedCurrent > 0 ? ($paidRevenueCurrent / $totalInvoicedCurrent) * 100 : 0;
+            $collectionRatePrev = $totalInvoicedPrevious > 0 ? ($paidRevenuePrevious / $totalInvoicedPrevious) * 100 : 0;
+
             // --- STATIC KPIs & DATA (Point-in-time or fixed interval) ---
-            $openWorkOrders = WorkOrder::where('is_done', false)->count();
-            $pendingQuotations = Quotation::where('review', false)->where('current_status', 'On Review')->count();
-            $pendingReturns = Quotation::where('is_return', true)->count();
-            $pendingPurchaseOrders = PurchaseOrder::where('current_status', 'Prepare')->count();
-            $pendingBackOrders = BackOrder::where('current_status', 'Process')->count();
-            $lowStockSpareparts = Sparepart::where('total_unit', '<', 10)->count();
-            $pendingWorkOrders = WorkOrder::where('current_status', 'On Progress')->count();
+            $openWorkOrders = WorkOrder::where('is_done', false)
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->count();
+            $pendingQuotations = Quotation::where('review', false)->where('current_status', 'On Review')
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                ->count();
+            $pendingReturns = Quotation::where('is_return', true)
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                ->count();
+            $pendingPurchaseOrders = PurchaseOrder::where('current_status', 'Prepare')
+                ->when($branchId, fn ($query) => $query->whereHas('quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->count();
+            $pendingBackOrders = BackOrder::where('current_status', 'Process')
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->count();
+            $lowStockSpareparts = $branchId
+                ? BranchSparepart::where('branch_id', $branchId)->where('quantity', '<', 10)->count()
+                : BranchSparepart::select('sparepart_id', DB::raw('SUM(quantity) as total_quantity'))
+                    ->groupBy('sparepart_id')
+                    ->havingRaw('SUM(quantity) < ?', [10])
+                    ->count();
+            $pendingWorkOrders = WorkOrder::where('current_status', 'On Progress')
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->count();
+
+            $inventoryAlerts = BranchSparepart::with(['sparepart', 'branch'])
+                ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                ->orderBy('quantity')
+                ->limit(5)
+                ->get()
+                ->map(function ($row) {
+                    return [
+                        'sparepart' => $row->sparepart?->sparepart_name ?? '-',
+                        'branch' => $row->branch?->name ?? '-',
+                        'quantity' => (int) $row->quantity,
+                    ];
+                })
+                ->values()
+                ->toArray();
 
             // --- DYNAMIC CHARTS ---
+            $paidInvoicesCount = ProformaInvoice::where('is_full_paid', true)
+                ->whereBetween('proforma_invoice_date', [$startDate, $endDate])
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->count();
+            $paidInvoicesPrev = ProformaInvoice::where('is_full_paid', true)
+                ->whereBetween('proforma_invoice_date', [$comparisonStart, $comparisonEnd])
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
+                ->count();
+
             $salesFunnel = [
-                'quotations' => $quotesInInterval,
-                'purchase_orders' => $posFromQuotesInInterval,
-                'paid_invoices' => ProformaInvoice::where('is_full_paid', true)->whereBetween('updated_at', [$startDate, $endDate])->count(),
+                ['stage' => 'Quotation', 'count' => $quotesInInterval],
+                ['stage' => 'Purchase Order', 'count' => $posFromQuotesInInterval],
+                ['stage' => 'Paid Invoice', 'count' => $paidInvoicesCount],
             ];
 
             $revenueByType = ProformaInvoice::where('is_full_paid', true)
-                ->whereBetween('proforma_invoices.updated_at', [$startDate, $endDate])
+                ->whereBetween('proforma_invoice_date', [$startDate, $endDate])
                 ->join('purchase_orders', 'proforma_invoices.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('quotations', 'purchase_orders.quotation_id', '=', 'quotations.id')
+                ->when($branchId, fn ($query) => $query->where('quotations.branch_id', $branchId))
                 ->select('quotations.type', DB::raw('SUM(proforma_invoices.grand_total) as total_revenue'))
                 ->groupBy('quotations.type')
                 ->get();
 
             $salesTeamPerformance = ProformaInvoice::where('is_full_paid', true)
-                ->whereBetween('proforma_invoices.updated_at', [$startDate, $endDate])
+                ->whereBetween('proforma_invoice_date', [$startDate, $endDate])
                 ->join('purchase_orders', 'proforma_invoices.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('quotations', 'purchase_orders.quotation_id', '=', 'quotations.id')
                 ->join('employees', 'quotations.employee_id', '=', 'employees.id')
+                ->when($branchId, fn ($query) => $query->where('quotations.branch_id', $branchId))
                 ->select('employees.fullname', DB::raw('SUM(proforma_invoices.grand_total) as total_revenue'))
                 // FIX: Group by ID to prevent issues with duplicate names.
                 ->groupBy('employees.id', 'employees.fullname')
@@ -138,6 +250,7 @@ class DashboardController extends Controller
                 DB::raw('SUM(CASE WHEN is_full_paid = 1 THEN grand_total ELSE 0 END) as paid'),
                 DB::raw('SUM(CASE WHEN is_full_paid = 0 THEN grand_total ELSE 0 END) as unpaid')
             )->where('proforma_invoice_date', '>=', $sixMonthsAgo)
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
                 ->groupBy('year', DB::raw('MONTH(proforma_invoice_date)'), 'month')
                 ->orderBy('year', 'asc')->orderBy(DB::raw('MONTH(proforma_invoice_date)'), 'asc')->get();
 
@@ -151,6 +264,7 @@ class DashboardController extends Controller
 
             // FIX: Replaced 4 separate queries with a single, more efficient query for AR Aging.
             $arAgingResult = ProformaInvoice::where('is_full_paid', false)
+                ->when($branchId, fn ($query) => $query->whereHas('purchaseOrder.quotation', fn ($relation) => $relation->where('branch_id', $branchId)))
                 ->select(
                     DB::raw('SUM(CASE WHEN proforma_invoice_date >= "' . now()->subDays(30)->toDateString() . '" THEN grand_total ELSE 0 END) as current_total'),
                     DB::raw('SUM(CASE WHEN proforma_invoice_date BETWEEN "' . now()->subDays(60)->toDateString() . '" AND "' . now()->subDays(31)->toDateString() . '" THEN grand_total ELSE 0 END) as "31_60_days"'),
@@ -172,39 +286,167 @@ class DashboardController extends Controller
                 ->where('proforma_invoices.updated_at', '>=', now()->subDays(90))
                 ->join('purchase_orders', 'proforma_invoices.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('quotations', 'purchase_orders.quotation_id', '=', 'quotations.id')
+                ->when($branchId, fn ($query) => $query->where('quotations.branch_id', $branchId))
                 ->join('customers', 'quotations.customer_id', '=', 'customers.id')
                 ->select('customers.company_name', DB::raw('SUM(proforma_invoices.grand_total) as total_revenue'))
                 // FIX: Group by ID to prevent issues with duplicate company names.
                 ->groupBy('customers.id', 'customers.company_name')->orderByDesc('total_revenue')->limit(5)->get();
 
-            $summary = [
-                // KPIs
-                'revenue_in_interval' => $revenueInInterval,
-                'potential_revenue' => $potentialRevenue,
-                'open_work_orders' => $openWorkOrders,
-                'quote_to_po_conversion_rate' => $quoteToPoConversionRate,
-                'gross_profit_margin' => $grossProfitMargin,
+            $branchMix = Branch::select('branches.id', 'branches.name', 'branches.code', DB::raw('COALESCE(SUM(quotations.grand_total), 0) as revenue'))
+                ->leftJoin('quotations', function ($join) use ($startDate, $endDate) {
+                    $join->on('quotations.branch_id', '=', 'branches.id')
+                        ->whereBetween('quotations.date', [$startDate->toDateString(), $endDate->toDateString()]);
+                })
+                ->groupBy('branches.id', 'branches.name', 'branches.code')
+                ->orderBy('branches.name')
+                ->get();
 
-                // DYNAMIC CHARTS
-                'sales_funnel' => $salesFunnel,
-                'revenue_by_type' => $revenueByType,
-                'sales_team_performance' => $salesTeamPerformance,
+            $revenueByType = $revenueByType->map(function ($row) {
+                return [
+                    'type' => $row->type,
+                    'revenue' => (float) $row->total_revenue,
+                ];
+            })->values()->toArray();
 
-                // STATIC CHARTS & DATA
-                'revenue_trend' => ['series' => $revenueTrend, 'target' => 350000000],
-                'ar_aging' => $arAging,
-                'operational_bottlenecks' => [
-                    'pending_quotations' => $pendingQuotations,
-                    'pending_returns' => $pendingReturns,
-                    'pending_purchase_orders' => $pendingPurchaseOrders,
-                    'pending_work_orders' => $pendingWorkOrders,
-                    'pending_back_orders' => $pendingBackOrders,
-                    'low_stock_spareparts' => $lowStockSpareparts,
+            $salesTeamPerformance = $salesTeamPerformance->map(function ($row) {
+                return [
+                    'name' => $row->fullname,
+                    'revenue' => (float) $row->total_revenue,
+                ];
+            })->values()->toArray();
+
+            $topCustomers = $topCustomers->map(function ($row) {
+                return [
+                    'customer' => $row->company_name,
+                    'revenue' => (float) $row->total_revenue,
+                ];
+            })->values()->toArray();
+
+            $branchMix = $branchMix->map(function ($row) use ($branchId) {
+                return [
+                    'name' => $row->name,
+                    'code' => $row->code,
+                    'revenue' => (float) $row->revenue,
+                    'is_selected' => $branchId ? $row->id === $branchId : false,
+                ];
+            })->values()->toArray();
+
+            $availableBranches = Branch::orderBy('name')
+                ->get(['id', 'name', 'code'])
+                ->map(fn ($b) => ['id' => $b->id, 'name' => $b->name, 'code' => $b->code])
+                ->values()
+                ->toArray();
+
+            $selectedBranch = $branch
+                ? ['id' => $branch->id, 'name' => $branch->name, 'code' => $branch->code]
+                : ['name' => 'All Branches', 'code' => 'ALL'];
+
+            $headline = [
+                [
+                    'label' => 'Actual Revenue',
+                    'value' => round($paidRevenueCurrent, 2),
+                    'unit' => 'IDR',
+                    'change_percent' => $this->percentChange($paidRevenueCurrent, $paidRevenuePrevious),
                 ],
-                'top_customers_by_revenue' => $topCustomers,
+                [
+                    'label' => 'Potential Pipeline',
+                    'value' => round($potentialRevenue, 2),
+                    'unit' => 'IDR',
+                    'change_percent' => null,
+                ],
+                [
+                    'label' => 'Gross Profit Margin',
+                    'value' => round($grossProfitMargin, 2),
+                    'unit' => '%',
+                    'change_percent' => $this->percentChange($grossProfitMargin, $grossProfitMarginPrev),
+                ],
+                [
+                    'label' => 'Quote to PO Conversion',
+                    'value' => round($quoteToPoConversionRate, 2),
+                    'unit' => '%',
+                    'change_percent' => $this->percentChange($quoteToPoConversionRate, $quoteToPoConversionRatePrev),
+                ],
+                [
+                    'label' => 'Cash Collection Rate',
+                    'value' => round($collectionRate, 2),
+                    'unit' => '%',
+                    'change_percent' => $this->percentChange($collectionRate, $collectionRatePrev),
+                ],
             ];
 
-            return response()->json(['status' => 'success', 'data' => $summary], 200);
+            $sales = [
+                'funnel' => $salesFunnel,
+                'team_performance' => $salesTeamPerformance,
+                'pipeline' => [
+                    'potential_value' => round($potentialRevenue, 2),
+                    'quote_to_po_conversion' => round($quoteToPoConversionRate, 2),
+                    'quote_to_po_change' => $this->percentChange($quoteToPoConversionRate, $quoteToPoConversionRatePrev),
+                    'paid_invoices' => [
+                        'current' => $paidInvoicesCount,
+                        'previous' => $paidInvoicesPrev,
+                    ],
+                ],
+            ];
+
+            $finance = [
+                'actual_revenue' => [
+                    'current' => round($paidRevenueCurrent, 2),
+                    'previous' => round($paidRevenuePrevious, 2),
+                    'change_percent' => $this->percentChange($paidRevenueCurrent, $paidRevenuePrevious),
+                ],
+                'gross_margin' => [
+                    'current' => round($grossProfitMargin, 2),
+                    'previous' => round($grossProfitMarginPrev, 2),
+                    'change_percent' => $this->percentChange($grossProfitMargin, $grossProfitMarginPrev),
+                ],
+                'collection_rate' => [
+                    'current' => round($collectionRate, 2),
+                    'previous' => round($collectionRatePrev, 2),
+                    'change_percent' => $this->percentChange($collectionRate, $collectionRatePrev),
+                ],
+                'revenue_by_type' => $revenueByType,
+                'revenue_trend' => $revenueTrend,
+                'branch_mix' => $branchMix,
+                'receivables_aging' => $arAging,
+            ];
+
+            $operations = [
+                'pending_quotations' => $pendingQuotations,
+                'pending_returns' => $pendingReturns,
+                'open_work_orders' => $openWorkOrders,
+                'pending_work_orders' => $pendingWorkOrders,
+                'pending_purchase_orders' => $pendingPurchaseOrders,
+                'pending_back_orders' => $pendingBackOrders,
+                'low_stock_spareparts' => $lowStockSpareparts,
+                'inventory_alerts' => $inventoryAlerts,
+            ];
+
+            $customers = [
+                'top_customers' => $topCustomers,
+            ];
+
+            $filters = [
+                'interval' => $interval,
+                'date_range' => [
+                    'start' => $startDate->toDateString(),
+                    'end' => $endDate->toDateString(),
+                    'comparison_start' => $comparisonStart->toDateString(),
+                    'comparison_end' => $comparisonEnd->toDateString(),
+                ],
+                'branch' => $selectedBranch,
+                'available_branches' => $availableBranches,
+            ];
+
+            $payload = [
+                'filters' => $filters,
+                'headline' => $headline,
+                'sales' => $sales,
+                'finance' => $finance,
+                'operations' => $operations,
+                'customers' => $customers,
+            ];
+
+            return response()->json(['status' => 'success', 'data' => $payload], 200);
         } catch (\Exception $e) {
             // Log the exception for debugging purposes
             Log::error('Failed to get dashboard summary: ' . $e->getMessage());
@@ -215,5 +457,39 @@ class DashboardController extends Controller
                 'message' => 'An error occurred while fetching dashboard data.'
             ], 500);
         }
+    }
+
+    protected function resolveBranchSelection(?string $branchParam): array
+    {
+        if (!$branchParam || strtolower($branchParam) === 'all') {
+            return [null, null];
+        }
+
+        $normalized = strtolower($branchParam);
+        $branch = Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
+
+        if (!$branch) {
+            return [null, 'Branch not found. Valid options are Jakarta, Semarang, or leave empty for all branches.'];
+        }
+
+        return [$branch, null];
+    }
+
+    protected function percentChange($current, $previous): ?float
+    {
+        if ($previous === null) {
+            return null;
+        }
+
+        $previous = (float) $previous;
+
+        if (abs($previous) < 0.00001) {
+            return null;
+        }
+
+        return round((($current - $previous) / $previous) * 100, 2);
     }
 }

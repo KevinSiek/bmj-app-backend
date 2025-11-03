@@ -15,7 +15,6 @@ class DetailQuotation extends Model
         'service',
         'service_price',
         'quantity',
-        'total_unit',
         'unit_price',
         'is_return',
         'stock'

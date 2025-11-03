@@ -5,6 +5,8 @@ namespace App\Imports;
 use App\Models\Sparepart;
 use App\Models\DetailSparepart;
 use App\Models\Seller;
+use App\Models\Branch;
+use App\Services\SparepartStockService;
 // use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Illuminate\Support\Str;
@@ -171,6 +173,7 @@ class SparepartImport implements ToCollection, WithChunkReading
         $sparepartData = [];
         $detailSparepartData = [];
         $uniqueKeys = [];
+        $branchStockData = [];
 
         foreach ($rows as $index => $row) {
             Log::info("Processing row " . ($index + 1) . ": " . json_encode($row));
@@ -210,10 +213,14 @@ class SparepartImport implements ToCollection, WithChunkReading
                 'sparepart_name' => $row['2'],
                 'unit_price_buy' => $row['3'],
                 'unit_price_sell' => $row['3'],
-                'branch' => isset($row[5]) ? (self::BRANCH_MAP[$row[5]] ?? 'Semarang') : 'Semarang',
-                'total_unit' => 0, // Default to 0 since not provided
                 'created_at' => now(),
                 'updated_at' => now(),
+            ];
+
+            $branchStockData[] = [
+                'sparepart_number' => $row[1],
+                'branch' => $row[5] ?? null,
+                'quantity' => 0,
             ];
 
             if (!empty($row[4])) {
@@ -228,7 +235,7 @@ class SparepartImport implements ToCollection, WithChunkReading
             $uniqueKeys[] = $row['1'];
         }
 
-        DB::transaction(function () use ($sparepartData, $detailSparepartData, $uniqueKeys) {
+        DB::transaction(function () use ($sparepartData, $detailSparepartData, $uniqueKeys, $branchStockData) {
              // Fetch existing ones to detect new vs updated
             $existing = Sparepart::whereIn('sparepart_number', $uniqueKeys)
                 ->pluck('sparepart_number')
@@ -243,14 +250,14 @@ class SparepartImport implements ToCollection, WithChunkReading
                 ['sparepart_number'], // unique key to check for existing record
                 ['unit_price_buy']    // columns to update if record exists
             );
+            $spareparts = Sparepart::whereIn('sparepart_number', array_column($sparepartData, 'sparepart_number'))
+                ->get()
+                ->keyBy('sparepart_number');
 
+            $stockService = app(SparepartStockService::class);
+            $allBranches = Branch::all();
             // Handle detail spareparts if any exist
             if (!empty($detailSparepartData)) {
-                // Get all spareparts that were just upserted
-                $spareparts = Sparepart::whereIn('sparepart_number', array_column($sparepartData, 'sparepart_number'))
-                    ->get()
-                    ->keyBy('sparepart_number');
-
                 // Prepare detail sparepart records with actual sparepart_ids
                 $detailRecords = array_map(function ($detail) use ($spareparts) {
                     $sparepart = $spareparts[$detail['sparepart_number']] ?? null;
@@ -278,6 +285,28 @@ class SparepartImport implements ToCollection, WithChunkReading
                     );
                 }
             }
+
+            if (!empty($branchStockData)) {
+                foreach ($branchStockData as $stockInfo) {
+                    $sparepart = $spareparts[$stockInfo['sparepart_number']] ?? null;
+
+                    if (!$sparepart) {
+                        continue;
+                    }
+
+                    $branchModel = $this->resolveBranchModel($stockInfo['branch']) ?? $this->resolveBranchModel('Semarang');
+
+                    if ($branchModel) {
+                        $record = $stockService->ensureStockRecord($sparepart, $branchModel->id, true);
+                        $record->quantity = max(0, (int) $stockInfo['quantity']);
+                        $record->save();
+                    }
+
+                    foreach ($allBranches as $branch) {
+                        $stockService->ensureStockRecord($sparepart, $branch->id);
+                    }
+                }
+            }
         });
     }
 
@@ -295,7 +324,24 @@ class SparepartImport implements ToCollection, WithChunkReading
         return [];
     }
 
-      public function getNewCount()
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return Branch::query()
+                ->where('code', 'SMG')
+                ->orWhere('name', 'Semarang')
+                ->first();
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
+    }
+
+    public function getNewCount()
     {
         return $this->newCount;
     }

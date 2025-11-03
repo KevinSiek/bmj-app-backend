@@ -7,6 +7,8 @@ use App\Models\Buy;
 use App\Models\DetailBuy;
 use App\Models\Sparepart;
 use App\Models\DetailSparepart;
+use App\Models\Branch;
+use App\Services\SparepartStockService;
 use Illuminate\Database\Seeder;
 use Carbon\Carbon;
 
@@ -16,12 +18,19 @@ class BackOrderSeeder extends Seeder
     {
         // This seeder now processes existing back orders instead of creating new ones
         $backOrdersToProcess = BackOrder::where('current_status', 'Process')->get();
+        $stockService = app('App\Services\SparepartStockService');
 
         foreach ($backOrdersToProcess as $backOrder) {
             // Simulate a delay for processing
             if (Carbon::parse($backOrder->created_at)->diffInDays(now()) < 10) {
                 continue; // Only process older back orders
             }
+
+            $branchModel = Branch::find(optional($backOrder->purchaseOrder?->quotation)->branch_id) ?? Branch::query()
+                ->where('name', optional($backOrder->purchaseOrder?->quotation?->employee)->branch)
+                ->orWhere('code', optional($backOrder->purchaseOrder?->quotation?->employee)->branch)
+                ->first();
+            $branchId = $branchModel?->id;
 
             $processDate = Carbon::parse($backOrder->created_at)->addDays(rand(7, 14));
             $totalBuyAmount = 0;
@@ -37,6 +46,7 @@ class BackOrderSeeder extends Seeder
                 'notes' => 'Auto-purchase for ' . $backOrder->back_order_number,
                 'created_at' => $processDate,
                 'updated_at' => $processDate,
+                'branch_id' => $branchId,
             ]);
 
             foreach ($backOrder->detailBackOrders as $detail) {
@@ -58,8 +68,8 @@ class BackOrderSeeder extends Seeder
 
                 // Replenish stock
                 $sparepart = Sparepart::find($detail->sparepart_id);
-                if ($sparepart) {
-                    $sparepart->increment('total_unit', $detail->number_back_order);
+                if ($sparepart && $branchId) {
+                    $stockService->increase($sparepart, $branchId, (int) $detail->number_back_order);
                 }
             }
 

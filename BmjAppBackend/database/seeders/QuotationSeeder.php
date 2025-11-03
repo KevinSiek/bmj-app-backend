@@ -8,6 +8,8 @@ use App\Models\Sparepart;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\General;
+use App\Models\Branch;
+use App\Models\BranchSparepart;
 use Illuminate\Database\Seeder;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -62,6 +64,11 @@ class QuotationSeeder extends Seeder
                 $amount = 0;
                 $details = [];
                 $itemCount = rand(2, 6);
+                $branchModel = Branch::query()
+                    ->where('name', $marketing->branch)
+                    ->orWhere('code', $marketing->branch)
+                    ->first();
+                $branchId = $branchModel?->id;
 
                 if ($type === 'Spareparts') {
                     if ($spareparts->count() < $itemCount) continue; // Skip if not enough spareparts to sample
@@ -69,13 +76,18 @@ class QuotationSeeder extends Seeder
                     foreach ($selectedSpareparts as $sp) {
                         $quantity = rand(1, 5);
                         $unitPrice = $sp->unit_price_sell * rand(95, 105) / 100; // slight price variation
+                        $availableStock = $branchId
+                            ? BranchSparepart::where('sparepart_id', $sp->id)
+                                ->where('branch_id', $branchId)
+                                ->value('quantity') ?? 0
+                            : 0;
                         $amount += $quantity * $unitPrice;
                         $details[] = [
                             'quotation_id' => $quotation->id,
                             'sparepart_id' => $sp->id,
                             'quantity' => $quantity,
                             'unit_price' => $unitPrice,
-                            'is_indent' => $quantity > $sp->total_unit,
+                            'is_indent' => $quantity > $availableStock,
                         ];
                     }
                 } else { // Service

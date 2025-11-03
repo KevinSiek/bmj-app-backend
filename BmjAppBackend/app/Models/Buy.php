@@ -16,6 +16,7 @@ class Buy extends Model
         'current_status',
         'notes',
         'back_order_id',
+        'branch_id',
     ];
 
     public function detailBuys()
@@ -26,5 +27,10 @@ class Buy extends Model
     public function backOrder()
     {
         return $this->belongsTo(BackOrder::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

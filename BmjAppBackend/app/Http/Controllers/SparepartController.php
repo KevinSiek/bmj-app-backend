@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Sparepart;
 use App\Models\DetailSparepart;
 use App\Models\Seller;
+use App\Models\Branch;
+use App\Services\SparepartStockService;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
@@ -18,6 +20,13 @@ use Illuminate\Validation\ValidationException;
 
 class SparepartController extends Controller
 {
+    protected SparepartStockService $stockService;
+
+    public function __construct(SparepartStockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     /**
      * Rewrite all spareparts from an uploaded Excel or CSV file.
      *
@@ -206,14 +215,23 @@ class SparepartController extends Controller
             ]);
 
             // Map camelCase to snake_case
+            $branchIdentifier = $request->input('branch', $request->user()->branch ?? null);
+            $branch = $this->resolveBranchModel($branchIdentifier);
+
+            if (!$branch) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Branch not found, please provide a valid branch name or code.',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $stockQuantity = (int) $request->input('totalUnit', 0);
+
             $data = [
                 'sparepart_number' => $request->input('sparepartNumber', ''),
                 'sparepart_name' => $request->input('sparepartName', ''),
-                'total_unit' => $request->input('totalUnit'),
-                'branch' => $request->input('branch'),
                 'unit_price_buy' => $request->input('unitPriceBuy'),
                 'unit_price_sell' => $request->input('unitPriceSell'),
-                'branch' => $request->input('branch', null),
                 'unit_price_seller' => $request->input('unitPriceSeller', []),
             ];
 
@@ -236,6 +254,8 @@ class SparepartController extends Controller
 
             // Create sparepart
             $sparepart = Sparepart::create($data);
+
+            $this->setStockForBranch($sparepart, $branch->id, $stockQuantity);
 
             // Create or find sellers and create detail spareparts
             foreach ($data['unit_price_seller'] as $buy) {
@@ -282,7 +302,7 @@ class SparepartController extends Controller
         DB::beginTransaction();
         try {
             // Find sparepart and lock it for update
-            $sparepart = Sparepart::with('detailSpareparts.seller')->lockForUpdate()->findOrFail($id);
+            $sparepart = Sparepart::with(['detailSpareparts.seller', 'branchStocks.branch'])->lockForUpdate()->findOrFail($id);
 
             // Validate input data
             $validator = Validator::make($request->all(), [
@@ -299,14 +319,24 @@ class SparepartController extends Controller
             ]);
 
             // Map camelCase to snake_case
+            $branchIdentifier = $request->input('branch', $request->user()->branch ?? null);
+            $branch = $this->resolveBranchModel($branchIdentifier);
+
+            if (!$branch) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Branch not found, please provide a valid branch name or code.',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $stockQuantity = (int) $request->input('totalUnit', 0);
+
             $data = [
                 'sparepart_number' => $request->input('sparepartNumber', ''),
                 'sparepart_name' => $request->input('sparepartName', ''),
-                'total_unit' => $request->input('totalUnit'),
                 'unit_price_buy' => $request->input('unitPriceBuy'),
                 'unit_price_sell' => $request->input('unitPriceSell'),
                 'unit_price_seller' => $request->input('unitPriceSeller', []),
-                'branch' => $request->input('branch', $sparepart->branch),
             ];
 
             // Check if sparepart_number changed and already exists
@@ -335,6 +365,7 @@ class SparepartController extends Controller
 
             // Update sparepart
             $sparepart->update($data);
+            $this->setStockForBranch($sparepart, $branch->id, $stockQuantity);
 
             // Delete old detail spareparts
             $sparepart->detailSpareparts()->delete();
@@ -361,7 +392,7 @@ class SparepartController extends Controller
             DB::commit();
 
             // Prepare response data
-            $formattedSparepart = $this->formatSparepartResponse($sparepart->fresh(['detailSpareparts.seller']), $request->user());
+            $formattedSparepart = $this->formatSparepartResponse($sparepart->fresh(['detailSpareparts.seller', 'branchStocks.branch']), $request->user());
 
             return response()->json([
                 'message' => 'Sparepart updated successfully',
@@ -387,7 +418,7 @@ class SparepartController extends Controller
     {
         try {
             $spareparts = $this->getAccessedSparepart($request);
-            $sparepart = $spareparts->with('detailSpareparts.seller')
+            $sparepart = $spareparts->with(['detailSpareparts.seller', 'branchStocks.branch'])
                 ->where('id', $id)
                 ->firstOrFail();
 
@@ -418,7 +449,7 @@ class SparepartController extends Controller
                 $query->where('sparepart_name', 'like', "%$q%")
                     ->orWhere('sparepart_number', 'like', "%$q%");
             })
-                ->with('detailSpareparts.seller');
+                ->with(['detailSpareparts.seller', 'branchStocks.branch']);
 
             $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) use ($request) {
                 return $this->formatSparepartResponse($data, $request->user());
@@ -442,13 +473,36 @@ class SparepartController extends Controller
      */
     protected function formatSparepartResponse($sparepart, $user)
     {
+        $branchId = $this->resolveBranchIdForUser($user);
+        $stocks = $sparepart->branchStocks->map(function ($stock) {
+            return [
+                'branch_id' => $stock->branch_id,
+                'branch' => $stock->branch->name ?? '',
+                'branch_code' => $stock->branch->code ?? '',
+                'quantity' => $stock->quantity ?? 0,
+            ];
+        });
+
+        $branchStock = $branchId ? $stocks->firstWhere('branch_id', $branchId) : null;
+        $totalUnit = $branchStock['quantity'] ?? $stocks->sum('quantity');
+        $totalUnitByBranch = $stocks->map(function ($stock) {
+            return [
+                'name' => $stock['branch'],
+                'stock' => (int) ($stock['quantity'] ?? 0),
+            ];
+        })->values()->toArray();
+        $branchName = $branchStock['branch'] ?? null;
+        $branchCode = $branchStock['branch_code'] ?? null;
+
         $response = [
             'id' => $sparepart->id ?? '',
             'slug' => $sparepart->slug ?? '',
             'sparepart_number' => $sparepart->sparepart_number ?? '',
             'sparepart_name' => $sparepart->sparepart_name ?? '',
-            'total_unit' => $sparepart->total_unit,
-            'branch' => $sparepart->branch,
+            // 'total_unit' => $totalUnit,
+            'total_unit' => $totalUnitByBranch,
+            'branch' => $branchName,
+            'branch_code' => $branchCode,
             'unit_price_buy' => $sparepart->unit_price_buy,
             'unit_price_sell' => $sparepart->unit_price_sell,
             'unit_price_seller' => $sparepart->detailSpareparts->map(function ($detail) {
@@ -459,6 +513,7 @@ class SparepartController extends Controller
                     'quantity' => $detail->quantity ?? 0,
                 ];
             })->toArray(),
+            'stocks' => $stocks->values()->toArray(),
         ];
 
         // Hide unitPriceSell for Inventory role
@@ -496,6 +551,38 @@ class SparepartController extends Controller
         } catch (\Throwable $th) {
             return Sparepart::query(); // Fallback to prevent breaking the flow
         }
+    }
+
+    protected function resolveBranchModel(?string $value): ?Branch
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return Branch::query()
+            ->whereRaw('LOWER(name) = ?', [$normalized])
+            ->orWhereRaw('LOWER(code) = ?', [$normalized])
+            ->first();
+    }
+
+    protected function resolveBranchIdForUser($user): ?int
+    {
+        if (!$user) {
+            return null;
+        }
+
+        $branch = $this->resolveBranchModel($user->branch ?? null);
+
+        return $branch?->id;
+    }
+
+    protected function setStockForBranch(Sparepart $sparepart, $branch, int $quantity): void
+    {
+        $record = $this->stockService->ensureStockRecord($sparepart, $branch, true);
+        $record->quantity = max(0, $quantity);
+        $record->save();
     }
 
     // Helper methods for consistent error handling
