@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('branch_id')->constrained('branches')->cascadeOnDelete();
             $table->foreignId('sparepart_id')->constrained('spareparts')->cascadeOnDelete();
-            $table->unsignedInteger('quantity')->default(0);
+            $table->integer('quantity')->nullable();
             $table->timestamps();
 
             $table->unique(['branch_id', 'sparepart_id']);

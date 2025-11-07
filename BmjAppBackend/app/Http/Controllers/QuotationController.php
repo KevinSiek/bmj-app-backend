@@ -426,6 +426,22 @@ class QuotationController extends Controller
 
             $totalAmount = $request->input('price.amount');
 
+            // Ensure we have user and branch identifiers for later logic
+            $user = $request->user();
+            $userId = $user->id;
+
+            // Prefer branch from request if provided; otherwise fall back to quotation's branch
+            $branchId = null;
+            if ($request->filled('project.branch')) {
+                $branchModel = $this->resolveBranchModel($request->input('project.branch'));
+                if ($branchModel) {
+                    $branchId = $branchModel->id;
+                }
+            }
+            if (!$branchId) {
+                $branchId = $this->ensureQuotationBranchId($quotation);
+            }
+
             // Map API contract to database fields
             $quotationData = [
                 'quotation_number' => $request->input('project.quotationNumber'),
@@ -1208,6 +1224,7 @@ class QuotationController extends Controller
                         // TODO: What if we set it always 0 if bellow 0 and use better code to handle BO ?
                         // $branchStock->quantity = max(0, $sparepartTotalUnit - $sparepartQuantityOrderInPo);
                         $branchStock->quantity = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
+
                         $branchStock->save();
 
                         // Change current status of PO to BO if there is a backorder
