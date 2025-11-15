@@ -68,6 +68,7 @@ class BuyController extends Controller
             $validatedData = $request->validate([
                 'totalAmount' => 'required|numeric',
                 'notes' => 'sometimes|string',
+                'branch' => 'required|string',
                 // Sparepart validation
                 'spareparts' => 'required|array',
                 'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
@@ -81,8 +82,7 @@ class BuyController extends Controller
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
             $user = $request->user();
             $branchModel = Branch::query()
-                ->where('name', $user->branch)
-                ->orWhere('code', $user->branch)
+                ->where('name', $request->input('branch'))
                 ->first();
 
             if (!$branchModel) {
