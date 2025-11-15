@@ -204,10 +204,11 @@ class SparepartController extends Controller
             $validator = Validator::make($request->all(), [
                 'sparepartNumber' => 'required|string|max:255',
                 'sparepartName' => 'required|string|max:255',
-                'totalUnit' => 'required|integer|min:0',
+                'totalUnit' => 'required|array',
+                'totalUnit.*.name' => 'required|string|max:255',
+                'totalUnit.*.stock' => 'required|integer|min:0',
                 'unitPriceBuy' => 'nullable|numeric|min:0',
                 'unitPriceSell' => 'required|numeric|min:0',
-                'branch' => 'required|string|max:255',
                 'unitPriceSeller' => 'present|array',
                 'unitPriceSeller.*.seller' => 'required|string|max:255',
                 'unitPriceSeller.*.price' => 'required|numeric|min:0',
@@ -215,18 +216,6 @@ class SparepartController extends Controller
             ]);
 
             // Map camelCase to snake_case
-            $branchIdentifier = $request->input('branch', $request->user()->branch ?? null);
-            $branch = $this->resolveBranchModel($branchIdentifier);
-
-            if (!$branch) {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'Branch not found, please provide a valid branch name or code.',
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
-            $stockQuantity = (int) $request->input('totalUnit', 0);
-
             $data = [
                 'sparepart_number' => $request->input('sparepartNumber', ''),
                 'sparepart_name' => $request->input('sparepartName', ''),
@@ -255,7 +244,12 @@ class SparepartController extends Controller
             // Create sparepart
             $sparepart = Sparepart::create($data);
 
-            $this->setStockForBranch($sparepart, $branch->id, $stockQuantity);
+            foreach ($request->input('totalUnit', []) as $unitData) {
+                $branchModel = $this->resolveBranchModel($unitData['name']);
+                if ($branchModel) {
+                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock']);
+                }
+            }
 
             // Create or find sellers and create detail spareparts
             foreach ($data['unit_price_seller'] as $buy) {
@@ -308,10 +302,11 @@ class SparepartController extends Controller
             $validator = Validator::make($request->all(), [
                 'sparepartNumber' => 'required|string|max:255',
                 'sparepartName' => 'required|string|max:255',
-                'totalUnit' => 'required|integer|min:0',
+                'totalUnit' => 'required|array',
+                'totalUnit.*.name' => 'required|string|max:255',
+                'totalUnit.*.stock' => 'required|integer|min:0',
                 'unitPriceBuy' => 'nullable|numeric|min:0',
                 'unitPriceSell' => 'required|numeric|min:0',
-                'branch' => 'required|string|max:255',
                 'unitPriceSeller' => 'present|array',
                 'unitPriceSeller.*.seller' => 'required|string|max:255',
                 'unitPriceSeller.*.price' => 'required|numeric|min:0',
@@ -319,18 +314,6 @@ class SparepartController extends Controller
             ]);
 
             // Map camelCase to snake_case
-            $branchIdentifier = $request->input('branch', $request->user()->branch ?? null);
-            $branch = $this->resolveBranchModel($branchIdentifier);
-
-            if (!$branch) {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'Branch not found, please provide a valid branch name or code.',
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
-            $stockQuantity = (int) $request->input('totalUnit', 0);
-
             $data = [
                 'sparepart_number' => $request->input('sparepartNumber', ''),
                 'sparepart_name' => $request->input('sparepartName', ''),
@@ -365,7 +348,13 @@ class SparepartController extends Controller
 
             // Update sparepart
             $sparepart->update($data);
-            $this->setStockForBranch($sparepart, $branch->id, $stockQuantity);
+
+            foreach ($request->input('totalUnit', []) as $unitData) {
+                $branchModel = $this->resolveBranchModel($unitData['name']);
+                if ($branchModel) {
+                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock']);
+                }
+            }
 
             // Delete old detail spareparts
             $sparepart->detailSpareparts()->delete();
