@@ -266,12 +266,12 @@ class QuotationController extends Controller
                     $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
 
                     // Store the total of actual what need to pay and normal price
-                    $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell;
-                    $totalPaidPriceSparepart  += $sparepartUnitPrice;
-                    $totalPriceAfterDiscount = $sparepartUnitPrice - ($sparepartUnitPrice * $discount);
+                    $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell * $quantityOrderSparepart;
+                    $totalPaidPriceSparepart  += $sparepartUnitPrice * $quantityOrderSparepart;
+                    $allowedMinPrice = $sparepartDbUnitPriceSell * (1 - $discount);
 
                     // Check if the total sparepart price is below the maximum discount allowed
-                    if ($sparepartUnitPrice < $totalPriceAfterDiscount) {
+                    if ($sparepartUnitPrice < $allowedMinPrice) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
                         $quotation->update($quotationData);
@@ -307,8 +307,8 @@ class QuotationController extends Controller
                 //     ], Response::HTTP_BAD_REQUEST);
                 // }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
-                $subTotal = $totalAmount - $priceDiscount;
-                $pricePpn = $subTotal  * $ppn;
+                $subTotal = $totalPaidPriceSparepart;
+                $pricePpn = $subTotal * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
                 $quotation->update([
                     'grand_total' => $grandTotal,
@@ -536,14 +536,15 @@ class QuotationController extends Controller
                     $sparepartDbUnitPriceSell = $sparepartDbData->unit_price_sell;
 
                     // Store the total of actual what need to pay and normal price
-                    $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell;
-                    $totalPaidPriceSparepart  += $sparepartUnitPrice;
-                    $totalPriceAfterDiscount = $sparepartUnitPrice - ($sparepartUnitPrice * $discount);
+                    $totalNormalPriceSparepart  += $sparepartDbUnitPriceSell * $quantityOrderSparepart;
+                    $totalPaidPriceSparepart  += $sparepartUnitPrice * $quantityOrderSparepart;
+                    $allowedMinPrice = $sparepartDbUnitPriceSell * (1 - $discount);
 
-                    if ($sparepartUnitPrice < $totalPriceAfterDiscount) {
+                    // Check if the total sparepart price is below the maximum discount allowed
+                    if ($sparepartUnitPrice < $allowedMinPrice) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
-                        $newQuotation->update($quotationData);
+                        $quotation->update($quotationData);
                     }
 
                     // Determine if current sparepart quantity is exist or not.
@@ -577,8 +578,8 @@ class QuotationController extends Controller
                 //     ], Response::HTTP_BAD_REQUEST);
                 // }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
-                $subTotal = $totalAmount - $priceDiscount;
-                $pricePpn = $subTotal  * $ppn;
+                $subTotal = $totalPaidPriceSparepart;
+                $pricePpn = $subTotal * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
                 $newQuotation->update([
                     'grand_total' => $grandTotal,
