@@ -523,6 +523,7 @@ class QuotationController extends Controller
                 foreach ($request->input('spareparts', []) as $sparepart) {
                     $sparepartId = $sparepart['sparepartId'];
                     $sparepartUnitPrice = $sparepart['unitPriceSell'];
+                    $quantityOrderSparepart = $sparepart['quantity'];
 
                     // Validate against each sparepart data
                     $sparepartValidator = Validator::make($sparepart, [
@@ -544,7 +545,7 @@ class QuotationController extends Controller
                     if ($sparepartUnitPrice < $allowedMinPrice) {
                         $quotationData['review'] = false;
                         $quotationData['current_status'] = QuotationController::ON_REVIEW;
-                        $quotation->update($quotationData);
+                        $newQuotation->update($quotationData);
                     }
 
                     // Determine if current sparepart quantity is exist or not.
@@ -2233,7 +2234,7 @@ class QuotationController extends Controller
                 ->where('employee_id', $userId);
 
             // Allow director to see all quotation
-            if ($role == 'Director') {
+            if ($role == 'Director' || $role == 'Finance') {
                 $quotation = Quotation::with('customer');
             }
 
