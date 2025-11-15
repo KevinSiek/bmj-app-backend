@@ -237,16 +237,25 @@ class SparepartImport implements ToCollection, WithChunkReading
 
         DB::transaction(function () use ($sparepartData, $detailSparepartData, $uniqueKeys, $branchStockData) {
              // Fetch existing ones to detect new vs updated
-            $existing = Sparepart::whereIn('sparepart_number', $uniqueKeys)
-                ->pluck('sparepart_number')
+            $existingPrices = Sparepart::whereIn('sparepart_number', $uniqueKeys)
+                ->pluck('unit_price_buy', 'sparepart_number')
                 ->toArray();
 
-            $this->updateCount += count($existing);
-            $this->newCount += count($uniqueKeys) - count($existing);
+            $this->updateCount += count($existingPrices);
+            $this->newCount += count($uniqueKeys) - count($existingPrices);
+
+            $maxSparepartData = array_map(function ($data) use ($existingPrices) {
+                $part = $data['sparepart_number'] ?? null;
+                if ($part && isset($existingPrices[$part])) {
+                    $data['unit_price_buy'] = max($existingPrices[$part], $data['unit_price_buy']);
+                    // optionally update unit_price_sell too or other fields
+                }
+                return $data;
+            }, $sparepartData);
 
             // Upsert the sparepart
             Sparepart::upsert(
-                $sparepartData,
+                $maxSparepartData,
                 ['sparepart_number'], // unique key to check for existing record
                 ['unit_price_buy']    // columns to update if record exists
             );
