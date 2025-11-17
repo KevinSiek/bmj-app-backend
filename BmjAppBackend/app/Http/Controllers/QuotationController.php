@@ -299,13 +299,13 @@ class QuotationController extends Controller
                     ]);
                 }
                 // Calculate the total of actual what need to pay and normal price
-                // $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart;
-                // if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
-                //     $dicountInPercentage = $discount * 100;
-                //     return response()->json([
-                //         'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
-                //     ], Response::HTTP_BAD_REQUEST);
-                // }
+                $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart;
+                if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
+                    $dicountInPercentage = $discount * 100;
+                    return response()->json([
+                        'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
+                    ], Response::HTTP_BAD_REQUEST);
+                }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
                 $subTotal = $totalPaidPriceSparepart;
                 $pricePpn = $subTotal * $ppn;
@@ -571,13 +571,13 @@ class QuotationController extends Controller
                     ]);
                 }
                 // Calculate the total of actual what need to pay and normal price
-                // $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart  *  $discount;
-                // if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
-                //     $dicountInPercentage = $discount * 100;
-                //     return response()->json([
-                //         'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
-                //     ], Response::HTTP_BAD_REQUEST);
-                // }
+                $lowestNormalPriceAfterDiscount = $totalNormalPriceSparepart - $totalNormalPriceSparepart  *  $discount;
+                if ($totalPaidPriceSparepart < $lowestNormalPriceAfterDiscount) {
+                    $dicountInPercentage = $discount * 100;
+                    return response()->json([
+                        'message' => "The total price is bellow the limit the maximun total discount is {$dicountInPercentage}%. Please check again"
+                    ], Response::HTTP_BAD_REQUEST);
+                }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
                 $subTotal = $totalPaidPriceSparepart;
                 $pricePpn = $subTotal * $ppn;
