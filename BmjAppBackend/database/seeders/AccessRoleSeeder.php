@@ -47,10 +47,11 @@ class AccessRoleSeeder extends Seeder
         // Define which roles get which features
         $roleAccesses = [
             'Director' => $features, // Director gets all features
-            'Marketing' => ['dashboard', 'quotation', 'purchase-order', 'customer'],
-            'Inventory' => ['dashboard', 'back-order', 'buy', 'sparepart', 'delivery-order'],
-            'Finance' => ['dashboard', 'proforma-invoice', 'invoice', 'purchase-order'],
-            'Service' => ['dashboard', 'work-order'],
+            'Marketing' => ['quotation', 'purchase-order', 'customer'],
+            'Inventory Admin' => ['back-order','sparepart', 'delivery-order'],
+            'Inventory Purchase' => ['back-order', 'buy', 'sparepart'],
+            'Finance' => ['proforma-invoice', 'invoice', 'purchase-order'],
+            'Service' => ['work-order'],
         ];
 
         $employees = Employee::all();

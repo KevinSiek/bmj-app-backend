@@ -20,7 +20,7 @@ class DeliveryOrderSeeder extends Seeder
             ->whereDoesntHave('deliveryOrder')
             ->get();
 
-        $inventoryEmployees = \App\Models\Employee::where('role', 'Inventory')->get();
+        $inventoryEmployees = \App\Models\Employee::where('role', 'Inventory Admin')->get();
 
         foreach ($purchaseOrders as $po) {
              $releaseDate = Carbon::parse($po->updated_at)->addDays(rand(1, 3));

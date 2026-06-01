@@ -22,8 +22,8 @@ class EmployeeSeeder extends Seeder
             ['fullname' => 'Agus Salim', 'role' => 'Marketing', 'branch' => EmployeeController::SEMARANG, 'email' => 'agus.s@bmj.com', 'username' => 'agus_s'],
             ['fullname' => 'Rina Wati', 'role' => 'Marketing', 'branch' => EmployeeController::SEMARANG, 'email' => 'rina.w@bmj.com', 'username' => 'rina_w'],
             // Inventory
-            ['fullname' => 'Eko Prasetyo', 'role' => 'Inventory', 'branch' => EmployeeController::JAKARTA, 'email' => 'eko.p@bmj.com', 'username' => 'eko_p'],
-            ['fullname' => 'Indah Setiawati', 'role' => 'Inventory', 'branch' => EmployeeController::SEMARANG, 'email' => 'indah.s@bmj.com', 'username' => 'indah_s'],
+            ['fullname' => 'Eko Prasetyo', 'role' => 'Inventory Admin', 'branch' => EmployeeController::JAKARTA, 'email' => 'eko.p@bmj.com', 'username' => 'eko_p'],
+            ['fullname' => 'Indah Setiawati', 'role' => 'Inventory Purchase', 'branch' => EmployeeController::SEMARANG, 'email' => 'indah.s@bmj.com', 'username' => 'indah_s'],
             // Finance
             ['fullname' => 'Fajar Nugroho', 'role' => 'Finance', 'branch' => EmployeeController::JAKARTA, 'email' => 'fajar.n@bmj.com', 'username' => 'fajar_n'],
             ['fullname' => 'Gita Permata', 'role' => 'Finance', 'branch' => EmployeeController::SEMARANG, 'email' => 'gita.p@bmj.com', 'username' => 'gita_p'],
