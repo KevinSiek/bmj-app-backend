@@ -258,7 +258,8 @@ class DashboardController extends Controller
             for ($i = 5; $i >= 0; $i--) {
                 $date = Carbon::now()->subMonths($i);
                 $monthName = $date->format('F');
-                $found = $revenueData->firstWhere('month', $monthName);
+                $year = (int) $date->format('Y');
+                $found = $revenueData->first(fn ($r) => $r->month === $monthName && (int) $r->year === $year);
                 $revenueTrend[] = ['month' => $monthName, 'paid' => (float)($found->paid ?? 0), 'unpaid' => (float)($found->unpaid ?? 0)];
             }
 
@@ -282,8 +283,7 @@ class DashboardController extends Controller
 
 
             $topCustomers = ProformaInvoice::where('is_full_paid', true)
-                // FIX: Specify the table name for 'updated_at' to resolve ambiguity.
-                ->where('proforma_invoices.updated_at', '>=', now()->subDays(90))
+                ->whereBetween('proforma_invoices.proforma_invoice_date', [$startDate, $endDate])
                 ->join('purchase_orders', 'proforma_invoices.purchase_order_id', '=', 'purchase_orders.id')
                 ->join('quotations', 'purchase_orders.quotation_id', '=', 'quotations.id')
                 ->when($branchId, fn ($query) => $query->where('quotations.branch_id', $branchId))

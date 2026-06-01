@@ -22,8 +22,9 @@ class BackOrderController extends Controller
     // Status constants
     const PROCESS = 'Process';
     const READY = 'Ready';
+    const REJECTED = 'Rejected';
 
-    const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory'];
+    const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory Purchase', 'Inventory Admin'];
 
     protected $quotationController;
     protected SparepartStockService $stockService;
@@ -261,11 +262,11 @@ class BackOrderController extends Controller
                 return $this->handleNotFound('Back order not found');
             }
 
-            // Check if back order is already processed to prevent re-processing.
-            if ($backOrder->current_status === self::READY) {
+            // Check if back order is already processed or rejected to prevent re-processing.
+            if (in_array($backOrder->current_status, [self::READY, self::REJECTED])) {
                 DB::rollBack();
                 return response()->json([
-                    'message' => 'Back order already processed'
+                    'message' => 'Back order already processed or rejected'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -287,7 +288,14 @@ class BackOrderController extends Controller
 
             // Process each detail back order
             $purchaseOrder = PurchaseOrder::lockForUpdate()->find($backOrder->purchase_order_id);
+            if (!$purchaseOrder) {
+                throw new \Exception('Purchase order not found for back order #' . $backOrder->back_order_number);
+            }
+
             $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if (!$quotation) {
+                throw new \Exception('Quotation not found for purchase order #' . $purchaseOrder->purchase_order_number);
+            }
 
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
                 // Skip if no back order quantity

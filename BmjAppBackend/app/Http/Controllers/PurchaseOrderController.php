@@ -10,6 +10,7 @@ use App\Models\WoUnit;
 use App\Models\DeliveryOrder;
 use App\Models\Quotation;
 use App\Models\Branch;
+use App\Services\SparepartStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,9 +31,12 @@ class PurchaseOrderController extends Controller
     const REJECTED = "Rejected";
 
     protected $quotationController;
-    public function __construct(QuotationController $quotationController)
+    protected SparepartStockService $stockService;
+
+    public function __construct(QuotationController $quotationController, SparepartStockService $stockService)
     {
         $this->quotationController = $quotationController;
+        $this->stockService = $stockService;
     }
 
     public function get(Request $request, $id)
@@ -381,31 +385,21 @@ class PurchaseOrderController extends Controller
             $branchFallbackCode = $branchModel?->code ?? 'JKT';
 
             // Generate proforma invoice number from purchase order number
-            try {
-                // Expected purchase_order_number format: PO/001/BMJ-MEGAH/SMG/1/V/25
-                $parts = explode('/', $purchaseOrder->purchase_order_number);
-                $piNumber = $parts[1] ?? null; // e.g., 033
-                $branchCodeFromPo = $parts[3] ?? null;
-                $romanMonth = $parts[5] ?? $this->getRomanMonth(now()->month);
-                $year = $parts[6] ?? now()->format('y');
 
-                if (!$piNumber) {
-                    throw new \RuntimeException('Invalid purchase order number format.');
-                }
+            // Expected purchase_order_number format: PO/001/BMJ-MEGAH/SMG/1/V/25
+            $parts = explode('/', $purchaseOrder->purchase_order_number);
+            $piNumber = $parts[1] ?? null; // e.g., 033
+            $branchCodeFromPo = $parts[3] ?? null;
+            $romanMonth = $parts[5] ?? $this->getRomanMonth(now()->month);
+            $year = $parts[6] ?? now()->format('y');
 
-                $branchCode = $branchCodeFromPo ?? $branchFallbackCode;
-
-                $proformaInvoiceNumber = "PI/{$piNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
-            } catch (\Throwable $th) {
-                // Fallback to sequential PI number with current month and year
-                $latestPi = ProformaInvoice::latest('id')->lockForUpdate()->first();
-                $nextLastestPi = $latestPi ? $latestPi->id + 1 : 1;
-
-                $currentMonth = now()->month;
-                $romanMonth = $this->getRomanMonth($currentMonth);
-                $year = now()->format('y');
-                $proformaInvoiceNumber = "PI/{$nextLastestPi}/BMJ-MEGAH/{$branchFallbackCode}/{$userId}/{$romanMonth}/{$year}";
+            if (!$piNumber) {
+                throw new \RuntimeException('Invalid purchase order number format.');
             }
+
+            $branchCode = $branchCodeFromPo ?? $branchFallbackCode;
+
+            $proformaInvoiceNumber = "PI/{$piNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
 
             $proformaInvoice = ProformaInvoice::create([
                 'purchase_order_id' => $purchaseOrder->id,
@@ -853,14 +847,14 @@ class PurchaseOrderController extends Controller
 
     public function decline(Request $request, $id)
     {
-        // Start a database transaction
-        DB::beginTransaction();
-
-        // Validate the there is notes for downPayment
+        // Validate before opening a transaction so a failure doesn't leave an open transaction
         $request->validate([
             'notes' => 'required|string',
         ]);
         $notes = $request->input('notes');
+
+        // Start a database transaction
+        DB::beginTransaction();
 
         try {
             $user = $request->user();
@@ -869,7 +863,7 @@ class PurchaseOrderController extends Controller
             if ($role !== 'Finance' && $role !== 'Director') {
                 DB::rollBack();
                 return response()->json([
-                    'message' => 'You don\'t have access to decline this.'
+                    'message' => 'You are not authorized to decline this purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -883,14 +877,6 @@ class PurchaseOrderController extends Controller
                 return $this->handleNotFound('Purchase order not found');
             }
 
-            // Only allow director decline purchase order
-            if ($role != 'Director') {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'You are not authorized to decline this purchase order'
-                ], Response::HTTP_BAD_REQUEST);
-            }
-
             // Change purchase order state
             $purchaseOrder->current_status = PurchaseOrderController::REJECTED;
             $purchaseOrder->notes  = $notes;
@@ -898,6 +884,10 @@ class PurchaseOrderController extends Controller
 
             // Change quotation state and status
             $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if (!$quotation) {
+                DB::rollBack();
+                return $this->handleNotFound('Quotation not found for this purchase order');
+            }
             $user = $request->user();
             $currentStatus = $quotation->status ?? [];
             if (!is_array($currentStatus)) {
@@ -916,6 +906,27 @@ class PurchaseOrderController extends Controller
                 'status' => $currentStatus,
                 'current_status' => self::REJECTED,
             ]);
+
+            // Restore sparepart stock since moveToPo already decremented it
+            if ($quotation->type === QuotationController::SPAREPARTS) {
+                $quotationBranchId = optional($quotation->branch)->id ?? $quotation->branch_id;
+                foreach ($quotation->detailQuotations as $detail) {
+                    if ($detail->sparepart_id && $detail->sparepart) {
+                        $this->stockService->increase(
+                            $detail->sparepart,
+                            $quotationBranchId,
+                            (int) $detail->quantity
+                        );
+                    }
+                }
+            }
+
+            // Reject the associated back order if it exists
+            $backOrder = $purchaseOrder->backOrders;
+            if ($backOrder) {
+                $backOrder->current_status = BackOrderController::REJECTED;
+                $backOrder->save();
+            }
 
             // Commit the transaction
             DB::commit();
@@ -1095,7 +1106,7 @@ class PurchaseOrderController extends Controller
                 $query->whereHas('quotation', function ($q) {
                     $q->where('type', QuotationController::SERVICE);
                 });
-            } elseif ($role == 'Inventory') {
+            } elseif ($role == 'Inventory Admin') {
                 $query->whereHas('quotation', function ($q) {
                     $q->where('type', QuotationController::SPAREPARTS);
                 });

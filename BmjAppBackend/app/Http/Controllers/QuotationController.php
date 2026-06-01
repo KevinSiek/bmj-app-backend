@@ -88,45 +88,44 @@ class QuotationController extends Controller
 
     public function store(Request $request)
     {
+        $role = $request->user()->role;
+        $allowed = $this->isAllowedRole($role);
+
+        if (!$allowed) {
+            return $this->handleNotFound('You have no access in this action');
+        }
+
+        $request->validate([
+            'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
+            'price.amount' => 'required|numeric',
+            'project.branch' => 'sometimes|string',
+            'notes' => 'sometimes|string',
+            // Customer validation
+            'customer.companyName' => 'required|string',
+            'customer.office' => 'required|string',
+            'customer.address' => 'required|string',
+            'customer.urban' => 'required|string',
+            'customer.subdistrict' => 'required|string',
+            'customer.city' => 'required|string',
+            'customer.province' => 'required|string',
+            'customer.postalCode' => 'required|numeric',
+            // Sparepart or Service validation based on type
+            'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
+            'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
+            'spareparts.*.quantity' => 'required_if:project.type,' . self::SPAREPARTS . '|integer|min:1',
+            'spareparts.*.unitPriceSell' => 'required_if:project.type,' . self::SPAREPARTS . '|numeric|min:1',
+            'services' => 'required_if:project.type,' . self::SERVICE . '|array',
+            'services.*.service' => 'required_if:project.type,' . self::SERVICE . '|string',
+            'services.*.quantity' => 'required_if:project.type,' . self::SERVICE . '|integer|min:1',
+            'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
+        ]);
+
         // Start a database transaction
         DB::beginTransaction();
 
         try {
-            $role = $request->user()->role;
-            $allowed = $this->isAllowedRole($role);
-
-            if (!$allowed) {
-                return $this->handleNotFound('You have no access in this action');
-            }
-
             $user = $request->user();
             $userId = $user->id;
-
-            // Validate the request data based on API contract
-            $validatedData = $request->validate([
-                'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
-                'price.amount' => 'required|numeric',
-                'project.branch' => 'sometimes|string',
-                'notes' => 'sometimes|string',
-                // Customer validation
-                'customer.companyName' => 'required|string',
-                'customer.office' => 'required|string',
-                'customer.address' => 'required|string',
-                'customer.urban' => 'required|string',
-                'customer.subdistrict' => 'required|string',
-                'customer.city' => 'required|string',
-                'customer.province' => 'required|string',
-                'customer.postalCode' => 'required|numeric',
-                // Sparepart or Service validation based on type
-                'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
-                'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
-                'spareparts.*.quantity' => 'required_if:project.type,' . self::SPAREPARTS . '|integer|min:1',
-                'spareparts.*.unitPriceSell' => 'required_if:project.type,' . self::SPAREPARTS . '|numeric|min:1',
-                'services' => 'required_if:project.type,' . self::SERVICE . '|array',
-                'services.*.service' => 'required_if:project.type,' . self::SERVICE . '|string',
-                'services.*.quantity' => 'required_if:project.type,' . self::SERVICE . '|integer|min:1',
-                'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
-            ]);
 
             // Generate quotation_number
             $quotationNumber = '';
@@ -149,6 +148,7 @@ class QuotationController extends Controller
             // Use the stored 'date' field (not 'created_at') when checking month/year
             // so the quotation numeric sequence resets correctly each month.
             $latestQuotation = $this->getAllWithoutPermission($request)
+                ->where('version', 1)
                 ->whereMonth('date', $currentMonth)
                 ->whereYear('date', $currentYear)
                 ->latest('id')
@@ -367,6 +367,33 @@ class QuotationController extends Controller
 
     public function update(Request $request, $slug)
     {
+        // Validate outside transaction so ValidationException (422) is not swallowed
+        $request->validate([
+            'project.quotationNumber' => 'required|string',
+            'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
+            'project.date' => 'required|date',
+            'price.amount' => 'required|numeric',
+            'notes' => 'sometimes|string',
+            // Customer validation
+            'customer.companyName' => 'required|string',
+            'customer.office' => 'required|string',
+            'customer.address' => 'required|string',
+            'customer.urban' => 'required|string',
+            'customer.subdistrict' => 'required|string',
+            'customer.city' => 'required|string',
+            'customer.province' => 'required|string',
+            'customer.postalCode' => 'required|numeric',
+            // Sparepart or Service validation based on type
+            'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
+            'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
+            'spareparts.*.quantity' => 'required_if:project.type,' . self::SPAREPARTS . '|integer|min:1',
+            'spareparts.*.unitPriceSell' => 'required_if:project.type,' . self::SPAREPARTS . '|numeric|min:1',
+            'services' => 'required_if:project.type,' . self::SERVICE . '|array',
+            'services.*.service' => 'required_if:project.type,' . self::SERVICE . '|string',
+            'services.*.quantity' => 'required_if:project.type,' . self::SERVICE . '|integer|min:1',
+            'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
+        ]);
+
         // Start a database transaction
         DB::beginTransaction();
 
@@ -391,33 +418,6 @@ class QuotationController extends Controller
                     'message' => 'Quotation already in purchase order'
                 ], Response::HTTP_BAD_REQUEST);
             }
-
-            // Validate the request data
-            $validatedData = $request->validate([
-                'project.quotationNumber' => 'required|string',
-                'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
-                'project.date' => 'required|date',
-                'price.amount' => 'required|numeric',
-                'notes' => 'sometimes|string',
-                // Customer validation
-                'customer.companyName' => 'required|string',
-                'customer.office' => 'required|string',
-                'customer.address' => 'required|string',
-                'customer.urban' => 'required|string',
-                'customer.subdistrict' => 'required|string',
-                'customer.city' => 'required|string',
-                'customer.province' => 'required|string',
-                'customer.postalCode' => 'required|numeric',
-                // Sparepart or Service validation based on type
-                'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
-                'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
-                'spareparts.*.quantity' => 'required_if:project.type,' . self::SPAREPARTS . '|integer|min:1',
-                'spareparts.*.unitPriceSell' => 'required_if:project.type,' . self::SPAREPARTS . '|numeric|min:1',
-                'services' => 'required_if:project.type,' . self::SERVICE . '|array',
-                'services.*.service' => 'required_if:project.type,' . self::SERVICE . '|string',
-                'services.*.quantity' => 'required_if:project.type,' . self::SERVICE . '|integer|min:1',
-                'services.*.unitPriceSell' => 'required_if:project.type,' . self::SERVICE . '|numeric|min:1',
-            ]);
 
             // Get the latest discount and PPN from General model
             $general = General::latest()->first();
@@ -658,16 +658,17 @@ class QuotationController extends Controller
             // Retrieve the quotation and lock it for update
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->lockForUpdate()->first();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
             $po = $quotation->purchaseOrder->first();
 
             if ($po) {
                 return response()->json([
                     'message' => 'Quotation already in purchase order.'
                 ], Response::HTTP_BAD_REQUEST);
-            }
-
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
             }
 
             $quotation->review = false; // Make it false, because it need to be review again
@@ -699,16 +700,17 @@ class QuotationController extends Controller
             // Retrieve the quotation and lock it for update
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->lockForUpdate()->first();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
             $po = $quotation->purchaseOrder->first();
 
             if ($po) {
                 return response()->json([
                     'message' => 'Quotation already in purchase order.'
                 ], Response::HTTP_BAD_REQUEST);
-            }
-
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
             }
 
             // Only allow director approve quotation
@@ -749,16 +751,17 @@ class QuotationController extends Controller
             // Retrieve the quotation and lock it for update
             $quoatations = $this->getAccessedQuotation($request);
             $quotation = $quoatations->where('slug', $slug)->lockForUpdate()->first();
+
+            if (!$quotation) {
+                return $this->handleNotFound('Quotation not found');
+            }
+
             $po = $quotation->purchaseOrder->first();
 
             if ($po) {
                 return response()->json([
                     'message' => 'Quotation already in purchase order.'
                 ], Response::HTTP_BAD_REQUEST);
-            }
-
-            if (!$quotation) {
-                return $this->handleNotFound('Quotation not found');
             }
 
             // Only allow director decline quotation
@@ -1117,26 +1120,15 @@ class QuotationController extends Controller
             $year = now()->format('y');
 
             // Generate purchase order number from quotation number
-            try {
-                // Expected quotation_number format: QUOT/033/BMJ-MEGAH/SMG/1/07/2025
-                $parts = explode('/', $quotation->quotation_number);
-                $poNumber = $parts[1] ?? null; // e.g., 033
+            // Expected quotation_number format: QUOT/033/BMJ-MEGAH/SMG/1/07/2025
+            $parts = explode('/', $quotation->quotation_number);
+            $poNumber = $parts[1] ?? null; // e.g., 033
 
-                if (!$poNumber) {
-                    throw new \RuntimeException('Invalid quotation number format.');
-                }
-
-                $purchaseOrderNumber = "PO/{$poNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
-            } catch (\Throwable $th) {
-                // Fallback to sequential PO number with current month and year
-                $latestQuotation = Quotation::latest('id')
-                    ->lockForUpdate()
-                    ->first();
-                $lastestPo = $latestQuotation ? $latestQuotation->purchaseOrder : null;
-                $nextLatestId = $lastestPo ? $lastestPo->id + 1 : 1;
-
-                $purchaseOrderNumber = "PO/{$nextLatestId}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
+            if (!$poNumber) {
+                throw new \RuntimeException('Invalid quotation number format.');
             }
+
+            $purchaseOrderNumber = "PO/{$poNumber}/BMJ-MEGAH/{$branchCode}/{$userId}/{$romanMonth}/{$year}";
 
             // Create PurchaseOrder with version 1
             $purchaseOrder = PurchaseOrder::create([
@@ -1749,6 +1741,13 @@ class QuotationController extends Controller
 
     public function changeStatusToReturn(Request $request, $id)
     {
+        // Validate outside transaction so ValidationException (422) is not swallowed
+        $request->validate([
+            'returned' => 'required|array',
+            'returned.*.sparepart_id' => 'required|integer|exists:spareparts,id',
+            'returned.*.quantity' => 'required|integer|min:1',
+        ]);
+
         // Start a database transaction
         DB::beginTransaction();
 
@@ -1772,14 +1771,6 @@ class QuotationController extends Controller
                     'message' => 'No purchase order found for this quotation'
                 ], Response::HTTP_BAD_REQUEST);
             }
-
-            // Validate the returned spareparts
-            $request->validate([
-                'returned' => 'required|array',
-                'returned.*.sparepart_id' => 'required|integer|exists:spareparts,id',
-                'returned.*.quantity' => 'required|integer|min:1',
-            ]);
-
 
             // Restock returned spareparts
             $returnedItems = $request->input('returned', []);
@@ -2054,7 +2045,7 @@ class QuotationController extends Controller
                 'status' => $quotation->status,
                 'notes' => $quotation->notes,
                 'spareparts' => $spareParts,
-                'servies' => $services,
+                'services' => $services,
                 'date' => $quotation->date
             ];
 
@@ -2136,7 +2127,7 @@ class QuotationController extends Controller
                             'service' => $detail->service ?? '',
                             'unit_price_sell' => $detail->unit_price ?? 0,
                             'quantity' => $detail->quantity ?? 0,
-                            'total_price' => ($detail->quantity * ($detail->service_price ?? 0))
+                            'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
                         ];
                     }
                 }
@@ -2172,7 +2163,7 @@ class QuotationController extends Controller
                 'current_status' => $quotation->current_status,
                 'status' => $status,
                 'notes' => $quotation->notes,
-                'spareParts' => $spareParts,
+                'spareparts' => $spareParts,
                 'services' => $services,
                 'date' => $quotation->date
             ];

@@ -22,8 +22,17 @@ class InvoiceController extends Controller
                 ->findOrFail($id);
 
             $proformaInvoice = $invoice->proformaInvoice;
+            if (!$proformaInvoice) {
+                return $this->handleError(new \Exception('Proforma invoice not found for invoice #' . $invoice->invoice_number));
+            }
             $purchaseOrder = $proformaInvoice->purchaseOrder;
+            if (!$purchaseOrder) {
+                return $this->handleError(new \Exception('Purchase order not found for invoice #' . $invoice->invoice_number));
+            }
             $quotation = $purchaseOrder->quotation;
+            if (!$quotation) {
+                return $this->handleError(new \Exception('Quotation not found for invoice #' . $invoice->invoice_number));
+            }
             $customer = $quotation->customer ?? null;
 
             $spareParts = [];
@@ -187,15 +196,18 @@ class InvoiceController extends Controller
             // Order by the page group order then by version asc within each group
             $ordered = $invoiceOrders->sortBy(function ($inv) use ($groupNumbers) {
                 $groupIndex = array_search($inv->invoice_number, $groupNumbers);
-                $version = intval($inv->proformaInvoice->purchaseOrder->version ?? 0);
+                $version = intval($inv->proformaInvoice?->purchaseOrder?->version ?? 0);
                 return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
             })->values();
 
             // Return like API contract
             $invoices = $ordered->map(function ($invoice) {
                 $proformaInvoice = $invoice->proformaInvoice;
+                if (!$proformaInvoice) return null;
                 $purchaseOrder = $proformaInvoice->purchaseOrder;
+                if (!$purchaseOrder) return null;
                 $quotation = $purchaseOrder->quotation;
+                if (!$quotation) return null;
                 $customer = $quotation->customer ?? null;
 
                 $spareParts = [];
@@ -262,6 +274,8 @@ class InvoiceController extends Controller
                     'type' => $quotation->type,
                 ];
             });
+
+            $invoices = $invoices->filter()->values();
 
             return response()->json([
                 'message' => 'List of invoices retrieved successfully',

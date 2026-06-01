@@ -19,10 +19,10 @@ class SummaryController extends Controller
             $userId = $user->id;
             $role = $user->role;
 
-            $quotationCount = collect();
-            $poCount = collect();
-            $woCount = collect();
-            $doCount = collect();
+            $quotationCount = 0;
+            $poCount = 0;
+            $woCount = 0;
+            $doCount = 0;
 
             $currentMonth = Carbon::now()->month;
             $currentYear = Carbon::now()->year;
@@ -62,13 +62,13 @@ class SummaryController extends Controller
             $userId = $user->id;
             $role = $user->role;
 
-            $quotationCount = collect();
-            $quotationApproveCount = collect();
-            $quotationReviewCount = collect();
-            $quotationRejectCount = collect();
-            $poCount = collect();
-            $woCount = collect();
-            $doCount = collect();
+            $quotationCount = 0;
+            $quotationApproveCount = 0;
+            $quotationReviewCount = 0;
+            $quotationRejectCount = 0;
+            $poCount = 0;
+            $woCount = 0;
+            $doCount = 0;
 
             $currentMonth = Carbon::now()->month;
             $currentYear = Carbon::now()->year;
@@ -136,27 +136,27 @@ class SummaryController extends Controller
             $userId = $user->id;
             $role = $user->role;
 
-            $purchaseOrder = collect();
-            $purchaseOrderPrepare = collect();
-            $purchaseOrderReady = collect();
-            $purchaseOrderRelease = collect();
+            $purchaseOrder = 0;
+            $purchaseOrderPrepare = 0;
+            $purchaseOrderReady = 0;
+            $purchaseOrderRelease = 0;
 
             $currentMonth = Carbon::now()->month;
             $currentYear = Carbon::now()->year;
-            if($role === EmployeeController::INVENTORY) {
-                $purchaseOrder = PurchaseOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+            if($role === EmployeeController::INVENTORY_PURCHASE || $role === EmployeeController::INVENTORY_ADMIN) {
+                $purchaseOrder = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->count();
-                $purchaseOrderPrepare = PurchaseOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                $purchaseOrderPrepare = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->where('current_status', PurchaseOrderController::PREPARE)
                     ->count();
-                $purchaseOrderReady = PurchaseOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                $purchaseOrderReady = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->where('current_status', PurchaseOrderController::READY)
                     ->count();
-                $purchaseOrderRelease = PurchaseOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                $purchaseOrderRelease = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->where('current_status', PurchaseOrderController::RELEASE)
                     ->count();
             }
@@ -184,33 +184,33 @@ class SummaryController extends Controller
             $userId = $user->id;
             $role = $user->role;
 
-            $purchaseOrderWaitForPayment = collect();
-            $purchaseOrderDpPaid = collect();
-            $purchaseOrderFullPaid = collect();
+            $purchaseOrderWaitForPayment = 0;
+            $purchaseOrderDpPaid = 0;
+            $purchaseOrderFullPaid = 0;
 
             $currentMonth = Carbon::now()->month;
             $currentYear = Carbon::now()->year;
             if($role === EmployeeController::FINANCE) {
-                $purchaseOrderWaitForPayment = PurchaseOrder::whereHas('proformaInvoice', function($query) use ($userId) {
+                $purchaseOrderWaitForPayment = PurchaseOrder::whereHas('proformaInvoice', function($query) {
                         $query->where('is_dp_paid', false)
-                            ->orWhere('is_full_paid', false);
+                            ->where('is_full_paid', false);
                     })
-                    ->whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                    ->whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->count();
-                $purchaseOrderDpPaid = PurchaseOrder::whereHas('proformaInvoice', function($query) use ($userId) {
+                $purchaseOrderDpPaid = PurchaseOrder::whereHas('proformaInvoice', function($query) {
                         $query->where('is_dp_paid', true)
-                            ->orWhere('is_full_paid', false);
+                            ->where('is_full_paid', false);
                     })
-                    ->whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                    ->whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->count();
-                $purchaseOrderFullPaid = PurchaseOrder::whereHas('proformaInvoice', function($query) use ($userId) {
+                $purchaseOrderFullPaid = PurchaseOrder::whereHas('proformaInvoice', function($query) {
                         $query->where('is_dp_paid', true)
-                            ->orWhere('is_full_paid', true);
+                            ->where('is_full_paid', true);
                     })
-                    ->whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                    ->whereYear('purchase_order_date', $currentYear)
+                    ->whereMonth('purchase_order_date', $currentMonth)
                     ->count();
             }
 
@@ -218,9 +218,9 @@ class SummaryController extends Controller
                 'message' => 'List of all quotations retrieved successfully',
                 'data' => [
                     'purchase_order' => [
-                        'waitForPayment' => $purchaseOrderWaitForPayment,
-                        'dpPaid' => $purchaseOrderDpPaid,
-                        'fullPaid' => $purchaseOrderFullPaid
+                        'wait_for_payment' => $purchaseOrderWaitForPayment,
+                        'dp_paid' => $purchaseOrderDpPaid,
+                        'full_paid' => $purchaseOrderFullPaid
                     ]
                 ]
             ], Response::HTTP_OK);
@@ -236,22 +236,22 @@ class SummaryController extends Controller
             $userId = $user->id;
             $role = $user->role;
 
-            $workOrder = collect();
-            $workOrderOnProgress = collect();
-            $workOrderDone = collect();
+            $workOrder = 0;
+            $workOrderOnProgress = 0;
+            $workOrderDone = 0;
 
             $currentMonth = Carbon::now()->month;
             $currentYear = Carbon::now()->year;
             if($role === EmployeeController::SERVICE) {
-                $workOrder = WorkOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                $workOrder = WorkOrder::whereYear('start_date', $currentYear)
+                    ->whereMonth('start_date', $currentMonth)
                     ->count();
-                $workOrderOnProgress = WorkOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                $workOrderOnProgress = WorkOrder::whereYear('start_date', $currentYear)
+                    ->whereMonth('start_date', $currentMonth)
                     ->where('current_status', WorkOrderController::ON_PROGRESS)
                     ->count();
-                $workOrderDone = WorkOrder::whereYear('date', $currentYear)
-                    ->whereMonth('date', $currentMonth)
+                $workOrderDone = WorkOrder::whereYear('start_date', $currentYear)
+                    ->whereMonth('start_date', $currentMonth)
                     ->where('current_status', WorkOrderController::DONE)
                     ->count();
             }

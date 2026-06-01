@@ -31,8 +31,8 @@ class WorkOrderController extends Controller
                 ->findOrFail($id);
 
             $purchaseOrder = $workOrder->purchaseOrder;
-            $quotation = $purchaseOrder->quotation ?? null;
-            $proformaInvoice = $purchaseOrder->proformaInvoice ?? null;
+            $quotation = $purchaseOrder?->quotation ?? null;
+            $proformaInvoice = $purchaseOrder?->proformaInvoice ?? null;
             $customer = $quotation->customer ?? null;
             $director = Employee::where('role', '=', 'Director')->first(); // Only with director at moment
 
@@ -50,8 +50,8 @@ class WorkOrderController extends Controller
                     'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                 ],
                 'proforma_invoice' => [
-                    'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number ?? '',
-                    'proforma_invoice_date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
+                    'proforma_invoice_number' => $proformaInvoice?->proforma_invoice_number ?? '',
+                    'proforma_invoice_date' => $proformaInvoice?->proforma_invoice_date?->format('Y-m-d') ?? '',
                 ],
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
@@ -75,17 +75,16 @@ class WorkOrderController extends Controller
                     'end_date' => $workOrder->end_date,
                 ],
                 'description' => $workOrder->notes ?? '',
-                'status' => $quotation->status ?? [],
+                'status' => $quotation?->status ?? [],
                 'current_status' => $workOrder->current_status ?? '',
                 'quotation_number' => $quotation ? $quotation->quotation_number : '',
-                'version' => $purchaseOrder->version,
+                'version' => $purchaseOrder?->version,
                 'additional' => [
                     'spareparts' => $workOrder->spareparts,
                     'backup_sparepart' => $workOrder->backup_sparepart,
                     'scope' => $workOrder->scope,
                     'vaccine' => $workOrder->vaccine,
                     'apd' => $workOrder->apd,
-                    'execution_time' => $workOrder->execution_time,
                     'peduli_lindungi' => $workOrder->peduli_lindungi,
                     'execution_time' => $workOrder->execution_time,
                 ],
@@ -209,17 +208,19 @@ class WorkOrderController extends Controller
             // Order by the page group order then by purchaseOrder.version asc within each group
             $ordered = $workOrdersCollection->sortBy(function ($wo) use ($groupNumbers) {
                 $groupIndex = array_search($wo->work_order_number, $groupNumbers);
-                $version = intval($wo->purchaseOrder->version ?? 0);
+                $version = intval($wo->purchaseOrder?->version ?? 0);
                 return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
             })->values();
 
+            // Fetch director once to avoid N+1 queries inside the map
+            $director = Employee::where('role', '=', 'Director')->first();
+
             // Map to the existing response shape
-            $mapped = $ordered->map(function ($wo) {
+            $mapped = $ordered->map(function ($wo) use ($director) {
                 $purchaseOrder = $wo->purchaseOrder;
-                $quotation = $purchaseOrder->quotation ?? null;
-                $proformaInvoice = $purchaseOrder->proformaInvoice ?? null;
-                $customer = $quotation->customer ?? null;
-                $director = Employee::where('role', '=', 'Director')->first(); // Only with director at moment
+                $quotation = $purchaseOrder?->quotation ?? null;
+                $proformaInvoice = $purchaseOrder?->proformaInvoice ?? null;
+                $customer = $quotation?->customer ?? null;
 
                 return [
                     'id' => (string) $wo->id,
@@ -260,17 +261,16 @@ class WorkOrderController extends Controller
                         'end_date' => $wo->end_date,
                     ],
                     'description' => $wo->notes ?? '',
-                    'status' => $quotation->status ?? [],
+                    'status' => $quotation?->status ?? [],
                     'current_status' => $wo->current_status ?? '',
                     'quotation_number' => $quotation ? $quotation->quotation_number : '',
-                    'version' => $purchaseOrder->version,
+                    'version' => $purchaseOrder?->version,
                     'additional' => [
                         'spareparts' => $wo->spareparts,
                         'backup_sparepart' => $wo->backup_sparepart,
                         'scope' => $wo->scope,
                         'vaccine' => $wo->vaccine,
                         'apd' => $wo->apd,
-                        'execution_time' => $wo->execution_time,
                         'peduli_lindungi' => $wo->peduli_lindungi,
                         'execution_time' => $wo->execution_time,
                     ],

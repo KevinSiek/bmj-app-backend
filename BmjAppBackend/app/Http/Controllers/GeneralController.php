@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\General;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class GeneralController extends Controller
@@ -47,22 +48,33 @@ class GeneralController extends Controller
         }
     }
 
-    public  function update(Request $request)
+    public function update(Request $request)
     {
+        $validated = $request->validate([
+            'discount'           => 'sometimes|numeric|min:0|max:100',
+            'ppn'                => 'sometimes|numeric|min:0|max:100',
+            'currency_converter' => 'sometimes|numeric|min:0',
+        ]);
+
+        DB::beginTransaction();
         try {
             $general = General::first();
 
             if (!$general) {
+                DB::rollBack();
                 return $this->handleNotFound('No general information found');
             }
 
-            $general->update($request->all());
+            $general->update($validated);
+
+            DB::commit();
 
             return response()->json([
                 'message' => 'General information updated successfully',
                 'data' => $general
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th);
         }
     }

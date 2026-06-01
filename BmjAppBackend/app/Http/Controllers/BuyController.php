@@ -114,7 +114,7 @@ class BuyController extends Controller
                 'buy_number' => $buyNumber,
                 'review' => false,
                 'current_status' => SELF::WAIT_REVIEW,
-                'back_order_id' => 1,
+                'back_order_id' => null,
                 'total_amount' => $request->input('totalAmount'),
                 'notes' => $request->input('notes'),
                 'branch_id' => $branchId,
@@ -176,7 +176,6 @@ class BuyController extends Controller
 
             // Validate the request data
             $validator = Validator::make($request->all(), [
-                'buyNumber' => 'sometimes|string|unique:buys,buy_number,' . $buy->id,
                 'totalAmount' => 'sometimes|numeric',
                 'review' => 'sometimes|boolean',
                 'currentStatus' => 'sometimes|string',
@@ -198,9 +197,6 @@ class BuyController extends Controller
 
             // Map camelCase inputs to database fields
             $buyData = [];
-            if ($request->has('buyNumber')) {
-                $buyData['buy_number'] = $request->input('buyNumber');
-            }
             if ($request->has('totalAmount')) {
                 $buyData['total_amount'] = $request->input('totalAmount');
             }
@@ -508,7 +504,7 @@ class BuyController extends Controller
             $month = $request->query('month');
             $year = $request->query('year');
 
-            $buyNeedReview = Buy::where('review', !$isNeedReview);
+            $buyNeedReview = Buy::with('detailBuys.sparepart')->where('review', !$isNeedReview);
 
             // Apply search filter if provided
             if ($q) {
@@ -539,8 +535,8 @@ class BuyController extends Controller
                     // Get spare parts details
                     $spareParts = $buy->detailBuys->map(function ($detail) {
                         return [
-                            'sparepart_name' => $detail->sparepart->sparepart_name,
-                            'sparepart_number' => $detail->sparepart->sparepart_number,
+                            'sparepart_name' => $detail->sparepart?->sparepart_name,
+                            'sparepart_number' => $detail->sparepart?->sparepart_number,
                             'quantity' => $detail->quantity,
                             'unit_price' => $detail->unit_price,
                             'total_price' => $detail->quantity * $detail->unit_price,
@@ -576,7 +572,7 @@ class BuyController extends Controller
 
         try {
             // Retrieve the buy record and lock it for update
-            $buy = Buy::lockForUpdate()->find($id);
+            $buy = Buy::with('detailBuys.sparepart')->lockForUpdate()->find($id);
             if (!$buy) {
                 DB::rollBack();
                 return $this->handleNotFound('Purchase not found');

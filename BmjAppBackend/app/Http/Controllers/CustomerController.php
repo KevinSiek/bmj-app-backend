@@ -18,9 +18,11 @@ class CustomerController extends Controller
             $query = Customer::query();
 
             if ($q) {
-                $query->where('company_name', 'like', "%$q%")
-                    ->orWhere('office', 'like', "%$q%")
-                    ->orWhere('city', 'like', "%$q%");
+                $query->where(function ($query) use ($q) {
+                    $query->where('company_name', 'like', "%$q%")
+                        ->orWhere('office', 'like', "%$q%")
+                        ->orWhere('city', 'like', "%$q%");
+                });
             }
 
             $customers = $query->paginate(20);

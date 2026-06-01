@@ -74,7 +74,7 @@ class DeliveryOrderController extends Controller
                 'postal_code' => $customer ? $customer->postal_code : ''
             ],
             'notes' => $deliveryOrder->notes ?? '',
-            'status' => $quotation->status ?? [],
+            'status' => $quotation?->status ?? [],
             'spareparts' => $spareParts
         ];
     }
@@ -306,7 +306,7 @@ class DeliveryOrderController extends Controller
             DB::commit();
 
             // Fetch updated delivery order
-            $updatedDeliveryOrder = $this->getAccessedDeliveryOrder(request())
+            $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
                 ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
 

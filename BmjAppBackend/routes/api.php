@@ -128,7 +128,7 @@ Route::middleware("auth:sanctum")->group(function () {
     });
 
     // Service Middleware
-    Route::middleware(['role:service,inventory_admin,director'])->group(function () {
+    Route::middleware(['role:service,director'])->group(function () {
         Route::prefix('work-order')->group(function () {
             Route::get('/', [WorkOrderController::class, 'getAll']);
             Route::get('/{id}', [WorkOrderController::class, 'get']);
@@ -155,7 +155,7 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    Route::middleware(['role:inventory_purchase,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_admin,inventory,director'])->group(function () {
         Route::prefix('delivery-order')->group(function () {
             Route::get('/', [DeliveryOrderController::class, 'getAll']);
             Route::get('/{id}', [DeliveryOrderController::class, 'get']);

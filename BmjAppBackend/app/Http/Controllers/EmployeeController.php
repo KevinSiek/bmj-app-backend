@@ -18,7 +18,6 @@ class EmployeeController extends Controller
 
     const MARKETING = 'Marketing';
     const DIRECTOR = 'Director';
-    const INVENTORY = 'Inventory';
     const FINANCE = 'Finance';
     const SERVICE = 'Service';
     const INVENTORY_ADMIN = 'Inventory Admin';
@@ -43,15 +42,16 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
+        $validatedData = $request->validate([
+            'fullname' => 'required|string|max:255',
+            'role' => 'required|string',
+            'branch' => 'required|string|max:255',
+            'email' => 'required|email|unique:employees,email',
+            'username' => 'required|string|unique:employees,username|max:255',
+        ]);
+
         DB::beginTransaction();
         try {
-            $validatedData = $request->validate([
-                'fullname' => 'required|string|max:255',
-                'role' => 'required|string',
-                'branch' => 'required|string|max:255',
-                'email' => 'required|email|unique:employees,email',
-                'username' => 'required|string|unique:employees,username|max:255',
-            ]);
 
             // Generate a random temporary password
             $tempPassword = Str::random(12);
@@ -88,6 +88,14 @@ class EmployeeController extends Controller
 
     public function update(Request $request, $slug)
     {
+        $validatedData = $request->validate([
+            'fullname' => 'required|string|max:255',
+            'role' => 'required|string',
+            'branch' => 'required|string|max:255',
+            'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
+            'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
+        ]);
+
         DB::beginTransaction();
         try {
             // Find the employee by slug and lock the record for update
@@ -99,16 +107,6 @@ class EmployeeController extends Controller
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
             }
-
-
-            // Validate the request data
-            $validatedData = $request->validate([
-                'fullname' => 'required|string|max:255',
-                'role' => 'required|string',
-                'branch' => 'required|string|max:255',
-                'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
-                'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
-            ]);
 
             // Update only the provided fields
             $employee->update($validatedData);
@@ -209,6 +207,12 @@ class EmployeeController extends Controller
         try {
             $employee = Employee::where('slug', $slug)->first();
 
+            if (!$employee) {
+                return response()->json([
+                    'message' => 'Employee not found'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
             return response()->json([
                 'message' => 'Employees retrieved successfully',
                 'data' => $employee
@@ -229,8 +233,10 @@ class EmployeeController extends Controller
 
             if ($q) {
                 $searchTerm = $q;
-                $query->where('fullname', 'like', "%$searchTerm%")
-                    ->orWhere('username', 'like', "%$searchTerm%");
+                $query->where(function ($query) use ($searchTerm) {
+                    $query->where('fullname', 'like', "%$searchTerm%")
+                        ->orWhere('username', 'like', "%$searchTerm%");
+                });
             }
 
             $employees = $query->paginate(20);
@@ -267,7 +273,8 @@ class EmployeeController extends Controller
             $roleMapping = [
                 'Director' => ['path' => '/director', 'name' => 'Director'],
                 'Marketing' => ['path' => '/marketing', 'name' => 'Marketing'],
-                'Inventory' => ['path' => '/inventory', 'name' => 'Inventory'],
+                'Inventory Purchase' => ['path' => '/inventory-purchase', 'name' => 'Inventory Purchase'],
+                'Inventory Admin' => ['path' => '/inventory-admin', 'name' => 'Inventory Admin'],
                 'Finance' => ['path' => '/finance', 'name' => 'Finance'],
                 'Service' => ['path' => '/service', 'name' => 'Service'],
             ];

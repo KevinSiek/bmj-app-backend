@@ -58,16 +58,16 @@ class SellerController extends Controller
 
     public function store(Request $request)
     {
+        $validated = $request->validate([
+            'code' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
+            'type' => 'nullable|string'
+        ]);
+
+        $validated['slug'] = Str::slug($validated['code']) . '-' . Str::random(6);
+
         DB::beginTransaction();
         try {
-            $validated = $request->validate([
-                'code' => 'required|string|max:255',
-                'name' => 'required|string|max:255',
-                'type' => 'nullable|string'
-            ]);
-
-            $validated['slug'] = Str::slug($validated['code']) . '-' . Str::random(6);
-
             $seller = Seller::create($validated);
 
             DB::commit();
@@ -87,6 +87,12 @@ class SellerController extends Controller
 
     public function update(Request $request, $slug)
     {
+        $validated = $request->validate([
+            'code' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
+            'type' => 'nullable|string'
+        ]);
+
         DB::beginTransaction();
         try {
             $seller = Seller::where('slug', $slug)->lockForUpdate()->first();
@@ -94,12 +100,6 @@ class SellerController extends Controller
                 DB::rollBack();
                 return response()->json(['message' => 'Seller not found'], Response::HTTP_NOT_FOUND);
             }
-
-            $validated = $request->validate([
-                'code' => 'required|string|max:255',
-                'name' => 'required|string|max:255',
-                'type' => 'nullable|string'
-            ]);
 
             $seller->update($validated);
 
@@ -138,13 +138,12 @@ class SellerController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Customer deleted successfully',
-                'data' => $deleted
+                'message' => 'Seller deleted successfully',
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Customer deletion failed',
+                'message' => 'Seller deletion failed',
                 'error' => $th->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }

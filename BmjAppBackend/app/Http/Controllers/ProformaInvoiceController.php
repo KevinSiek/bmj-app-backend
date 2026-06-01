@@ -112,13 +112,15 @@ class ProformaInvoiceController extends Controller
             // Order by the page group order then by version asc within each group
             $ordered = $proformaInvoice->sortBy(function ($pi) use ($groupNumbers) {
                 $groupIndex = array_search($pi->proforma_invoice_number, $groupNumbers);
-                $version = intval($pi->purchaseOrder->version ?? 0);
+                $version = intval($pi->purchaseOrder?->version ?? 0);
                 return ($groupIndex !== false ? $groupIndex : 0) * 100000 + $version;
             })->values();
 
             $proformaInvoices = $ordered->map(function ($pi) {
                 $purchaseOrder = $pi->purchaseOrder;
+                if (!$purchaseOrder) return null;
                 $quotation = $purchaseOrder->quotation;
+                if (!$quotation) return null;
                 $customer = $quotation->customer;
                 $detailQuotations = $quotation->detailQuotations;
 
@@ -188,6 +190,8 @@ class ProformaInvoiceController extends Controller
                 ];
             });
 
+            $proformaInvoices = $proformaInvoices->filter()->values();
+
             return response()->json([
                 'message' => 'List of proforma invoices retrieved successfully',
                 'data' => [
@@ -217,7 +221,13 @@ class ProformaInvoiceController extends Controller
                 ->findOrFail($id);
 
             $purchaseOrder = $proformaInvoice->purchaseOrder;
+            if (!$purchaseOrder) {
+                return $this->handleError(new \Exception('Purchase order not found for proforma invoice #' . $proformaInvoice->proforma_invoice_number));
+            }
             $quotation = $purchaseOrder->quotation;
+            if (!$quotation) {
+                return $this->handleError(new \Exception('Quotation not found for proforma invoice #' . $proformaInvoice->proforma_invoice_number));
+            }
             $customer = $quotation->customer;
             $detailQuotations = $quotation->detailQuotations;
 
@@ -324,30 +334,20 @@ class ProformaInvoiceController extends Controller
             $branchModel = Branch::find(optional($proformaInvoice->purchaseOrder?->quotation)->branch_id) ?? $this->resolveBranchModel($user->branch ?? null);
             $branchFallbackCode = $branchModel?->code ?? 'JKT';
 
-            try {
-                // Expected purchase_order_number format: PI/001/BMJ-MEGAH/JKT/1/V/25
-                $parts = explode('/', $proformaInvoice->proforma_invoice_number);
-                $piNumber = $parts[1] ?? null; // e.g., 033
-                $branchCodeFromPi = $parts[3] ?? null; // e.g., SMG
+            // Expected purchase_order_number format: PI/001/BMJ-MEGAH/JKT/1/V/25
+            $parts = explode('/', $proformaInvoice->proforma_invoice_number);
+            $piNumber = $parts[1] ?? null; // e.g., 033
+            $branchCodeFromPi = $parts[3] ?? null; // e.g., SMG
 
-                if (!$piNumber) {
-                    throw new \RuntimeException('Invalid proforma invoice number format.');
-                }
-
-                $currentMonth = now()->month; // e.g., 7 for July
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
-                $year = now()->format('y'); // e.g., 25 for 2025
-                $invoiceNumber = "IP/{$piNumber}/BMJ-MEGAH/" . ($branchCodeFromPi ?? $branchFallbackCode) . "/{$userId}/{$romanMonth}/{$year}";
-            } catch (\Throwable $th) {
-                // Fallback to timestamp-based PI number with current month and year
-                $latestInvoice = Invoice::latest('id')->lockForUpdate()->first();
-                $nextLastestInvoice = $latestInvoice ? $latestInvoice->id + 1 : 1;
-
-                $currentMonth = now()->month; // e.g., 7 for July
-                $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
-                $year = now()->format('y'); // e.g., 25 for 2025
-                $invoiceNumber = "IP/{$nextLastestInvoice}/BMJ-MEGAH/{$branchFallbackCode}/{$userId}/{$romanMonth}/{$year}";
+            if (!$piNumber) {
+                throw new \RuntimeException('Invalid proforma invoice number format.');
             }
+
+            $currentMonth = now()->month; // e.g., 7 for July
+            $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
+            $year = now()->format('y'); // e.g., 25 for 2025
+            $invoiceNumber = "IP/{$piNumber}/BMJ-MEGAH/" . ($branchCodeFromPi ?? $branchFallbackCode) . "/{$userId}/{$romanMonth}/{$year}";
+
             $invoice = Invoice::create([
                 'proforma_invoice_id' => $proformaInvoice->id,
                 'invoice_number' => $invoiceNumber,
@@ -443,6 +443,10 @@ class ProformaInvoiceController extends Controller
             }
 
             $purchaseOrder = PurchaseOrder::lockForUpdate()->find($proformaInvoice->purchase_order_id);
+            if (!$purchaseOrder) {
+                DB::rollBack();
+                return $this->handleNotFound('Purchase order not found');
+            }
             if ($purchaseOrder->current_status === QuotationController::REJECTED) {
                 DB::rollBack();
                 return response()->json([
@@ -516,6 +520,11 @@ class ProformaInvoiceController extends Controller
 
             $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
 
+            if (!$quotation) {
+                DB::rollBack();
+                return $this->handleNotFound('Quotation not found for this purchase order');
+            }
+
             $purchaseOrder->current_status = QuotationController::FULL_PAID;
             $purchaseOrder->save();
 
@@ -523,22 +532,20 @@ class ProformaInvoiceController extends Controller
             $proformaInvoice->is_full_paid = true;
             $proformaInvoice->save();
 
-            if ($quotation) {
-                // Inlined logic from QuotationController->changeStatusToPaid
-                $user = $request->user();
-                $currentStatus = $quotation->status ?? [];
-                if (!is_array($currentStatus)) {
-                    $currentStatus = [];
-                }
-                $currentStatus[] = [
-                    'state' => QuotationController::FULL_PAID,
-                    'employee' => $user->username,
-                    'timestamp' => now()->toIso8601String(),
-                ];
-                $quotation->status = $currentStatus;
-                $quotation->current_status = QuotationController::FULL_PAID;
-                $quotation->save();
+            // Inlined logic from QuotationController->changeStatusToPaid
+            $user = $request->user();
+            $currentStatus = $quotation->status ?? [];
+            if (!is_array($currentStatus)) {
+                $currentStatus = [];
             }
+            $currentStatus[] = [
+                'state' => QuotationController::FULL_PAID,
+                'employee' => $user->username,
+                'timestamp' => now()->toIso8601String(),
+            ];
+            $quotation->status = $currentStatus;
+            $quotation->current_status = QuotationController::FULL_PAID;
+            $quotation->save();
 
             DB::commit();
 

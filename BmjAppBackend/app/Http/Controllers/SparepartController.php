@@ -140,6 +140,9 @@ class SparepartController extends Controller
                 Excel::import($import, $finalPath);
                 DB::commit();
 
+                // Clean up merged file now that import succeeded
+                @unlink($finalPath);
+
                 return response()->json([
                     'message' => 'Spareparts data updated successfully',
                     'data' => [
@@ -149,17 +152,16 @@ class SparepartController extends Controller
                 ], Response::HTTP_OK);
             } catch (ValidationException $e) {
                 DB::rollBack();
+                @unlink($finalPath);
                 return response()->json([
                     'message' => 'Validation error in Excel file',
                     'errors' => $e->errors(),
                 ], Response::HTTP_BAD_REQUEST);
             } catch (\Exception $e) {
                 DB::rollBack();
+                @unlink($finalPath);
                 throw $e;
             }
-
-            // Cleanup final file
-            unlink($finalPath);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Error processing spareparts data');
         }
@@ -197,23 +199,24 @@ class SparepartController extends Controller
      */
     public function store(Request $request)
     {
+        // Validate outside transaction so a 422 is not swallowed as 500
+        $request->validate([
+            'sparepartNumber' => 'required|string|max:255',
+            'sparepartName' => 'required|string|max:255',
+            'totalUnit' => 'required|array',
+            'totalUnit.*.name' => 'required|string|max:255',
+            'totalUnit.*.stock' => 'required|integer|min:0',
+            'unitPriceBuy' => 'nullable|numeric|min:0',
+            'unitPriceSell' => 'required|numeric|min:0',
+            'unitPriceSeller' => 'present|array',
+            'unitPriceSeller.*.seller' => 'required|string|max:255',
+            'unitPriceSeller.*.price' => 'required|numeric|min:0',
+            'unitPriceSeller.*.quantity' => 'required|integer|min:0'
+        ]);
+
         // Start transaction
         DB::beginTransaction();
         try {
-            // Validate input data
-            $validator = Validator::make($request->all(), [
-                'sparepartNumber' => 'required|string|max:255',
-                'sparepartName' => 'required|string|max:255',
-                'totalUnit' => 'required|array',
-                'totalUnit.*.name' => 'required|string|max:255',
-                'totalUnit.*.stock' => 'required|integer|min:0',
-                'unitPriceBuy' => 'nullable|numeric|min:0',
-                'unitPriceSell' => 'required|numeric|min:0',
-                'unitPriceSeller' => 'present|array',
-                'unitPriceSeller.*.seller' => 'required|string|max:255',
-                'unitPriceSeller.*.price' => 'required|numeric|min:0',
-                'unitPriceSeller.*.quantity' => 'required|integer|min:0'
-            ]);
 
             // Map camelCase to snake_case
             $data = [
@@ -257,7 +260,8 @@ class SparepartController extends Controller
                 if (!$seller) {
                     $seller = Seller::create([
                         'name' => $buy['seller'],
-                        'type' => null, // Default to null as type is not provided
+                        'slug' => Str::slug($buy['seller']) . '-' . Str::random(6),
+                        'type' => null,
                     ]);
                 }
 
@@ -293,25 +297,25 @@ class SparepartController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // Validate outside transaction so a 422 is not swallowed as 500
+        $request->validate([
+            'sparepartNumber' => 'required|string|max:255',
+            'sparepartName' => 'required|string|max:255',
+            'totalUnit' => 'required|array',
+            'totalUnit.*.name' => 'required|string|max:255',
+            'totalUnit.*.stock' => 'required|integer|min:0',
+            'unitPriceBuy' => 'nullable|numeric|min:0',
+            'unitPriceSell' => 'required|numeric|min:0',
+            'unitPriceSeller' => 'present|array',
+            'unitPriceSeller.*.seller' => 'required|string|max:255',
+            'unitPriceSeller.*.price' => 'required|numeric|min:0',
+            'unitPriceSeller.*.quantity' => 'required|integer|min:0',
+        ]);
+
         DB::beginTransaction();
         try {
             // Find sparepart and lock it for update
             $sparepart = Sparepart::with(['detailSpareparts.seller', 'branchStocks.branch'])->lockForUpdate()->findOrFail($id);
-
-            // Validate input data
-            $validator = Validator::make($request->all(), [
-                'sparepartNumber' => 'required|string|max:255',
-                'sparepartName' => 'required|string|max:255',
-                'totalUnit' => 'required|array',
-                'totalUnit.*.name' => 'required|string|max:255',
-                'totalUnit.*.stock' => 'required|integer|min:0',
-                'unitPriceBuy' => 'nullable|numeric|min:0',
-                'unitPriceSell' => 'required|numeric|min:0',
-                'unitPriceSeller' => 'present|array',
-                'unitPriceSeller.*.seller' => 'required|string|max:255',
-                'unitPriceSeller.*.price' => 'required|numeric|min:0',
-                'unitPriceSeller.*.quantity' => 'required|integer|min:0',
-            ]);
 
             // Map camelCase to snake_case
             $data = [
@@ -365,7 +369,8 @@ class SparepartController extends Controller
                 if (!$seller) {
                     $seller = Seller::create([
                         'name' => $buy['seller'],
-                        'type' => null, // Default to null as type is not provided
+                        'slug' => Str::slug($buy['seller']) . '-' . Str::random(6),
+                        'type' => null,
                     ]);
                 }
 
@@ -434,11 +439,14 @@ class SparepartController extends Controller
             $q = $request->query('search');
             $spareparts = $this->getAccessedSparepart($request);
 
-            $sparepartsQuery = $spareparts->where(function ($query) use ($q) {
-                $query->where('sparepart_name', 'like', "%$q%")
-                    ->orWhere('sparepart_number', 'like', "%$q%");
-            })
-                ->with(['detailSpareparts.seller', 'branchStocks.branch']);
+            if ($q) {
+                $spareparts->where(function ($query) use ($q) {
+                    $query->where('sparepart_name', 'like', "%$q%")
+                        ->orWhere('sparepart_number', 'like', "%$q%");
+                });
+            }
+
+            $sparepartsQuery = $spareparts->with(['detailSpareparts.seller', 'branchStocks.branch']);
 
             $paginatedSpareparts = $sparepartsQuery->paginate(20)->through(function ($data) use ($request) {
                 return $this->formatSparepartResponse($data, $request->user());
@@ -505,8 +513,8 @@ class SparepartController extends Controller
             'stocks' => $stocks->values()->toArray(),
         ];
 
-        // Hide unitPriceSell for Inventory role
-        if ($user->role === 'Inventory') {
+        // Hide unitPriceSell for Inventory Admin role
+        if ($user->role === 'Inventory Admin' || $user->role === 'Inventory Purchase') {
             $response['unitPriceSell'] = null;
         }
 
@@ -526,8 +534,8 @@ class SparepartController extends Controller
             $user = $request->user();
             $role = $user->role;
 
-            if ($role == 'Inventory') {
-                // Hide the 'unit_price_sell' field for Inventory role
+            if ($role == 'Inventory Admin' || $role == 'Inventory Purchase') {
+                // Hide the 'unit_price_sell' field for Inventory Admin and Inventory Purchase roles
                 $spareparts = Sparepart::query()->select('*')->addSelect(['unit_price_sell' => function ($query) {
                     $query->selectRaw('NULL');
                 }]);
