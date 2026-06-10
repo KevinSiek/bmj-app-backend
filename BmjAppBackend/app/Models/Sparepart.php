@@ -45,6 +45,11 @@ class Sparepart extends Model
         return $this->hasMany(BranchSparepart::class);
     }
 
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
     public function branches()
     {
         return $this->belongsToMany(Branch::class, 'branch_spareparts')

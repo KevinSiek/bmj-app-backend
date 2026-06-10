@@ -22,8 +22,10 @@ Customer
 
 Quotation (status JSON cast)
   │ Fields: quotation_number, version, slug, customer_id, project, type,
-  │         date, amount, discount, subtotal, ppn, grand_total, notes,
-  │         employee_id, branch_id, current_status, status, is_return, review
+  │         date, amount, discount, total_discount_percent, subtotal, ppn,
+  │         grand_total, notes, employee_id, branch_id, current_status,
+  │         status, is_return, review
+  │         (total_discount_percent: manual %, >0 forces review — added Jun 9)
   ├── belongsTo → Customer
   ├── belongsTo → Employee
   ├── belongsTo → Branch
@@ -37,8 +39,10 @@ DetailQuotation
   └── belongsTo → Sparepart
 
 PurchaseOrder
-  │ Fields: quotation_id, purchase_order_number, purchase_order_date,
+  │ Fields: quotation_id, purchase_order_number, po_number, purchase_order_date,
   │         payment_due, employee_id, current_status, notes, version
+  │         (purchase_order_number = auto "No Internal Request";
+  │          po_number = user-entered, required+UNIQUE at moveToPo — added Jun 9)
   ├── belongsTo → Quotation
   ├── belongsTo → Employee
   ├── hasOne → ProformaInvoice
@@ -65,8 +69,10 @@ WorkOrder
   │         expected_days, expected_start_date, expected_end_date,
   │         start_date, end_date, current_status, worker, compiled,
   │         head_of_service, approver, is_done, spareparts,
-  │         backup_sparepart, scope, vaccine, apd, peduli_lindungi,
-  │         execution_time, notes
+  │         backup_sparepart, scope, execution_time, notes
+  │   (current_status lifecycle Jun 9: Wait On Progress -> On Progress -> Done.
+  │    vaccine/apd/peduli_lindungi columns still exist in DB but are UNUSED —
+  │    removed from model fillable, responses, and UI on Jun 9.)
   ├── belongsTo → PurchaseOrder
   └── hasMany → WoUnit (FK: id_wo)
 

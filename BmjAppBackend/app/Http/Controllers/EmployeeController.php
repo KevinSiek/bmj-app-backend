@@ -278,6 +278,7 @@ class EmployeeController extends Controller
                 'Marketing' => ['path' => '/marketing', 'name' => 'Marketing'],
                 'Inventory Purchase' => ['path' => '/inventory-purchase', 'name' => 'Inventory Purchase'],
                 'Inventory Admin' => ['path' => '/inventory-admin', 'name' => 'Inventory Admin'],
+                'Head Inventory' => ['path' => '/head-inventory', 'name' => 'Head Inventory'],
                 'Finance' => ['path' => '/finance', 'name' => 'Finance'],
                 'Service' => ['path' => '/service', 'name' => 'Service'],
             ];

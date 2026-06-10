@@ -81,8 +81,11 @@ class PurchaseOrderController extends Controller
             $formattedPurchaseOrder = [
                 'id' => (string) ($purchaseOrder->id ?? ''),
                 'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                'po_number' => $purchaseOrder->po_number ?? '',
+                'created_by_name' => $purchaseOrder->employee->fullname ?? '',
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'po_number' => $purchaseOrder->po_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                     'type' => $quotation ? $quotation->type : ''
                 ],
@@ -130,6 +133,16 @@ class PurchaseOrderController extends Controller
 
     public function getAll(Request $request)
     {
+        return $this->getAllInternal($request, false);
+    }
+
+    public function getAllReturn(Request $request)
+    {
+        return $this->getAllInternal($request, true);
+    }
+
+    protected function getAllInternal(Request $request, $isReturn)
+    {
         try {
             // Get query parameters
             $q = $request->query('search');
@@ -137,8 +150,15 @@ class PurchaseOrderController extends Controller
             $year = $request->query('year');
 
             // Get all purchaseOrder numbers first to ensure we capture all versions
-            $purchaseOrderNumbers = $this->getAccessedPurchaseOrder($request)
-                ->select('purchase_order_number');
+            $purchaseOrderNumbers = $this->getAccessedPurchaseOrder($request);
+
+            if ($isReturn) {
+                $purchaseOrderNumbers->whereHas('quotation', function ($q) {
+                    $q->where('is_return', true);
+                });
+            }
+
+            $purchaseOrderNumbers = $purchaseOrderNumbers->select('purchase_order_number');
 
             // Apply search term filter if 'q' is provided
             if ($q) {
@@ -167,6 +187,12 @@ class PurchaseOrderController extends Controller
 
             // Build a base query (apply access rules and initial filters) to derive groups
             $baseBuilder = $this->getAccessedPurchaseOrder($request);
+
+            if ($isReturn) {
+                $baseBuilder->whereHas('quotation', function ($q) {
+                    $q->where('is_return', true);
+                });
+            }
 
             // Apply search term filter if 'q' is provided
             if ($q) {
@@ -268,8 +294,10 @@ class PurchaseOrderController extends Controller
                 return [
                     'id' => (string) ($po->id ?? ''),
                     'purchase_order_number' => $po->purchase_order_number ?? '',
+                    'po_number' => $po->po_number ?? '',
                     'purchase_order' => [
                         'purchase_order_number' => $po->purchase_order_number ?? '',
+                        'po_number' => $po->po_number ?? '',
                         'purchase_order_date' => $po->purchase_order_date ?? '',
                         'type' => $quotation ? $quotation->type : ''
                     ],
@@ -445,8 +473,16 @@ class PurchaseOrderController extends Controller
     {
         DB::beginTransaction();
 
-        $status = $request->input('status');
         try {
+            // Only accept known PO statuses — reject arbitrary strings (422).
+            $validated = $request->validate([
+                'status' => ['required', 'string', Rule::in([
+                    self::BO, self::PREPARE, self::READY, self::RELEASE,
+                    self::DONE, self::RETURNED, self::PAID, self::REJECTED,
+                ])],
+            ]);
+            $status = $validated['status'];
+
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
@@ -464,7 +500,7 @@ class PurchaseOrderController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to update purchase order status to ' . $status);
+            return $this->handleError($th, 'Failed to update purchase order status');
         }
     }
 
@@ -683,7 +719,7 @@ class PurchaseOrderController extends Controller
                     'expected_end_date' => $request->input('serviceOrder.endDate'),
                     'start_date' => $request->input('date.startDate'),
                     'end_date' => $request->input('date.endDate'),
-                    'current_status' => WorkOrderController::ON_PROGRESS,
+                    'current_status' => WorkOrderController::WAIT_ON_PROGRESS,
                     'worker' => $request->input('poc.worker'),
                     'compiled' => $request->input('poc.compiled'),
                     'head_of_service' => $request->input('poc.headOfService'),
@@ -915,7 +951,11 @@ class PurchaseOrderController extends Controller
                         $this->stockService->increase(
                             $detail->sparepart,
                             $quotationBranchId,
-                            (int) $detail->quantity
+                            (int) $detail->quantity,
+                            'PurchaseOrder',
+                            $purchaseOrder->id,
+                            $user->id,
+                            'PO declined restock'
                         );
                     }
                 }
@@ -1106,7 +1146,7 @@ class PurchaseOrderController extends Controller
                 $query->whereHas('quotation', function ($q) {
                     $q->where('type', QuotationController::SERVICE);
                 });
-            } elseif ($role == 'Inventory Admin') {
+            } elseif ($role == 'Inventory Admin' || $role == 'Head Inventory') {
                 $query->whereHas('quotation', function ($q) {
                     $q->where('type', QuotationController::SPAREPARTS);
                 });
@@ -1136,6 +1176,15 @@ class PurchaseOrderController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage()

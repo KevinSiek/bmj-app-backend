@@ -265,6 +265,7 @@ class ProformaInvoiceController extends Controller
                     'proforma_invoice_number' => $proformaInvoice->proforma_invoice_number,
                     'type' => $quotation->type ?? '',
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'po_number' => $purchaseOrder->po_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                     'date' => $proformaInvoice->proforma_invoice_date->format('Y-m-d') ?? '',
                 ],

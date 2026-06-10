@@ -50,6 +50,8 @@ class AccessRoleSeeder extends Seeder
             'Marketing' => ['quotation', 'purchase-order', 'customer'],
             'Inventory Admin' => ['back-order','sparepart', 'delivery-order'],
             'Inventory Purchase' => ['back-order', 'buy', 'sparepart'],
+            // Head Inventory = union of Inventory Admin + Inventory Purchase features.
+            'Head Inventory' => ['back-order', 'sparepart', 'delivery-order', 'buy'],
             'Finance' => ['proforma-invoice', 'invoice', 'purchase-order'],
             'Service' => ['work-order'],
         ];

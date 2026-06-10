@@ -98,6 +98,7 @@ class QuotationController extends Controller
         $request->validate([
             'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
             'price.amount' => 'required|numeric',
+            'price.totalDiscountPercent' => 'sometimes|numeric|min:0|max:100',
             'project.branch' => 'sometimes|string',
             'notes' => 'sometimes|string',
             // Customer validation
@@ -169,6 +170,8 @@ class QuotationController extends Controller
             $ppn = $general ? $general->ppn : 0;
 
             $totalAmount = $request->input('price.amount');
+            // Manual whole-quotation discount (percent of subtotal). Always forces review below.
+            $totalDiscountPercent = (float) $request->input('price.totalDiscountPercent', 0);
 
             // Map API contract to database fields
             $quotationData = [
@@ -181,6 +184,7 @@ class QuotationController extends Controller
                 'notes' => $request->input('notes'),
                 'project' => $quotationNumber, // Using quotationNumber as project name
                 'discount' => 0,
+                'total_discount_percent' => $totalDiscountPercent,
                 'ppn' => 0,
                 'subtotal' => 0,
                 'employee_id' => $userId,
@@ -243,6 +247,14 @@ class QuotationController extends Controller
 
             // Create the quotation with the validated data and slug
             $quotation = Quotation::create($quotationData);
+
+            // A manual whole-quotation discount ALWAYS requires Director review, independent of
+            // the per-item below-max-discount check (which may also flip review below).
+            if ($totalDiscountPercent > 0) {
+                $quotationData['review'] = false;
+                $quotationData['current_status'] = QuotationController::ON_REVIEW;
+                $quotation->update($quotationData);
+            }
 
             // Handle Spareparts or Services based on type
             if ($quotationData['type'] === self::SPAREPARTS) {
@@ -307,7 +319,9 @@ class QuotationController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
-                $subTotal = $totalPaidPriceSparepart;
+                // Apply the manual whole-quotation discount to the subtotal BEFORE ppn, so ppn
+                // and grand total are computed on the discounted base.
+                $subTotal = $totalPaidPriceSparepart - ($totalPaidPriceSparepart * $totalDiscountPercent / 100);
                 $pricePpn = $subTotal * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
                 $quotation->update([
@@ -337,7 +351,7 @@ class QuotationController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
-                $subTotal = $totalAmount;
+                $subTotal = $totalAmount - ($totalAmount * $totalDiscountPercent / 100);
                 $pricePpn = $subTotal  * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
                 $quotation->update([
@@ -373,6 +387,7 @@ class QuotationController extends Controller
             'project.type' => 'required|string|in:' . self::SERVICE . ',' . self::SPAREPARTS,
             'project.date' => 'required|date',
             'price.amount' => 'required|numeric',
+            'price.totalDiscountPercent' => 'sometimes|numeric|min:0|max:100',
             'notes' => 'sometimes|string',
             // Customer validation
             'customer.companyName' => 'required|string',
@@ -425,6 +440,8 @@ class QuotationController extends Controller
             $ppn = $general ? $general->ppn : 0;
 
             $totalAmount = $request->input('price.amount');
+            // Manual whole-quotation discount (percent of subtotal). Always forces review below.
+            $totalDiscountPercent = (float) $request->input('price.totalDiscountPercent', 0);
 
             // Ensure we have user and branch identifiers for later logic
             $user = $request->user();
@@ -449,6 +466,7 @@ class QuotationController extends Controller
                 'date' => $request->input('project.date'),
                 'amount' => $request->input('price.amount'),
                 'discount' => 0,
+                'total_discount_percent' => $totalDiscountPercent,
                 'subtotal' => 0,
                 'ppn' => 0,
                 'grand_total' => 0,
@@ -513,6 +531,13 @@ class QuotationController extends Controller
 
             // Create new quotation with the validated data
             $newQuotation = Quotation::create($quotationData);
+
+            // A manual whole-quotation discount ALWAYS requires Director review (mirrors store()).
+            if ($totalDiscountPercent > 0) {
+                $quotationData['review'] = false;
+                $quotationData['current_status'] = QuotationController::ON_REVIEW;
+                $newQuotation->update($quotationData);
+            }
 
             // Handle Spareparts or Services based on type
             if ($quotationData['type'] === self::SPAREPARTS) {
@@ -579,7 +604,8 @@ class QuotationController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
                 $priceDiscount = $totalNormalPriceSparepart - $totalPaidPriceSparepart;
-                $subTotal = $totalPaidPriceSparepart;
+                // Apply the manual whole-quotation discount to the subtotal BEFORE ppn.
+                $subTotal = $totalPaidPriceSparepart - ($totalPaidPriceSparepart * $totalDiscountPercent / 100);
                 $pricePpn = $subTotal * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
                 $newQuotation->update([
@@ -609,7 +635,7 @@ class QuotationController extends Controller
                         'updated_at' => now(),
                     ]);
                 }
-                $subTotal = $totalAmount;
+                $subTotal = $totalAmount - ($totalAmount * $totalDiscountPercent / 100);
                 $pricePpn = $subTotal  * $ppn;
                 $grandTotal = $subTotal + $pricePpn;
                 $newQuotation->update([
@@ -836,6 +862,7 @@ class QuotationController extends Controller
                 'slug' => $quotation->slug,
                 'quotation_number' => $quotation->quotation_number,
                 'version' => $quotation->version, // Include version
+                'created_by_name' => $quotation->employee->fullname ?? '',
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
                     'address' => $customer->address ?? '',
@@ -854,6 +881,7 @@ class QuotationController extends Controller
                 'price' => [
                     'amount' => $quotation->amount,
                     'discount' => $quotation->discount,
+                    'total_discount_percent' => $quotation->total_discount_percent,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
                     'grand_total' => $quotation->grand_total
@@ -1069,11 +1097,15 @@ class QuotationController extends Controller
     {
         DB::beginTransaction();
         try {
-            // Validate the there is notes
+            // moveToPo now captures the real PO number (poNumber) alongside notes. It must be
+            // present and unique across purchase_orders — the auto-generated purchase_order_number
+            // below becomes the "Internal Request" number, while this is the actual PO number.
             $request->validate([
                 'notes' => 'required|string',
+                'poNumber' => 'required|string|unique:purchase_orders,po_number',
             ]);
             $notes = $request->input('notes');
+            $poNumberInput = $request->input('poNumber');
 
             $quotations = $this->getAccessedQuotation($request);
             $quotation = $quotations->where('slug', $slug)->lockForUpdate()->first();
@@ -1133,6 +1165,7 @@ class QuotationController extends Controller
             $purchaseOrder = PurchaseOrder::create([
                 'quotation_id' => $quotation->id,
                 'purchase_order_number' => $purchaseOrderNumber,
+                'po_number' => $poNumberInput,
                 'purchase_order_date' => now(),
                 'employee_id' => $quotation->employee_id,
                 'notes' => $notes,
@@ -1219,6 +1252,20 @@ class QuotationController extends Controller
                         $branchStock->quantity = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
 
                         $branchStock->save();
+
+                        // This site decrements stock inline (not via stockService->decrease), so log
+                        // the movement explicitly to keep the ledger complete.
+                        if ($sparepartQuantityOrderInPo > 0) {
+                            $this->stockService->logMovement(
+                                $sparepartRecord,
+                                $quotationBranchId,
+                                -(int) $sparepartQuantityOrderInPo,
+                                'PurchaseOrder',
+                                $purchaseOrder->id,
+                                $request->user()?->id,
+                                'moveToPo decrement'
+                            );
+                        }
 
                         // Change current status of PO to BO if there is a backorder
                         if ($numberBoInBo) {
@@ -1777,7 +1824,15 @@ class QuotationController extends Controller
             foreach ($returnedItems as $item) {
                 $sparepart = Sparepart::where('id', $item['sparepart_id'])->lockForUpdate()->first();
                 if ($sparepart) {
-                    $this->stockService->increase($sparepart, $quotationBranchId, (int) $item['quantity']);
+                    $this->stockService->increase(
+                        $sparepart,
+                        $quotationBranchId,
+                        (int) $item['quantity'],
+                        'Return',
+                        $purchaseOrder->id,
+                        $request->user()?->id,
+                        'Quotation return restock'
+                    );
                 }
             }
 
@@ -2018,6 +2073,7 @@ class QuotationController extends Controller
                 'slug' => $quotation->slug,
                 'quotation_number' => $quotation->quotation_number,
                 'version' => $quotation->version, // Include version
+                'created_by_name' => $quotation->employee->fullname ?? '',
                 'customer' => [
                     'company_name' => $customer->company_name ?? '',
                     'address' => $customer->address ?? '',
@@ -2036,6 +2092,7 @@ class QuotationController extends Controller
                 'price' => [
                     'amount' => $quotation->amount,
                     'discount' => $quotation->discount,
+                    'total_discount_percent' => $quotation->total_discount_percent,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
                     'grand_total' => $quotation->grand_total
@@ -2155,6 +2212,7 @@ class QuotationController extends Controller
                 'price' => [
                     'amount' => $quotation->amount,
                     'discount' => $quotation->discount,
+                    'total_discount_percent' => $quotation->total_discount_percent,
                     'subtotal' => $quotation->subtotal,
                     'ppn' => $quotation->ppn,
                     'grand_total' => $quotation->grand_total

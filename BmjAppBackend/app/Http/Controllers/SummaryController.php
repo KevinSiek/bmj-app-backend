@@ -246,9 +246,13 @@ class SummaryController extends Controller
                 $workOrder = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
                     ->count();
+                // "On progress" = any active (not-yet-done) WO: Wait On Progress + On Progress.
                 $workOrderOnProgress = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
-                    ->where('current_status', WorkOrderController::ON_PROGRESS)
+                    ->whereIn('current_status', [
+                        WorkOrderController::WAIT_ON_PROGRESS,
+                        WorkOrderController::ON_PROGRESS,
+                    ])
                     ->count();
                 $workOrderDone = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)

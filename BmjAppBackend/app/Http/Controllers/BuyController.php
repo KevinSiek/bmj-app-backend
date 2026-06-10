@@ -587,13 +587,22 @@ class BuyController extends Controller
 
             // Add sparepart quantity
             $branchId = $this->ensureBuyBranchId($buy);
-            $buy->detailBuys->each(function ($detail) use ($branchId) {
+            $employeeId = $request->user()?->id;
+            $buy->detailBuys->each(function ($detail) use ($branchId, $buy, $employeeId) {
                 $sparepart = $detail->sparepart;
                 if (!$sparepart) {
                     return;
                 }
 
-                $this->stockService->increase($sparepart, $branchId, (int) $detail->quantity);
+                $this->stockService->increase(
+                    $sparepart,
+                    $branchId,
+                    (int) $detail->quantity,
+                    'Buy',
+                    $buy->id,
+                    $employeeId,
+                    'Buy received'
+                );
 
                 if ($detail->unit_price > $sparepart->unit_price_buy) {
                     $sparepart->unit_price_buy = $detail->unit_price;

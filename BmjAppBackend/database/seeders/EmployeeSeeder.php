@@ -24,6 +24,7 @@ class EmployeeSeeder extends Seeder
             // Inventory
             ['fullname' => 'Eko Prasetyo', 'role' => 'Inventory Admin', 'branch' => EmployeeController::JAKARTA, 'email' => 'eko.p@bmj.com', 'username' => 'eko_p'],
             ['fullname' => 'Indah Setiawati', 'role' => 'Inventory Purchase', 'branch' => EmployeeController::SEMARANG, 'email' => 'indah.s@bmj.com', 'username' => 'indah_s'],
+            ['fullname' => 'Hendra Wijaya', 'role' => 'Head Inventory', 'branch' => EmployeeController::JAKARTA, 'email' => 'headinv.jkt@bmj.com', 'username' => 'headinv_jkt'],
             // Finance
             ['fullname' => 'Fajar Nugroho', 'role' => 'Finance', 'branch' => EmployeeController::JAKARTA, 'email' => 'fajar.n@bmj.com', 'username' => 'fajar_n'],
             ['fullname' => 'Gita Permata', 'role' => 'Finance', 'branch' => EmployeeController::SEMARANG, 'email' => 'gita.p@bmj.com', 'username' => 'gita_p'],

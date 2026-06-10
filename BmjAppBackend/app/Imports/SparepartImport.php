@@ -307,8 +307,25 @@ class SparepartImport implements ToCollection, WithChunkReading
 
                     if ($branchModel) {
                         $record = $stockService->ensureStockRecord($sparepart, $branchModel->id, true);
-                        $record->quantity = max(0, (int) $stockInfo['quantity']);
+                        $oldQuantity = (int) $record->quantity;
+                        $newQuantity = max(0, (int) $stockInfo['quantity']);
+                        $record->quantity = $newQuantity;
                         $record->save();
+
+                        // Import RESETS stock to an absolute value; log the net change. No user is in
+                        // scope for an import, so employee_id is null.
+                        $delta = $newQuantity - $oldQuantity;
+                        if ($delta !== 0) {
+                            $stockService->logMovement(
+                                $sparepart,
+                                $record->branch_id,
+                                $delta,
+                                'Import',
+                                $sparepart->id,
+                                null,
+                                'Excel import'
+                            );
+                        }
                     }
 
                     foreach ($allBranches as $branch) {

@@ -12,6 +12,7 @@ use App\Http\Controllers\BackOrderController;
 use App\Http\Controllers\BuyController;
 use App\Http\Controllers\SparepartController;
 use App\Http\Controllers\WorkOrderController;
+use App\Http\Controllers\BorrowController;
 use App\Http\Controllers\DashboardController; // Added DashboardController
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
@@ -26,7 +27,7 @@ Route::post('/tokens/create', function (Request $request) {
 Route::post('/login',  [LoginController::class, 'index']);
 
 // Authenticated Routes
-Route::middleware("auth:sanctum")->group(function () {
+Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
     // Authorization
     Route::prefix('user')->group(function () {
         Route::get('/', [LoginController::class, 'getCurrentUser']);
@@ -72,7 +73,7 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    Route::middleware(['role:marketing,finance,inventory,inventory_admin,director'])->group(function () {
+    Route::middleware(['role:marketing,finance,inventory,inventory_admin,head_inventory,director'])->group(function () {
         Route::prefix('purchase-order')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'getAll']);
             Route::get('/{id}', [PurchaseOrderController::class, 'get']);
@@ -134,11 +135,12 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/{id}', [WorkOrderController::class, 'get']);
             Route::put('/{id}', [WorkOrderController::class, 'update']);
             Route::post('/process/{id}', [WorkOrderController::class, 'process']);
+            Route::post('/done/{id}', [WorkOrderController::class, 'done']);
         });
     });
 
     // Buy
-    Route::middleware(['role:inventory_purchase,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_purchase,inventory,head_inventory,director'])->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);
@@ -155,7 +157,7 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    Route::middleware(['role:inventory_admin,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_admin,inventory,head_inventory,director'])->group(function () {
         Route::prefix('delivery-order')->group(function () {
             Route::get('/', [DeliveryOrderController::class, 'getAll']);
             Route::get('/{id}', [DeliveryOrderController::class, 'get']);
@@ -164,7 +166,7 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    Route::middleware(['role:inventory_purchase,inventory_admin,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_purchase,inventory_admin,inventory,head_inventory,director'])->group(function () {
         Route::prefix('back-order')->group(function () {
             Route::get('/', [BackOrderController::class, 'getAll']);
             Route::get('/{id}', [BackOrderController::class, 'get']);
@@ -172,8 +174,26 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
+    Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+        Route::prefix('borrow')->group(function () {
+            Route::get('/', [BorrowController::class, 'getAll']);
+            Route::get('/{id}', [BorrowController::class, 'get']);
+            Route::post('/', [BorrowController::class, 'store']);
+            Route::put('/{id}', [BorrowController::class, 'update']);
+            Route::post('/borrow/{id}', [BorrowController::class, 'borrow']);
+            Route::post('/return/{id}', [BorrowController::class, 'returnItems']);
+            Route::post('/cancel/{id}', [BorrowController::class, 'cancel']);
+        });
+    });
+
+    // Global stock movement ledger across all spareparts (backs the standalone Stock History page).
+    // Inventory + Director only — Marketing must NOT see the movement ledger.
+    Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+        Route::get('stock-movement', [SparepartController::class, 'stockMovements']);
+    });
+
     // Sparepart Routes
-    Route::middleware(['role:inventory_purchase,inventory_admin,marketing,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_purchase,inventory_admin,marketing,inventory,head_inventory,director'])->group(function () {
         Route::prefix('sparepart')->group(function () {
             Route::get('/', [SparepartController::class, 'getAll']);
             Route::get('/{id}', [SparepartController::class, 'get']);

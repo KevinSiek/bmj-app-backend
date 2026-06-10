@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Sparepart;
+use App\Models\StockMovement;
 use App\Models\DetailSparepart;
 use App\Models\Seller;
 use App\Models\Branch;
@@ -250,7 +251,7 @@ class SparepartController extends Controller
             foreach ($request->input('totalUnit', []) as $unitData) {
                 $branchModel = $this->resolveBranchModel($unitData['name']);
                 if ($branchModel) {
-                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock']);
+                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock'], $request->user()?->id);
                 }
             }
 
@@ -356,7 +357,7 @@ class SparepartController extends Controller
             foreach ($request->input('totalUnit', []) as $unitData) {
                 $branchModel = $this->resolveBranchModel($unitData['name']);
                 if ($branchModel) {
-                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock']);
+                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock'], $request->user()?->id);
                 }
             }
 
@@ -513,9 +514,18 @@ class SparepartController extends Controller
             'stocks' => $stocks->values()->toArray(),
         ];
 
-        // Hide unitPriceSell for Inventory Admin role
-        if ($user->role === 'Inventory Admin' || $user->role === 'Inventory Purchase') {
-            $response['unitPriceSell'] = null;
+        // Hide the sell price from Inventory Admin / Purchase (they don't need margin info).
+        // NOTE: the response key is snake_case (unit_price_sell), not unitPriceSell.
+        if ($user->role === 'Inventory Admin' || $user->role === 'Inventory Purchase' || $user->role === 'Head Inventory') {
+            $response['unit_price_sell'] = null;
+        }
+
+        // Marketing may browse spareparts but must NOT see costing: hide buy price, sell price,
+        // and the seller list entirely. They keep number, name, and stock.
+        if ($user->role === 'Marketing') {
+            $response['unit_price_buy'] = null;
+            $response['unit_price_sell'] = null;
+            $response['unit_price_seller'] = [];
         }
 
         return $response;
@@ -534,8 +544,8 @@ class SparepartController extends Controller
             $user = $request->user();
             $role = $user->role;
 
-            if ($role == 'Inventory Admin' || $role == 'Inventory Purchase') {
-                // Hide the 'unit_price_sell' field for Inventory Admin and Inventory Purchase roles
+            if ($role == 'Inventory Admin' || $role == 'Inventory Purchase' || $role == 'Head Inventory') {
+                // Hide the 'unit_price_sell' field for Inventory Admin, Inventory Purchase, and Head Inventory roles
                 $spareparts = Sparepart::query()->select('*')->addSelect(['unit_price_sell' => function ($query) {
                     $query->selectRaw('NULL');
                 }]);
@@ -575,11 +585,100 @@ class SparepartController extends Controller
         return $branch?->id;
     }
 
-    protected function setStockForBranch(Sparepart $sparepart, $branch, int $quantity): void
+    protected function setStockForBranch(Sparepart $sparepart, $branch, int $quantity, ?int $employeeId = null): void
     {
         $record = $this->stockService->ensureStockRecord($sparepart, $branch, true);
-        $record->quantity = max(0, $quantity);
+        $oldQuantity = (int) $record->quantity;
+        $newQuantity = max(0, $quantity);
+        $record->quantity = $newQuantity;
         $record->save();
+
+        // This SETS an absolute quantity rather than applying a delta, so log the net change
+        // explicitly to keep the ledger complete.
+        $delta = $newQuantity - $oldQuantity;
+        if ($delta !== 0) {
+            $this->stockService->logMovement(
+                $sparepart,
+                $record->branch_id,
+                $delta,
+                'ManualEdit',
+                $sparepart->id,
+                $employeeId,
+                'Manual stock edit'
+            );
+        }
+    }
+
+    // Global stock movement ledger across ALL spareparts — backs the standalone Stock History
+    // page. Inventory + Director only. Supports filters:
+    //   search (sparepart name/number), branch (id or name), source_type, month + year.
+    public function stockMovements(Request $request)
+    {
+        try {
+            $query = StockMovement::with(['sparepart', 'branch', 'employee'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id');
+
+            if ($search = $request->query('search')) {
+                $query->whereHas('sparepart', function ($q) use ($search) {
+                    $q->where('sparepart_name', 'like', "%{$search}%")
+                        ->orWhere('sparepart_number', 'like', "%{$search}%");
+                });
+            }
+
+            if ($branch = $request->query('branch')) {
+                if (is_numeric($branch)) {
+                    $query->where('branch_id', (int) $branch);
+                } else {
+                    $query->whereHas('branch', function ($q) use ($branch) {
+                        $q->whereRaw('LOWER(name) = ?', [strtolower($branch)]);
+                    });
+                }
+            }
+
+            if ($sourceType = $request->query('source_type')) {
+                $query->where('source_type', $sourceType);
+            }
+
+            if ($year = $request->query('year')) {
+                $query->whereYear('created_at', $year);
+                if ($month = $request->query('month')) {
+                    $monthNumber = is_numeric($month) ? $month : date('m', strtotime($month));
+                    $query->whereMonth('created_at', $monthNumber);
+                }
+            }
+
+            $movements = $query->paginate(20)->through(function ($movement) {
+                return [
+                    'id' => $movement->id,
+                    'delta' => $movement->delta,
+                    'source_type' => $movement->source_type,
+                    'source_id' => $movement->source_id,
+                    'reason' => $movement->reason,
+                    'sparepart' => $movement->sparepart ? [
+                        'id' => $movement->sparepart->id,
+                        'sparepart_name' => $movement->sparepart->sparepart_name,
+                        'sparepart_number' => $movement->sparepart->sparepart_number,
+                    ] : null,
+                    'branch' => $movement->branch ? [
+                        'id' => $movement->branch->id,
+                        'name' => $movement->branch->name,
+                    ] : null,
+                    'employee' => $movement->employee ? [
+                        'id' => $movement->employee->id,
+                        'name' => $movement->employee->fullname ?? $movement->employee->username,
+                    ] : null,
+                    'created_at' => $movement->created_at,
+                ];
+            });
+
+            return response()->json([
+                'message' => 'Stock movements retrieved successfully',
+                'data' => $movements,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Error retrieving stock movements');
+        }
     }
 
     // Helper methods for consistent error handling

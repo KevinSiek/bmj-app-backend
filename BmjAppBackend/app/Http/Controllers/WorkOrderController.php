@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Validator;
 
 class WorkOrderController extends Controller
 {
+    // Lifecycle: a WO is created in WAIT_ON_PROGRESS; process() advances it to ON_PROGRESS;
+    // done() advances ON_PROGRESS to DONE (and propagates DONE to the PO + quotation).
+    const WAIT_ON_PROGRESS = "Wait On Progress";
     const ON_PROGRESS = "On Progress";
     const DONE = "Done";
 
@@ -47,6 +50,7 @@ class WorkOrderController extends Controller
                 ],
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                    'po_number' => $purchaseOrder ? ($purchaseOrder->po_number ?? '') : '',
                     'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                 ],
                 'proforma_invoice' => [
@@ -83,9 +87,6 @@ class WorkOrderController extends Controller
                     'spareparts' => $workOrder->spareparts,
                     'backup_sparepart' => $workOrder->backup_sparepart,
                     'scope' => $workOrder->scope,
-                    'vaccine' => $workOrder->vaccine,
-                    'apd' => $workOrder->apd,
-                    'peduli_lindungi' => $workOrder->peduli_lindungi,
                     'execution_time' => $workOrder->execution_time,
                 ],
                 'units' => $workOrder->woUnits->map(function ($woUnit) {
@@ -233,6 +234,7 @@ class WorkOrderController extends Controller
                     ],
                     'purchase_order' => [
                         'purchase_order_number' => $purchaseOrder ? $purchaseOrder->purchase_order_number : '',
+                        'po_number' => $purchaseOrder ? ($purchaseOrder->po_number ?? '') : '',
                         'purchase_order_date' => $purchaseOrder ? $purchaseOrder->purchase_order_date : '',
                     ],
                     'proforma_invoice' => [
@@ -269,9 +271,6 @@ class WorkOrderController extends Controller
                         'spareparts' => $wo->spareparts,
                         'backup_sparepart' => $wo->backup_sparepart,
                         'scope' => $wo->scope,
-                        'vaccine' => $wo->vaccine,
-                        'apd' => $wo->apd,
-                        'peduli_lindungi' => $wo->peduli_lindungi,
                         'execution_time' => $wo->execution_time,
                     ],
                     'units' => $wo->woUnits->map(function ($woUnit) {
@@ -384,7 +383,43 @@ class WorkOrderController extends Controller
         }
     }
 
+    // Advance a WO from "Wait On Progress" to "On Progress". Does NOT finish the WO — done() does.
     public function process(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $workOrder = $this->getAccessedWorkOrder($request)->lockForUpdate()->find($id);
+
+            if (!$workOrder) {
+                DB::rollBack();
+                return $this->handleNotFound('Work order not found');
+            }
+
+            if ($workOrder->is_done || $workOrder->current_status === self::DONE) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Work order already done'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $workOrder->update([
+                'current_status' => self::ON_PROGRESS,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Work order moved to progress',
+                'data' => $workOrder
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Work order process failed');
+        }
+    }
+
+    // Finish a WO: "On Progress" -> "Done". Propagates DONE to the PO and quotation.
+    public function done(Request $request, $id)
     {
         DB::beginTransaction();
         try {
@@ -436,12 +471,12 @@ class WorkOrderController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Work order processed successfully',
+                'message' => 'Work order done successfully',
                 'data' => $workOrder
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Work order process failed');
+            return $this->handleError($th, 'Work order done failed');
         }
     }
 

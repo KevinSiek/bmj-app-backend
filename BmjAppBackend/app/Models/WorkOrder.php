@@ -27,9 +27,6 @@ class WorkOrder extends Model
         'spareparts',
         'backup_sparepart',
         'scope',
-        'vaccine',
-        'apd',
-        'peduli_lindungi',
         'execution_time',
         'notes'
     ];

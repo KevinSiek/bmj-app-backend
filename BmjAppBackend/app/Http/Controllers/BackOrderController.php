@@ -24,7 +24,7 @@ class BackOrderController extends Controller
     const READY = 'Ready';
     const REJECTED = 'Rejected';
 
-    const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory Purchase', 'Inventory Admin'];
+    const ALLOWED_PROCESS_ROLES = ['Director', 'Inventory Purchase', 'Inventory Admin', 'Head Inventory'];
 
     protected $quotationController;
     protected SparepartStockService $stockService;
@@ -278,8 +278,8 @@ class BackOrderController extends Controller
             $buy = Buy::create([
                 'buy_number' => 'BUY-' . Str::random(8),
                 'total_amount' => 0, // Will be updated after calculating
-                'review' => true, // Process means it already approved
-                'current_status' => BuyController::RECEIVED, // Process means it already done
+                'review' => false, // Require approval
+                'current_status' => BuyController::WAIT_REVIEW, // Require review
                 'notes' => 'Auto-generated from BackOrder #' . $backOrder->back_order_number,
                 'back_order_id' => $backOrder->id,
                 'branch_id' => $branchId,
@@ -330,7 +330,15 @@ class BackOrderController extends Controller
 
                 // Update sparepart stock safely within the lock
                 if ($branchId && $sparepart) {
-                    $this->stockService->increase($sparepart, $branchId, (int) $quantity);
+                    $this->stockService->increase(
+                        $sparepart,
+                        $branchId,
+                        (int) $quantity,
+                        'BackOrder',
+                        $backOrder->id,
+                        $user->id,
+                        'BackOrder processed'
+                    );
                 }
 
                 // Update detail quotation stock state from is_indent true to false
@@ -490,6 +498,15 @@ class BackOrderController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage()

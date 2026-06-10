@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Branch;
 use App\Models\BranchSparepart;
 use App\Models\Sparepart;
+use App\Models\StockMovement;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class SparepartStockService
@@ -84,9 +85,19 @@ class SparepartStockService
 
     /**
      * Increase stock quantity for the given sparepart & branch.
+     *
+     * Context params (sourceType/sourceId/employeeId/reason) are optional so existing callers keep
+     * working; when present they label the ledger row written for this movement.
      */
-    public function increase(Sparepart $sparepart, $branch, int $amount): BranchSparepart
-    {
+    public function increase(
+        Sparepart $sparepart,
+        $branch,
+        int $amount,
+        ?string $sourceType = null,
+        $sourceId = null,
+        ?int $employeeId = null,
+        ?string $reason = null
+    ): BranchSparepart {
         if ($amount <= 0) {
             return $this->ensureStockRecord($sparepart, $branch);
         }
@@ -95,23 +106,59 @@ class SparepartStockService
         $record->quantity += $amount;
         $record->save();
 
+        $this->logMovement($sparepart, $record->branch_id, $amount, $sourceType, $sourceId, $employeeId, $reason);
+
         return $record;
     }
 
     /**
-     * Decrease stock quantity; throws if result would be negative.
+     * Decrease stock quantity. Stock is ALLOWED to go negative — a negative quantity is the
+     * running indent (units owed). Shortfalls are tracked separately as BackOrders, so the
+     * stock column is permitted to drop below zero on automatic decrements.
      */
-    public function decrease(Sparepart $sparepart, $branch, int $amount): BranchSparepart
-    {
+    public function decrease(
+        Sparepart $sparepart,
+        $branch,
+        int $amount,
+        ?string $sourceType = null,
+        $sourceId = null,
+        ?int $employeeId = null,
+        ?string $reason = null
+    ): BranchSparepart {
         if ($amount <= 0) {
             return $this->ensureStockRecord($sparepart, $branch);
         }
 
         $record = $this->ensureStockRecord($sparepart, $branch, true);
-        $record->quantity = max(0, $record->quantity - $amount);
+        $record->quantity = $record->quantity - $amount;
         $record->save();
 
+        $this->logMovement($sparepart, $record->branch_id, -$amount, $sourceType, $sourceId, $employeeId, $reason);
+
         return $record;
+    }
+
+    /**
+     * Append one row to the stock_movements ledger. Runs inside the caller's transaction.
+     */
+    public function logMovement(
+        Sparepart $sparepart,
+        $branch,
+        int $delta,
+        ?string $sourceType = null,
+        $sourceId = null,
+        ?int $employeeId = null,
+        ?string $reason = null
+    ): StockMovement {
+        return StockMovement::create([
+            'sparepart_id' => $sparepart->id,
+            'branch_id' => $this->resolveBranchId($branch),
+            'delta' => $delta,
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'reason' => $reason,
+            'employee_id' => $employeeId,
+        ]);
     }
 
     /**
