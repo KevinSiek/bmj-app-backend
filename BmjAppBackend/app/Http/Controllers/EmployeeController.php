@@ -59,6 +59,8 @@ class EmployeeController extends Controller
             $validatedData['temp_password'] = $tempPassword;
             $validatedData['temp_pass_already_use'] = false;
             $validatedData['temp_pass_expires_at'] = now()->addDay();
+            // Gate the account until the user replaces the temp password (single-use in effect).
+            $validatedData['must_change_password'] = true;
 
             // Create a slug for the employee
             $slug = Str::slug($validatedData['fullname']);
@@ -148,6 +150,7 @@ class EmployeeController extends Controller
                 'password' => $encryptPassword,
                 'temp_pass_already_use' => false,
                 'temp_pass_expires_at' => now()->addDay(),
+                'must_change_password' => true,
             ]);
 
             DB::commit();

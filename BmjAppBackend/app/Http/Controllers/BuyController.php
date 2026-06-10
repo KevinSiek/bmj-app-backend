@@ -299,6 +299,10 @@ class BuyController extends Controller
                 return $this->handleNotFound('Buy not found');
             }
 
+            // Remove child line items first; detail_buys has a FK to buys with no
+            // cascade, so deleting the parent directly raises an integrity violation.
+            DB::table('detail_buys')->where('buy_id', $buy->id)->delete();
+
             $buy->delete();
             DB::commit();
             return response()->json([
@@ -617,6 +621,15 @@ class BuyController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage(),

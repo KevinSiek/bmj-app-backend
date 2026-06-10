@@ -22,7 +22,14 @@ class Employee extends Authenticatable
         'password',
         'temp_password',
         'temp_pass_already_use',
-        'temp_pass_expires_at'
+        'temp_pass_expires_at',
+        'must_change_password',
+    ];
+
+    protected $casts = [
+        'temp_pass_already_use' => 'boolean',
+        'temp_pass_expires_at' => 'datetime',
+        'must_change_password' => 'boolean',
     ];
 
     public function quotations()

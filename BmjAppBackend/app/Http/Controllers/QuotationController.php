@@ -1099,12 +1099,11 @@ class QuotationController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
-            $isNeedReview = $quotation->review;
             $isApproved = $quotation->current_status == QuotationController::APPROVE;
 
-            if (!$isNeedReview || !$isApproved) {
+            if (!$isApproved) {
                 return response()->json([
-                    'message' => 'Quotation needs to be reviewed or approved before moving to purchase order'
+                    'message' => 'Quotation needs to be approved before moving to purchase order. Current status: ' . $quotation->current_status
                 ], Response::HTTP_BAD_REQUEST);
             }
 
@@ -1214,9 +1213,9 @@ class QuotationController extends Controller
                             $numberDoInBo = 0;
                         }
 
-                        // Decrease the number of sparepart
-                        // TODO: What if we set it always 0 if bellow 0 and use better code to handle BO ?
-                        // $branchStock->quantity = max(0, $sparepartTotalUnit - $sparepartQuantityOrderInPo);
+                        // Decrease branch stock. Stock is ALLOWED to go negative — a negative
+                        // quantity is the running indent (how many units the branch owes), and
+                        // the same shortfall is also tracked as a BackOrder ($numberBoInBo above).
                         $branchStock->quantity = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
 
                         $branchStock->save();
@@ -2240,6 +2239,15 @@ class QuotationController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage()
