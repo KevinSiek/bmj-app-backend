@@ -312,7 +312,14 @@ class BackOrderController extends Controller
                 // Find the DetailSparepart with the lowest unit_price for this sparepart and seller
                 $cheapestDetailSparepart = $sparepart->detailSpareparts()
                     ->orderBy('unit_price', 'asc')
-                    ->firstOrFail();
+                    ->first();
+
+                if (!$cheapestDetailSparepart) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => "You need to add Sparepart Seller first for sparepart \"{$sparepart->sparepart_name}\" ({$sparepart->sparepart_number})"
+                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
+                }
 
                 // Create DetailBuy record
                 $quantity = $detailBackOrder->number_back_order;
@@ -471,11 +478,8 @@ class BackOrderController extends Controller
             return $quotation->branch->id;
         }
 
-        $branch = $this->resolveBranchModel(optional($quotation->employee)->branch);
-
-        if (!$branch) {
-            $branch = $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
-        }
+        $branch = optional($quotation->employee)->branch
+            ?? $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
 
         if (!$branch) {
             return null;

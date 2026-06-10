@@ -132,7 +132,7 @@ class ProformaInvoiceController extends Controller
                         $spareParts[] = [
                             'sparepart_id' => $sparepart->id ?? '',
                             'sparepart_name' => $sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $sparepart->part_number ?? '',
+                            'sparepart_number' => $sparepart->sparepart_number ?? '',
                             'quantity' => $detail->quantity ?? 0,
                             'unit_price_sell' => $detail->unit_price ?? 0,
                             'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0),
@@ -239,7 +239,7 @@ class ProformaInvoiceController extends Controller
                     $spareParts[] = [
                         'sparepart_id' => $sparepart->id ?? '',
                         'sparepart_name' => $sparepart->sparepart_name ?? '',
-                        'sparepart_number' => $sparepart->part_number ?? '',
+                        'sparepart_number' => $sparepart->sparepart_number ?? '',
                         'quantity' => $detail->quantity ?? 0,
                         'unit_price_sell' => $detail->unit_price ?? 0,
                         'total_price' => ($detail->quantity ?? 0) * ($detail->unit_price ?? 0),

@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Http\Controllers\EmployeeController;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Employee;
+use App\Models\Branch;
 use Illuminate\Support\Str;
 
 /**
@@ -26,7 +27,7 @@ class EmployeeFactory extends Factory
         return [
             'fullname' => $fullname,
             'username' => $this->faker->name,
-            'branch' => $this->faker->randomElement([EmployeeController::SEMARANG, EmployeeController::JAKARTA]),
+            'branch_id' => Branch::inRandomOrder()->first()?->id,
             'role' => $this->faker->jobTitle,
             'email' => $this->faker->unique()->email,
             'password' => bcrypt('password'),

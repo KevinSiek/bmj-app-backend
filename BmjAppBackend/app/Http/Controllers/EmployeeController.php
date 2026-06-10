@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DetailAccesses;
 use Illuminate\Http\Request;
 use App\Models\Employee;
+use App\Models\Branch;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Str;
@@ -27,7 +28,7 @@ class EmployeeController extends Controller
     public function index()
     {
         try {
-            $employees = Employee::all();
+            $employees = Employee::with('branch')->get()->map(fn($e) => $this->formatEmployee($e));
             return response()->json([
                 'message' => 'Employees retrieved successfully',
                 'data' => $employees
@@ -52,6 +53,17 @@ class EmployeeController extends Controller
 
         DB::beginTransaction();
         try {
+            $branch = Branch::whereRaw('LOWER(name) = ?', [strtolower($validatedData['branch'])])
+                ->orWhereRaw('LOWER(code) = ?', [strtolower($validatedData['branch'])])
+                ->first();
+
+            if (!$branch) {
+                DB::rollBack();
+                return response()->json(['message' => 'Branch not found'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            unset($validatedData['branch']);
+            $validatedData['branch_id'] = $branch->id;
 
             // Generate a random temporary password
             $tempPassword = Str::random(12);
@@ -107,6 +119,18 @@ class EmployeeController extends Controller
                     'message' => 'Employee not found'
                 ], Response::HTTP_NOT_FOUND);
             }
+
+            $branch = Branch::whereRaw('LOWER(name) = ?', [strtolower($validatedData['branch'])])
+                ->orWhereRaw('LOWER(code) = ?', [strtolower($validatedData['branch'])])
+                ->first();
+
+            if (!$branch) {
+                DB::rollBack();
+                return response()->json(['message' => 'Branch not found'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            unset($validatedData['branch']);
+            $validatedData['branch_id'] = $branch->id;
 
             // Update only the provided fields
             $employee->update($validatedData);
@@ -205,7 +229,7 @@ class EmployeeController extends Controller
     public function get(Request $request, $slug)
     {
         try {
-            $employee = Employee::where('slug', $slug)->first();
+            $employee = Employee::with('branch')->where('slug', $slug)->first();
 
             if (!$employee) {
                 return response()->json([
@@ -215,7 +239,7 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'message' => 'Employees retrieved successfully',
-                'data' => $employee
+                'data' => $this->formatEmployee($employee)
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return response()->json([
@@ -229,7 +253,7 @@ class EmployeeController extends Controller
     {
         try {
             $q = $request->query('search');
-            $query = Employee::query();
+            $query = Employee::with('branch');
 
             if ($q) {
                 $searchTerm = $q;
@@ -240,6 +264,7 @@ class EmployeeController extends Controller
             }
 
             $employees = $query->paginate(20);
+            $employees->getCollection()->transform(fn($e) => $this->formatEmployee($e));
 
             return response()->json([
                 'message' => 'List all employees',
@@ -251,6 +276,22 @@ class EmployeeController extends Controller
                 'error' => $th->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private function formatEmployee(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'slug' => $employee->slug,
+            'fullname' => $employee->fullname,
+            'username' => $employee->username,
+            'email' => $employee->email,
+            'role' => $employee->role,
+            'branch' => $employee->branch?->name,
+            'branch_id' => $employee->branch_id,
+            'created_at' => $employee->created_at,
+            'updated_at' => $employee->updated_at,
+        ];
     }
 
     public function getEmployeeAccess($slug)

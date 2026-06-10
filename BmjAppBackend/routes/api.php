@@ -75,6 +75,7 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::middleware(['role:marketing,finance,inventory,inventory_admin,director'])->group(function () {
         Route::prefix('purchase-order')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'getAll']);
+            Route::get('/return', [PurchaseOrderController::class, 'getAllReturned']);
             Route::get('/{id}', [PurchaseOrderController::class, 'get']);
             Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
             Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
@@ -110,10 +111,11 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    // Finance
+    // Finances
     Route::middleware(['role:finance,director'])->group(function () {
         Route::prefix('invoice')->group(function () {
             Route::get('/', [InvoiceController::class, 'getAll']);
+            Route::post('/setType/{id}', [InvoiceController::class, 'setInvoiceType']);
             Route::get('/{id}', [InvoiceController::class, 'get']);
         });
         // Employee Routes

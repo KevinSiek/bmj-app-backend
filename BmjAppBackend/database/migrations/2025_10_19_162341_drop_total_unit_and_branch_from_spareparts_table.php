@@ -22,10 +22,9 @@ return new class extends Migration
                 ];
             });
 
-        $spareparts = DB::table('spareparts')->select('id', 'total_unit', 'branch')->get();
+        $spareparts = DB::table('spareparts')->select('id', 'total_unit')->get();
         foreach ($spareparts as $sparepart) {
-            $branchKey = strtolower($sparepart->branch ?? '');
-            $branchId = $branchCodeMap[$branchKey] ?? $branchCodeMap['semarang'] ?? null;
+            $branchId = $branchCodeMap['semarang'] ?? null;
 
             if ($branchId) {
                 DB::table('branch_spareparts')->updateOrInsert(
@@ -46,10 +45,6 @@ return new class extends Migration
             if (Schema::hasColumn('spareparts', 'total_unit')) {
                 $table->dropColumn('total_unit');
             }
-
-            if (Schema::hasColumn('spareparts', 'branch')) {
-                $table->dropColumn('branch');
-            }
         });
     }
 
@@ -61,10 +56,6 @@ return new class extends Migration
         Schema::table('spareparts', function (Blueprint $table) {
             if (!Schema::hasColumn('spareparts', 'total_unit')) {
                 $table->integer('total_unit')->nullable()->after('unit_price_sell');
-            }
-
-            if (!Schema::hasColumn('spareparts', 'branch')) {
-                $table->string('branch')->nullable()->after('total_unit');
             }
         });
     }
