@@ -42,7 +42,7 @@ class WorkOrderController extends Controller
             $formattedWorkOrder = [
                 'id' => (string) $workOrder->id,
                 'service_order' => [
-                    'no' => $workOrder->work_order_number,
+                    'service_order_number' => $workOrder->work_order_number,
                     'date' => $workOrder->created_at->format('Y-m-d'),
                     'received_by' => $workOrder->received_by ?? '',
                     'start_date' => $workOrder->start_date,
@@ -226,7 +226,7 @@ class WorkOrderController extends Controller
                 return [
                     'id' => (string) $wo->id,
                     'service_order' => [
-                        'no' => $wo->work_order_number,
+                        'service_order_number' => $wo->work_order_number,
                         'date' => $wo->created_at->format('Y-m-d'),
                         'received_by' => $wo->received_by ?? '',
                         'start_date' => $wo->start_date,
