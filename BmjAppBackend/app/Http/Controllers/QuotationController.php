@@ -110,6 +110,7 @@ class QuotationController extends Controller
             'customer.city' => 'required|string',
             'customer.province' => 'required|string',
             'customer.postalCode' => 'required|numeric',
+            'customer.email' => 'nullable|email',
             // Sparepart or Service validation based on type
             'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
             'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
@@ -202,6 +203,7 @@ class QuotationController extends Controller
                 'city' => $request->input('customer.city'),
                 'province' => $request->input('customer.province'),
                 'postal_code' => $request->input('customer.postalCode'),
+                'email' => $request->input('customer.email'),
             ];
 
             // Check if customer already exists
@@ -398,6 +400,7 @@ class QuotationController extends Controller
             'customer.city' => 'required|string',
             'customer.province' => 'required|string',
             'customer.postalCode' => 'required|numeric',
+            'customer.email' => 'nullable|email',
             // Sparepart or Service validation based on type
             'spareparts' => 'required_if:project.type,' . self::SPAREPARTS . '|array',
             'spareparts.*.sparepartId' => 'required_if:project.type,' . self::SPAREPARTS . '|exists:spareparts,id',
@@ -501,6 +504,7 @@ class QuotationController extends Controller
                 'city' => $request->input('customer.city'),
                 'province' => $request->input('customer.province'),
                 'postal_code' => $request->input('customer.postalCode'),
+                'email' => $request->input('customer.email'),
             ];
 
             // Check if customer already exists

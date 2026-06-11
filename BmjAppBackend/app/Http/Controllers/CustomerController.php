@@ -83,6 +83,7 @@ class CustomerController extends Controller
                 'city' => 'required|string',
                 'province' => 'required|string',
                 'postal_code' => 'required|numeric',
+                'email' => 'nullable|email',
             ]);
 
             // Cap the slug body so a max-length (255) company name can't overflow the
@@ -130,6 +131,7 @@ class CustomerController extends Controller
                 'city' => 'required|string',
                 'province' => 'required|string',
                 'postal_code' => 'required|numeric',
+                'email' => 'nullable|email',
             ]);
 
             $customer->update($validated);
