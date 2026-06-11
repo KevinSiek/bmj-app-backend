@@ -13,6 +13,8 @@ class Invoice extends Model
         'proforma_invoice_id',
         'invoice_number',
         'invoice_date',
+        'invoice_type',
+        'version',
         'term_of_payment',
         'employee_id'
     ];

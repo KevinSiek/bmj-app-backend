@@ -352,6 +352,8 @@ class ProformaInvoiceController extends Controller
                 'proforma_invoice_id' => $proformaInvoice->id,
                 'invoice_number' => $invoiceNumber,
                 'invoice_date' => $currentDate,
+                'invoice_type' => null,
+                'version' => 0,
                 'employee_id' => $proformaInvoice->employee_id,
             ]);
 
