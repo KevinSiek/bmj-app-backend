@@ -12,7 +12,9 @@ All routes are prefixed with `/api/` automatically by Laravel.
 | ------ | --- | ------------------ | ------- |
 | POST | `/login` | LoginController@index | Login (returns Sanctum token) |
 
-## Authenticated Routes (`auth:sanctum`)
+## Authenticated Routes (`auth:sanctum` + `password.changed`)
+
+All authenticated routes require a valid Sanctum token AND that the user has completed password-change flow (if using a temporary password). Routes requiring specific roles are noted in their sections.
 
 ### User Management
 | Method | URI | Controller@Method | Purpose |
@@ -48,7 +50,7 @@ All routes are prefixed with `/api/` automatically by Laravel.
 | GET | `/quotation/{slug}` | QuotationController@get | Get detail |
 | POST | `/quotation` | QuotationController@store | Create |
 | PUT | `/quotation/{slug}` | QuotationController@update | Update |
-| POST | `/quotation/moveToPo/{slug}` | QuotationController@moveToPo | → PO |
+| POST | `/quotation/moveToPo/{slug}` | QuotationController@moveToPo | Convert to PO (requires `poNumber` in body) |
 | GET | `/quotation/review/{flag}` | QuotationController@isNeedReview | Review list |
 | GET | `/quotation/return/{flag}` | QuotationController@isNeedReturn | Return list |
 | POST | `/quotation/needChange/{slug}` | QuotationController@needChange | Request changes |
@@ -58,13 +60,16 @@ All routes are prefixed with `/api/` automatically by Laravel.
 | GET | `/quotation/rejectReturn/{slug}` | QuotationController@declineReturn | Reject return |
 | GET | `/quotation/approveReturn/{slug}` | QuotationController@approveReturn | Approve return |
 
-## Marketing + Finance + Inventory + Inventory Admin + Director
+## Marketing + Finance + Inventory + Inventory Admin + Director + Service (`role:marketing,finance,inventory,inventory_admin,director,service`)
+
+Service is included because the Service role releases Service-type POs into Work Orders.
 
 ### Purchase Order
 | Method | URI | Controller@Method | Purpose |
 | ------ | --- | ------------------ | ------- |
 | GET | `/purchase-order` | PurchaseOrderController@getAll | List POs |
 | GET | `/purchase-order/{id}` | PurchaseOrderController@get | Get detail |
+| GET | `/purchase-order/return` | PurchaseOrderController@getAllReturn | List returned POs |
 | POST | `/purchase-order/moveToPi/{id}` | PurchaseOrderController@moveToPi | → PI |
 | POST | `/purchase-order/status/{id}` | PurchaseOrderController@updateStatus | Update status |
 | POST | `/purchase-order/ready/{id}` | PurchaseOrderController@ready | Mark ready |
@@ -84,7 +89,7 @@ All routes are prefixed with `/api/` automatically by Laravel.
 | PUT | `/employee/{slug}` | EmployeeController@update | Update |
 | DELETE | `/employee/{slug}` | EmployeeController@destroy | Delete |
 | GET | `/employee/access/{slug}` | EmployeeController@getEmployeeAccess | Get access |
-| POST | `/employee/reset-password/{slug}` | EmployeeController@resetPassword | Reset password |
+| POST | `/employee/reset-password/{slug}` | EmployeeController@resetPassword | Reset password (sets must_change_password) |
 
 ### General Settings
 | Method | URI | Controller@Method | Purpose |
@@ -124,8 +129,9 @@ All routes are prefixed with `/api/` automatically by Laravel.
 | GET | `/work-order/{id}` | WorkOrderController@get | Get detail |
 | PUT | `/work-order/{id}` | WorkOrderController@update | Update |
 | POST | `/work-order/process/{id}` | WorkOrderController@process | Process |
+| POST | `/work-order/done/{id}` | WorkOrderController@done | Mark done |
 
-## Inventory Purchase + Inventory + Director
+## Inventory Purchase + Inventory + Head Inventory + Director
 
 ### Buy (Purchase)
 | Method | URI | Controller@Method | Purpose |
@@ -141,26 +147,55 @@ All routes are prefixed with `/api/` automatically by Laravel.
 | POST | `/buy/done/{id}` | BuyController@done | Mark done (received) |
 | GET | `/buy/review/{flag}` | BuyController@isNeedReview | Review list |
 
-## Inventory Admin + Inventory + Director
+## Inventory Admin + Inventory + Head Inventory + Director
 
-### Delivery Order
+### Delivery Order (Delivery Note)
 | Method | URI | Controller@Method | Purpose |
 | ------ | --- | ------------------ | ------- |
-| GET | `/delivery-order` | DeliveryOrderController@getAll | List DOs |
+| GET | `/delivery-order` | DeliveryOrderController@getAll | List delivery orders |
 | GET | `/delivery-order/{id}` | DeliveryOrderController@get | Get detail |
 | PUT | `/delivery-order/{id}` | DeliveryOrderController@update | Update |
 | POST | `/delivery-order/process/{id}` | DeliveryOrderController@process | Process |
 
-## Inventory Purchase + Inventory Admin + Inventory + Director
+## Inventory Purchase + Inventory Admin + Inventory + Head Inventory + Director
 
 ### Back Order
 | Method | URI | Controller@Method | Purpose |
 | ------ | --- | ------------------ | ------- |
-| GET | `/back-order` | BackOrderController@getAll | List BOs |
+| GET | `/back-order` | BackOrderController@getAll | List back orders |
 | GET | `/back-order/{id}` | BackOrderController@get | Get detail |
-| POST | `/back-order/process/{id}` | BackOrderController@process | Process |
+| GET | `/back-order/analyze/{id}` | BackOrderController@analyze | Check if stock is sufficient |
+| POST | `/back-order/process/{id}` | BackOrderController@process | Process and decrement stock |
 
-## Multi-Role (Inventory + Marketing + Director)
+### Borrow (Pinjaman)
+
+Lifecycle: `Created → Approved → Borrowed → Returned → Done`, with side-exits
+`Rejected` (reviewer) and `Cancelled` (Marketing, from Created only). Stock
+decreases at **Send** and increases by returned quantities at **Done**, both via
+`SparepartStockService` (`reference_type='Borrow'`). Roles are gated per action.
+
+| Method | URI | Controller@Method | Roles | Purpose |
+| ------ | --- | ------------------ | ----- | ------- |
+| GET | `/borrow` | BorrowController@getAll | marketing, inventory_admin, inventory_purchase, head_inventory, director | List borrow requests |
+| GET | `/borrow/options/purchase-orders?type=Service\|Spareparts&search=&page=` | BorrowController@purchaseOrderOptions | same as list | Searchable, paginated PO picker (Service embeds Work Order; Spareparts embeds line items) |
+| GET | `/borrow/{id}` | BorrowController@get | same as list | Get detail |
+| POST | `/borrow` | BorrowController@store | marketing, director | Create request against a Service PO (`{purchaseOrderId, notes, spareparts[]}`) |
+| PUT | `/borrow/{id}` | BorrowController@update | marketing, director | Update while Created |
+| POST | `/borrow/cancel/{id}` | BorrowController@cancel | marketing, director | Cancel while Created |
+| POST | `/borrow/kembali/{id}` | BorrowController@kembali | marketing, director | Return with notes (Borrowed → Returned) |
+| POST | `/borrow/approve/{id}` | BorrowController@approve | head_inventory, director | Approve (Created → Approved) |
+| POST | `/borrow/reject/{id}` | BorrowController@reject | head_inventory, director | Reject with notes (terminal) |
+| POST | `/borrow/send/{id}` | BorrowController@send | inventory_admin, inventory_purchase, head_inventory, director | Handover: decrease stock (Approved → Borrowed) |
+| POST | `/borrow/done/{id}` | BorrowController@done | inventory_admin, inventory_purchase, head_inventory, director | Reconcile returned quantities; shortfall requires a covering Spareparts PO (`{returned[], sparepartPoId?}`) |
+
+## Inventory Purchase + Inventory Admin + Head Inventory + Director
+
+### Stock Movements
+| Method | URI | Controller@Method | Purpose |
+| ------ | --- | ------------------ | ------- |
+| GET | `/stock-movement` | SparepartController@stockMovements | List all stock movements across spareparts |
+
+## Inventory Purchase + Inventory Admin + Marketing + Inventory + Head Inventory + Director
 
 ### Sparepart
 | Method | URI | Controller@Method | Purpose |

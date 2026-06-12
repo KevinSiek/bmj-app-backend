@@ -236,25 +236,80 @@ class BackOrderController extends Controller
         ];
     }
 
+    public function analyze(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!in_array($user->role, self::ALLOWED_PROCESS_ROLES)) {
+                return $this->handleForbidden('You are not authorized to analyze back orders');
+            }
+
+            $backOrder = $this->getAccessedBackOrder($request)
+                ->with(['detailBackOrders.sparepart.branchStocks', 'purchaseOrder.quotation'])
+                ->find($id);
+
+            if (!$backOrder) {
+                return $this->handleNotFound('Back order not found');
+            }
+
+            $quotation = $backOrder->purchaseOrder?->quotation;
+            $branchId = $this->resolveQuotationBranchId($quotation);
+
+            $missingItems = [];
+
+            foreach ($backOrder->detailBackOrders as $detail) {
+                if ($detail->number_back_order <= 0) continue;
+
+                $sparepart = $detail->sparepart;
+                if (!$sparepart) continue;
+
+                $availableStock = 0;
+                if ($branchId) {
+                    $availableStock = $this->stockService->getQuantity($sparepart, $branchId);
+                }
+
+                if ($availableStock < $detail->number_back_order) {
+                    $missingItems[] = [
+                        'sparepart_name' => $sparepart->sparepart_name,
+                        'sparepart_number' => $sparepart->sparepart_number,
+                        'required' => $detail->number_back_order,
+                        'available' => $availableStock
+                    ];
+                }
+            }
+
+            if (!empty($missingItems)) {
+                return response()->json([
+                    'message' => 'Quantity is not enough please contact purchasing to add the stock',
+                    'missing_items' => $missingItems
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            return response()->json([
+                'message' => 'Stock is sufficient',
+            ], Response::HTTP_OK);
+
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Failed to analyze back order');
+        }
+    }
+
     public function process(Request $request, $id)
     {
-        // The entire process is a single atomic operation.
         DB::beginTransaction();
 
         try {
-            // Check user role, only director and inventory that able process back order
             $user = $request->user();
             if (!in_array($user->role, self::ALLOWED_PROCESS_ROLES)) {
                 return $this->handleForbidden('You are not authorized to process back orders');
             }
 
-            // Get the back order and lock it to prevent concurrent processing.
             $backOrder = $this->getAccessedBackOrder($request)
                 ->with([
-                    'detailBackOrders.sparepart.branchStocks.branch', // Eager load details with branch stocks
-                    'purchaseOrder.quotation' // Eager load PO and Quotation
+                    'detailBackOrders.sparepart.branchStocks.branch',
+                    'purchaseOrder.quotation'
                 ])
-                ->lockForUpdate() // Lock the back order row for this transaction
+                ->lockForUpdate()
                 ->find($id);
 
             if (!$backOrder) {
@@ -262,7 +317,6 @@ class BackOrderController extends Controller
                 return $this->handleNotFound('Back order not found');
             }
 
-            // Check if back order is already processed or rejected to prevent re-processing.
             if (in_array($backOrder->current_status, [self::READY, self::REJECTED])) {
                 DB::rollBack();
                 return response()->json([
@@ -273,20 +327,6 @@ class BackOrderController extends Controller
             $quotation = $backOrder->purchaseOrder?->quotation;
             $branchId = $this->resolveQuotationBranchId($quotation);
 
-            // Create a new Buy record
-            $totalAmount = 0;
-            $buy = Buy::create([
-                'buy_number' => 'BUY-' . Str::random(8),
-                'total_amount' => 0, // Will be updated after calculating
-                'review' => false, // Require approval
-                'current_status' => BuyController::WAIT_REVIEW, // Require review
-                'notes' => 'Auto-generated from BackOrder #' . $backOrder->back_order_number,
-                'back_order_id' => $backOrder->id,
-                'branch_id' => $branchId,
-            ]);
-
-
-            // Process each detail back order
             $purchaseOrder = PurchaseOrder::lockForUpdate()->find($backOrder->purchase_order_id);
             if (!$purchaseOrder) {
                 throw new \Exception('Purchase order not found for back order #' . $backOrder->back_order_number);
@@ -297,43 +337,30 @@ class BackOrderController extends Controller
                 throw new \Exception('Quotation not found for purchase order #' . $purchaseOrder->purchase_order_number);
             }
 
+            // First pass: Validate stock is still sufficient to prevent race conditions
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
-                // Skip if no back order quantity
-                if ($detailBackOrder->number_back_order <= 0) {
-                    continue;
+                if ($detailBackOrder->number_back_order <= 0) continue;
+                $sparepart = Sparepart::find($detailBackOrder->sparepart_id);
+                $availableStock = $this->stockService->getQuantity($sparepart, $branchId);
+                if ($availableStock < $detailBackOrder->number_back_order) {
+                    throw new \Exception("Quantity is not enough please contact purchasing to add the stock for {$sparepart->sparepart_name}");
                 }
+            }
 
-                // Lock the sparepart to prevent race conditions on stock update
+            // Second pass: Decrement stock since we are officially fulfilling this Back Order
+            foreach ($backOrder->detailBackOrders as $detailBackOrder) {
+                if ($detailBackOrder->number_back_order <= 0) continue;
+
                 $sparepart = Sparepart::lockForUpdate()->find($detailBackOrder->sparepart_id);
                 if (!$sparepart) {
-                    throw new \Exception("Sparepart with ID {$detailBackOrder->sparepart_id} not found during processing.");
+                    throw new \Exception("Sparepart with ID {$detailBackOrder->sparepart_id} not found.");
                 }
 
-                // Find the DetailSparepart with the lowest unit_price for this sparepart and seller
-                $cheapestDetailSparepart = $sparepart->detailSpareparts()
-                    ->orderBy('unit_price', 'asc')
-                    ->firstOrFail();
-
-                // Create DetailBuy record
-                $quantity = $detailBackOrder->number_back_order;
-                $unitPrice = $cheapestDetailSparepart->unit_price;
-                $subtotal = $quantity * $unitPrice;
-
-                DetailBuy::create([
-                    'buy_id' => $buy->id,
-                    'sparepart_id' => $sparepart->id,
-                    'quantity' => $quantity,
-                    'unit_price' => $unitPrice,
-                ]);
-
-                $totalAmount += $subtotal;
-
-                // Update sparepart stock safely within the lock
                 if ($branchId && $sparepart) {
-                    $this->stockService->increase(
+                    $this->stockService->decrease(
                         $sparepart,
                         $branchId,
-                        (int) $quantity,
+                        (int) $detailBackOrder->number_back_order,
                         'BackOrder',
                         $backOrder->id,
                         $user->id,
@@ -341,11 +368,10 @@ class BackOrderController extends Controller
                     );
                 }
 
-                // Update detail quotation stock state from is_indent true to false
                 if ($quotation) {
                     $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
                         ->where('sparepart_id', $detailBackOrder->sparepart_id)
-                        ->lockForUpdate() // Lock for safe update
+                        ->lockForUpdate()
                         ->first();
 
                     if ($detailQuotation && $detailQuotation->is_indent) {
@@ -355,21 +381,12 @@ class BackOrderController extends Controller
                 }
             }
 
-            // Update Buy total_amount
-            $buy->total_amount = $totalAmount;
-            $buy->save();
-
-            // Update back order status
             $backOrder->current_status = self::READY;
             $backOrder->save();
 
-            // Update PO current status to PREPARE
-            // It will become ready after user click "Sparepart ready" in PO
             $purchaseOrder->current_status = PurchaseOrderController::PREPARE;
             $purchaseOrder->save();
 
-            // The logic from quotationController->changeStatusToInventory is now inlined
-            // to avoid nested transactions and ensure atomicity.
             $currentQuotationStatus = $quotation->status ?? [];
             if (!is_array($currentQuotationStatus)) {
                 $currentQuotationStatus = [];
@@ -390,7 +407,6 @@ class BackOrderController extends Controller
             return response()->json([
                 'message' => 'Back order processed successfully',
                 'data' => $backOrder->load([
-                    'buy.detailBuys',
                     'detailBackOrders.sparepart.branchStocks.branch'
                 ])
             ], Response::HTTP_OK);

@@ -9,6 +9,10 @@ use App\Models\StockMovement;
 use App\Models\DetailSparepart;
 use App\Models\Seller;
 use App\Models\Branch;
+use App\Models\PurchaseOrder;
+use App\Models\Buy;
+use App\Models\Borrow;
+use App\Models\BackOrder;
 use App\Services\SparepartStockService;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
@@ -520,11 +524,10 @@ class SparepartController extends Controller
             $response['unit_price_sell'] = null;
         }
 
-        // Marketing may browse spareparts but must NOT see costing: hide buy price, sell price,
-        // and the seller list entirely. They keep number, name, and stock.
+        // Marketing may browse spareparts but must NOT see costing: hide buy price
+        // and the seller list entirely. They keep number, name, sell price, and stock.
         if ($user->role === 'Marketing') {
             $response['unit_price_buy'] = null;
-            $response['unit_price_sell'] = null;
             $response['unit_price_seller'] = [];
         }
 
@@ -619,10 +622,112 @@ class SparepartController extends Controller
                 ->orderByDesc('created_at')
                 ->orderByDesc('id');
 
-            if ($search = $request->query('search')) {
-                $query->whereHas('sparepart', function ($q) use ($search) {
-                    $q->where('sparepart_name', 'like', "%{$search}%")
-                        ->orWhere('sparepart_number', 'like', "%{$search}%");
+            $filterType = $request->query('filter_type');
+            $filterId = $request->query('filter_id');
+
+            if ($filterType && $filterId) {
+                if ($filterType === 'Sparepart') {
+                    $query->where('sparepart_id', $filterId);
+                } elseif (in_array($filterType, ['Buy', 'Borrow'])) {
+                    $query->where('source_type', $filterType)
+                          ->where('source_id', $filterId);
+                } elseif ($filterType === 'PurchaseOrder') {
+                    $poIds = collect([$filterId]);
+                    $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
+                    $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
+                    $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
+
+                    $query->where(function($q) use ($poIds, $boIds, $buyIds, $borrowIds) {
+                        $q->where(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'PurchaseOrder')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'Return')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($boIds) {
+                            $sub->where('source_type', 'BackOrder')->whereIn('source_id', $boIds);
+                        })->orWhere(function($sub) use ($buyIds) {
+                            $sub->where('source_type', 'Buy')->whereIn('source_id', $buyIds);
+                        })->orWhere(function($sub) use ($borrowIds) {
+                            $sub->where('source_type', 'Borrow')->whereIn('source_id', $borrowIds);
+                        });
+                    });
+                } elseif ($filterType === 'Customer') {
+                    $poIds = PurchaseOrder::whereHas('quotation', function($q) use ($filterId) {
+                        $q->where('customer_id', $filterId);
+                    })->pluck('id');
+                    
+                    $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
+                    $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
+                    $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
+
+                    $query->where(function($q) use ($poIds, $boIds, $buyIds, $borrowIds) {
+                        $q->where(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'PurchaseOrder')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'Return')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($boIds) {
+                            $sub->where('source_type', 'BackOrder')->whereIn('source_id', $boIds);
+                        })->orWhere(function($sub) use ($buyIds) {
+                            $sub->where('source_type', 'Buy')->whereIn('source_id', $buyIds);
+                        })->orWhere(function($sub) use ($borrowIds) {
+                            $sub->where('source_type', 'Borrow')->whereIn('source_id', $borrowIds);
+                        });
+                    });
+                } elseif ($filterType === 'Employee') {
+                    $query->where('employee_id', $filterId);
+                }
+            } elseif ($search = $request->query('search')) {
+                // Fallback text search across multiple entities
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('sparepart', function ($sub) use ($search) {
+                        $sub->where('sparepart_name', 'like', "%{$search}%")
+                            ->orWhere('sparepart_number', 'like', "%{$search}%");
+                    });
+                    
+                    $q->orWhereHas('employee', function ($sub) use ($search) {
+                        $sub->where('fullname', 'like', "%{$search}%");
+                    });
+
+                    $poIdsByCustomer = PurchaseOrder::whereHas('quotation.customer', function($sub) use ($search) {
+                        $sub->where('company_name', 'like', "%{$search}%");
+                    })->pluck('id');
+
+                    $poIdsByNumber = PurchaseOrder::where('purchase_order_number', 'like', "%{$search}%")->pluck('id');
+                    
+                    $poIds = $poIdsByCustomer->merge($poIdsByNumber)->unique();
+
+                    if ($poIds->isNotEmpty()) {
+                        $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
+                        $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
+                        $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
+
+                        $q->orWhere(function($sub) use ($poIds, $boIds, $buyIds, $borrowIds) {
+                            $sub->where(function($s) use ($poIds) {
+                                $s->where('source_type', 'PurchaseOrder')->whereIn('source_id', $poIds);
+                            })->orWhere(function($s) use ($poIds) {
+                                $s->where('source_type', 'Return')->whereIn('source_id', $poIds);
+                            })->orWhere(function($s) use ($boIds) {
+                                $s->where('source_type', 'BackOrder')->whereIn('source_id', $boIds);
+                            })->orWhere(function($s) use ($buyIds) {
+                                $s->where('source_type', 'Buy')->whereIn('source_id', $buyIds);
+                            })->orWhere(function($s) use ($borrowIds) {
+                                $s->where('source_type', 'Borrow')->whereIn('source_id', $borrowIds);
+                            });
+                        });
+                    }
+
+                    $directBuyIds = Buy::where('buy_number', 'like', "%{$search}%")->pluck('id');
+                    if ($directBuyIds->isNotEmpty()) {
+                        $q->orWhere(function($sub) use ($directBuyIds) {
+                            $sub->where('source_type', 'Buy')->whereIn('source_id', $directBuyIds);
+                        });
+                    }
+
+                    $directBorrowIds = Borrow::where('borrow_number', 'like', "%{$search}%")->pluck('id');
+                    if ($directBorrowIds->isNotEmpty()) {
+                        $q->orWhere(function($sub) use ($directBorrowIds) {
+                            $sub->where('source_type', 'Borrow')->whereIn('source_id', $directBorrowIds);
+                        });
+                    }
                 });
             }
 
@@ -640,11 +745,23 @@ class SparepartController extends Controller
                 $query->where('source_type', $sourceType);
             }
 
-            if ($year = $request->query('year')) {
-                $query->whereYear('created_at', $year);
-                if ($month = $request->query('month')) {
-                    $monthNumber = is_numeric($month) ? $month : date('m', strtotime($month));
-                    $query->whereMonth('created_at', $monthNumber);
+            if ($startDate = $request->query('start_date')) {
+                // Ensure the start date includes the beginning of the day
+                $query->where('created_at', '>=', date('Y-m-d 00:00:00', strtotime($startDate)));
+            }
+            if ($endDate = $request->query('end_date')) {
+                // Ensure the end date includes the end of the day
+                $query->where('created_at', '<=', date('Y-m-d 23:59:59', strtotime($endDate)));
+            }
+
+            if (!$startDate && !$endDate) {
+                // Fallback to legacy month/year if no date range is provided
+                if ($year = $request->query('year')) {
+                    $query->whereYear('created_at', $year);
+                    if ($month = $request->query('month')) {
+                        $monthNumber = is_numeric($month) ? $month : date('m', strtotime($month));
+                        $query->whereMonth('created_at', $monthNumber);
+                    }
                 }
             }
 
@@ -678,6 +795,98 @@ class SparepartController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Error retrieving stock movements');
+        }
+    }
+
+    public function stockMovementSuggestions(Request $request)
+    {
+        try {
+            $q = $request->query('q');
+            if (!$q) {
+                return response()->json(['message' => 'Query is required', 'data' => []], Response::HTTP_OK);
+            }
+
+            $suggestions = collect();
+
+            // 1. Spareparts
+            $spareparts = Sparepart::where('sparepart_name', 'like', "%{$q}%")
+                ->orWhere('sparepart_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($spareparts as $sp) {
+                $suggestions->push([
+                    'type' => 'Sparepart',
+                    'id' => $sp->id,
+                    'label' => "Sparepart: {$sp->sparepart_name} ({$sp->sparepart_number})",
+                ]);
+            }
+
+            // 2. Purchase Orders
+            $pos = PurchaseOrder::where('purchase_order_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($pos as $po) {
+                $suggestions->push([
+                    'type' => 'PurchaseOrder',
+                    'id' => $po->id,
+                    'label' => "PO: {$po->purchase_order_number}",
+                ]);
+            }
+
+            // 3. Buys
+            $buys = Buy::where('buy_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($buys as $buy) {
+                $suggestions->push([
+                    'type' => 'Buy',
+                    'id' => $buy->id,
+                    'label' => "Buy: {$buy->buy_number}",
+                ]);
+            }
+
+            // 4. Borrows
+            $borrows = Borrow::where('borrow_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($borrows as $borrow) {
+                $suggestions->push([
+                    'type' => 'Borrow',
+                    'id' => $borrow->id,
+                    'label' => "Borrow: {$borrow->borrow_number}",
+                ]);
+            }
+
+            // 5. Customers (via PO)
+            $customers = \App\Models\Customer::where('company_name', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($customers as $customer) {
+                $suggestions->push([
+                    'type' => 'Customer',
+                    'id' => $customer->id,
+                    'label' => "Customer: {$customer->company_name}",
+                ]);
+            }
+
+            // 6. Employees
+            $employees = \App\Models\Employee::where('fullname', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($employees as $employee) {
+                $suggestions->push([
+                    'type' => 'Employee',
+                    'id' => $employee->id,
+                    'label' => "Employee: {$employee->fullname}",
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Suggestions retrieved successfully',
+                'data' => $suggestions->toArray(),
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Error retrieving suggestions');
         }
     }
 

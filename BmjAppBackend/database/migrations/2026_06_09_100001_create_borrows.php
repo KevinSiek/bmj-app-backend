@@ -16,10 +16,13 @@ return new class extends Migration
             $table->string('borrow_number')->unique();
             $table->foreignId('branch_id')->constrained('branches');
             $table->foreignId('employee_id')->constrained('employees');
-            $table->string('borrower_name');
+            $table->foreignId('purchase_order_id')->constrained('purchase_orders');
+            $table->foreignId('sparepart_po_id')->nullable()->constrained('purchase_orders');
             $table->string('current_status');
             $table->json('status')->nullable();
             $table->string('notes')->nullable();
+            $table->string('return_notes')->nullable();
+            $table->string('reject_notes')->nullable();
             $table->timestamps();
         });
     }

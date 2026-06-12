@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\GeneralController;
 use App\Http\Controllers\SummaryController;
+use App\Http\Controllers\Api\SparepartMovementController;
 
 // Token and Login Routes
 Route::post('/tokens/create', function (Request $request) {
@@ -170,26 +171,55 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         Route::prefix('back-order')->group(function () {
             Route::get('/', [BackOrderController::class, 'getAll']);
             Route::get('/{id}', [BackOrderController::class, 'get']);
+            Route::get('/analyze/{id}', [BackOrderController::class, 'analyze']);
             Route::post('/process/{id}', [BackOrderController::class, 'process']);
         });
     });
 
-    Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
-        Route::prefix('borrow')->group(function () {
+    Route::prefix('borrow')->group(function () {
+        // Read + PO option pickers: every Pinjaman participant.
+        Route::middleware(['role:marketing,inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
             Route::get('/', [BorrowController::class, 'getAll']);
+            Route::get('/options/purchase-orders', [BorrowController::class, 'purchaseOrderOptions']);
             Route::get('/{id}', [BorrowController::class, 'get']);
+        });
+
+        // Creation + Marketing-owned transitions.
+        Route::middleware(['role:marketing,director'])->group(function () {
             Route::post('/', [BorrowController::class, 'store']);
             Route::put('/{id}', [BorrowController::class, 'update']);
-            Route::post('/borrow/{id}', [BorrowController::class, 'borrow']);
-            Route::post('/return/{id}', [BorrowController::class, 'returnItems']);
             Route::post('/cancel/{id}', [BorrowController::class, 'cancel']);
+            Route::post('/kembali/{id}', [BorrowController::class, 'kembali']);
+        });
+
+        // Review.
+        Route::middleware(['role:head_inventory,director'])->group(function () {
+            Route::post('/approve/{id}', [BorrowController::class, 'approve']);
+            Route::post('/reject/{id}', [BorrowController::class, 'reject']);
+        });
+
+        // Handover + reconciliation (Inventory).
+        Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+            Route::post('/send/{id}', [BorrowController::class, 'send']);
+            Route::post('/done/{id}', [BorrowController::class, 'done']);
         });
     });
 
     // Global stock movement ledger across all spareparts (backs the standalone Stock History page).
     // Inventory + Director only — Marketing must NOT see the movement ledger.
     Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+        Route::get('stock-movement/suggestions', [SparepartController::class, 'stockMovementSuggestions']);
         Route::get('stock-movement', [SparepartController::class, 'stockMovements']);
+
+        // Sparepart Movement (Stock Transfer)
+        Route::prefix('sparepart-movement')->group(function () {
+            Route::get('/', [SparepartMovementController::class, 'index']);
+            Route::post('/', [SparepartMovementController::class, 'store']);
+            Route::get('/{id}', [SparepartMovementController::class, 'show']);
+            Route::post('/send/{id}', [SparepartMovementController::class, 'send']);
+            Route::post('/cancel/{id}', [SparepartMovementController::class, 'cancel']);
+            Route::post('/receive/{id}', [SparepartMovementController::class, 'receive']);
+        });
     });
 
     // Sparepart Routes

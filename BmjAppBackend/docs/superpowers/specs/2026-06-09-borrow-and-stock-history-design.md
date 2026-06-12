@@ -2,7 +2,12 @@
 
 **Date:** 2026-06-09
 **Branch:** `e2e-tests-and-fixes`
-**Status:** Approved (design); implementation pending.
+**Status:** Borrow portion **SUPERSEDED** (2026-06-12) by the Pinjaman redesign —
+see `docs/brainstorms/2026-06-12-pinjaman-redesign-requirements.md` and
+`docs/plans/2026-06-12-001-feat-pinjaman-redesign-plan.md`. The Stock History
+portion of this spec still stands. The original Borrow lifecycle described below
+(Created→Borrowed→Returned, Inventory-created, free-text borrower) has been
+replaced by the Marketing-driven, PO-linked lifecycle.
 
 Two related features for the BMJ Sparepart area, built as **two sequential specs**:
 

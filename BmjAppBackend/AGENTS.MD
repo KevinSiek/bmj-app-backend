@@ -20,7 +20,7 @@ invoice, plus inventory (spareparts), service (work orders), logistics
 Quotation → Purchase Order → Proforma Invoice → Invoice
                            → Work Order (service jobs)
                            → Delivery Order (logistics)
-                           → Back Order → Buy (purchasing missing parts from sellers)
+                           → Back Order (fulfilled by manual Buy/Purchase)
 ```
 
 Each entity has a status lifecycle managed by its controller, with

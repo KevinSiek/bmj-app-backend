@@ -5,20 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class DetailBorrow extends Model
+class DetailSparepartMovement extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'borrow_id',
+        'sparepart_movement_id',
         'sparepart_id',
         'quantity',
-        'quantity_return',
     ];
 
-    public function borrow()
+    public function sparepartMovement()
     {
-        return $this->belongsTo(Borrow::class);
+        return $this->belongsTo(SparepartMovement::class);
     }
 
     public function sparepart()

@@ -16,6 +16,7 @@ class DetailQuotation extends Model
         'service_price',
         'quantity',
         'unit_price',
+        'unit_price_buy',
         'is_return',
         'stock'
     ];
@@ -28,5 +29,18 @@ class DetailQuotation extends Model
     public function sparepart()
     {
         return $this->belongsTo(Sparepart::class);
+    }
+
+    public function toArray()
+    {
+        $array = parent::toArray();
+        $user = request()->user();
+
+        // If no user is authenticated or the role is NOT Director, hide unit_price_buy
+        if (!$user || $user->role !== 'Director') {
+            unset($array['unit_price_buy']);
+        }
+
+        return $array;
     }
 }

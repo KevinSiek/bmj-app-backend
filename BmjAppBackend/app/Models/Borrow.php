@@ -13,10 +13,13 @@ class Borrow extends Model
         'borrow_number',
         'branch_id',
         'employee_id',
-        'borrower_name',
+        'purchase_order_id',
+        'sparepart_po_id',
         'current_status',
         'status',
         'notes',
+        'return_notes',
+        'reject_notes',
     ];
 
     protected $casts = [
@@ -36,5 +39,16 @@ class Borrow extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    // Spareparts-type PO justifying a returned-short Pinjaman (set at reconciliation).
+    public function sparepartPo()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'sparepart_po_id');
     }
 }

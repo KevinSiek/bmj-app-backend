@@ -308,6 +308,7 @@ class QuotationController extends Controller
                         'quantity' => $quantityOrderSparepart,
                         'is_indent' => $sparepart['is_indent'],
                         'unit_price' => $sparepartUnitPrice,
+                        'unit_price_buy' => $sparepartDbData->unit_price_buy,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
@@ -595,6 +596,7 @@ class QuotationController extends Controller
                         'quantity' => $sparepart['quantity'],
                         'is_indent' => $sparepart['is_indent'],
                         'unit_price' => $sparepartUnitPrice,
+                        'unit_price_buy' => $sparepartDbData->unit_price_buy,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
@@ -1250,20 +1252,19 @@ class QuotationController extends Controller
                             $numberDoInBo = 0;
                         }
 
-                        // Decrease branch stock. Stock is ALLOWED to go negative — a negative
-                        // quantity is the running indent (how many units the branch owes), and
-                        // the same shortfall is also tracked as a BackOrder ($numberBoInBo above).
-                        $branchStock->quantity = $sparepartTotalUnit - $sparepartQuantityOrderInPo;
+                        // Decrease branch stock. Stock floors at 0.
+                        // The shortfall is tracked as a BackOrder ($numberBoInBo above).
+                        $branchStock->quantity = $sparepartTotalUnit - $numberDoInBo;
 
                         $branchStock->save();
 
                         // This site decrements stock inline (not via stockService->decrease), so log
                         // the movement explicitly to keep the ledger complete.
-                        if ($sparepartQuantityOrderInPo > 0) {
+                        if ($numberDoInBo > 0) {
                             $this->stockService->logMovement(
                                 $sparepartRecord,
                                 $quotationBranchId,
-                                -(int) $sparepartQuantityOrderInPo,
+                                -(int) $numberDoInBo,
                                 'PurchaseOrder',
                                 $purchaseOrder->id,
                                 $request->user()?->id,

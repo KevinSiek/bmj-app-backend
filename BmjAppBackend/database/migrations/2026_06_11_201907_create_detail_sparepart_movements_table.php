@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('detail_borrows', function (Blueprint $table) {
+        Schema::create('detail_sparepart_movements', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('borrow_id')->constrained('borrows')->onDelete('cascade');
-            $table->foreignId('sparepart_id')->constrained('spareparts');
+            $table->foreignId('sparepart_movement_id')->constrained('sparepart_movements')->cascadeOnDelete();
+            $table->foreignId('sparepart_id')->constrained('spareparts')->cascadeOnDelete();
             $table->integer('quantity');
-            $table->integer('quantity_return')->nullable();
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('detail_borrows');
+        Schema::dropIfExists('detail_sparepart_movements');
     }
 };
