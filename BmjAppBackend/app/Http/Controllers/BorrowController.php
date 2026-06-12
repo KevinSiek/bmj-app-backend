@@ -205,6 +205,19 @@ class BorrowController extends Controller
                 ], Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
+            // Reject up front if any requested quantity exceeds the branch's current stock,
+            // so a borrow that could never be sent is never created in the first place.
+            $lines = $request->input('spareparts');
+            $spareparts = Sparepart::whereIn('id', collect($lines)->pluck('sparepartId'))->get()->keyBy('id');
+            foreach ($lines as $line) {
+                $sparepart = $spareparts->get($line['sparepartId']);
+                $available = $this->stockService->getQuantity($sparepart, $branch->id);
+                if ($available < $line['quantity']) {
+                    DB::rollBack();
+                    return $this->statusError("Insufficient stock for {$sparepart->sparepart_name} ({$sparepart->sparepart_number}) in branch {$branch->name}: available {$available}, requested {$line['quantity']}");
+                }
+            }
+
             $borrow = Borrow::create([
                 'borrow_number' => $this->generateBorrowNumber($branch, $user),
                 'branch_id' => $branch->id,
