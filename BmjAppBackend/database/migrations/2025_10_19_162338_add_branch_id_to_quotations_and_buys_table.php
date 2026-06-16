@@ -30,6 +30,15 @@ return new class extends Migration
                     ->nullOnDelete();
             }
         });
+
+        Schema::table('employees', function (Blueprint $table) {
+            if (Schema::hasColumn('employees', 'branch_id')) {
+                $table->foreign('branch_id')
+                    ->references('id')
+                    ->on('branches')
+                    ->nullOnDelete();
+            }
+        });
     }
 
     /**
@@ -48,6 +57,12 @@ return new class extends Migration
             if (Schema::hasColumn('buys', 'branch_id')) {
                 $table->dropForeign(['branch_id']);
                 $table->dropColumn('branch_id');
+            }
+        });
+
+        Schema::table('employees', function (Blueprint $table) {
+            if (Schema::hasColumn('employees', 'branch_id')) {
+                $table->dropForeign(['branch_id']);
             }
         });
     }

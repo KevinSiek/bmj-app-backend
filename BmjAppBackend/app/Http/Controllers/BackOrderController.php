@@ -495,11 +495,8 @@ class BackOrderController extends Controller
             return $quotation->branch->id;
         }
 
-        $branch = $this->resolveBranchModel(optional($quotation->employee)->branch);
-
-        if (!$branch) {
-            $branch = $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
-        }
+        $branch = optional($quotation->employee)->branch
+            ?? $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
 
         if (!$branch) {
             return null;

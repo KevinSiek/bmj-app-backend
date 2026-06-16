@@ -29,16 +29,20 @@ class SummaryController extends Controller
             if($role === EmployeeController::DIRECTOR) {
                 $quotationCount = Quotation::whereYear('date', $currentYear)
                     ->whereMonth('date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('quotation_number');
                 $poCount = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $woCount = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('work_order_number');
                 $doCount = DeliveryOrder::whereYear('delivery_order_date', $currentYear)
                     ->whereMonth('delivery_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('delivery_order_number');
             }
 
             return response()->json([
@@ -76,38 +80,45 @@ class SummaryController extends Controller
                 $quotationCount = Quotation::where('employee_id', $userId)
                     ->whereYear('date', $currentYear)
                     ->whereMonth('date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('quotation_number');
                 $quotationApproveCount = Quotation::where('employee_id', $userId)
                     ->whereYear('date', $currentYear)
                     ->whereMonth('date', $currentMonth)
                     ->where('current_status', QuotationController::APPROVE)
-                    ->count();
+                    ->distinct()
+                    ->count('quotation_number');
                 $quotationReviewCount = Quotation::where('employee_id', $userId)
                     ->whereYear('date', $currentYear)
                     ->whereMonth('date', $currentMonth)
                     ->where('current_status', QuotationController::ON_REVIEW)
-                    ->count();
+                    ->distinct()
+                    ->count('quotation_number');
                 $quotationRejectCount = Quotation::where('employee_id', $userId)
                     ->whereYear('date', $currentYear)
                     ->whereMonth('date', $currentMonth)
                     ->where('current_status', QuotationController::REJECTED)
-                    ->count();
+                    ->distinct()
+                    ->count('quotation_number');
                 $poCount = PurchaseOrder::where('employee_id', $userId)
                     ->whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $woCount = WorkOrder::whereHas('purchaseOrder', function($query) use ($userId) {
                         $query->where('employee_id', $userId);
                     })
                     ->whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('work_order_number');
                 $doCount = DeliveryOrder::whereHas('purchaseOrder', function($query) use ($userId) {
                         $query->where('employee_id', $userId);
                     })
                     ->whereYear('delivery_order_date', $currentYear)
                     ->whereMonth('delivery_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('delivery_order_number');
             }
 
             return response()->json([
@@ -146,19 +157,23 @@ class SummaryController extends Controller
             if($role === EmployeeController::INVENTORY_PURCHASE || $role === EmployeeController::INVENTORY_ADMIN) {
                 $purchaseOrder = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $purchaseOrderPrepare = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
                     ->where('current_status', PurchaseOrderController::PREPARE)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $purchaseOrderReady = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
                     ->where('current_status', PurchaseOrderController::READY)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $purchaseOrderRelease = PurchaseOrder::whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
                     ->where('current_status', PurchaseOrderController::RELEASE)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
             }
 
             return response()->json([
@@ -197,21 +212,24 @@ class SummaryController extends Controller
                     })
                     ->whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $purchaseOrderDpPaid = PurchaseOrder::whereHas('proformaInvoice', function($query) {
                         $query->where('is_dp_paid', true)
                             ->where('is_full_paid', false);
                     })
                     ->whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
                 $purchaseOrderFullPaid = PurchaseOrder::whereHas('proformaInvoice', function($query) {
                         $query->where('is_dp_paid', true)
                             ->where('is_full_paid', true);
                     })
                     ->whereYear('purchase_order_date', $currentYear)
                     ->whereMonth('purchase_order_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('purchase_order_number');
             }
 
             return response()->json([
@@ -245,7 +263,8 @@ class SummaryController extends Controller
             if($role === EmployeeController::SERVICE) {
                 $workOrder = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
-                    ->count();
+                    ->distinct()
+                    ->count('work_order_number');
                 // "On progress" = any active (not-yet-done) WO: Wait On Progress + On Progress.
                 $workOrderOnProgress = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
@@ -253,11 +272,13 @@ class SummaryController extends Controller
                         WorkOrderController::WAIT_ON_PROGRESS,
                         WorkOrderController::ON_PROGRESS,
                     ])
-                    ->count();
+                    ->distinct()
+                    ->count('work_order_number');
                 $workOrderDone = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
                     ->where('current_status', WorkOrderController::DONE)
-                    ->count();
+                    ->distinct()
+                    ->count('work_order_number');
             }
 
             return response()->json([

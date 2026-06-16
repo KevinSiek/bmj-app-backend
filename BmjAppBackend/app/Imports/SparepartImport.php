@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
-// use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 // use Maatwebsite\Excel\Concerns\WithBatchInserts;
 
@@ -155,7 +155,7 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 //     }
 // }
 
-class SparepartImport implements ToCollection, WithChunkReading
+class SparepartImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
 
     private $newCount = 0;
@@ -177,23 +177,21 @@ class SparepartImport implements ToCollection, WithChunkReading
 
         foreach ($rows as $index => $row) {
             Log::info("Processing row " . ($index + 1) . ": " . json_encode($row));
-            // Skip header row if needed
-            if ($index === 0) continue;
 
             // Skip empty rows
-            if (empty($row[1]) && empty($row[2]) && empty($row[3])) {
+            if (empty($row['sparepart_number']) && empty($row['sparepart_name']) && empty($row['purchase_price'])) {
                 continue;
             }
 
-            if($row[2] === 0) continue;
+            if ($row['sparepart_name'] === 0) continue;
 
             // Validate each row
             $validator = Validator::make([
-                'sparepart_number' => $row[1],
-                'sparepart_name'  => $row[2],
-                'purchase_price'   => $row[3],
-                'seller'   => $row[4] ?? null,
-                'branch'   => $row[5] ?? null,
+                'sparepart_number' => $row['sparepart_number'],
+                'sparepart_name'  => $row['sparepart_name'],
+                'purchase_price'   => $row['purchase_price'],
+                'seller'   => $row['seller'] ?? null,
+                'branch'   => $row['branch'] ?? null,
             ], [
                 'sparepart_number' => 'required|string',
                 'sparepart_name' => 'required|string',
@@ -208,31 +206,31 @@ class SparepartImport implements ToCollection, WithChunkReading
             }
 
             $sparepartData[] = [
-                'slug' => Str::slug($row['1']),
-                'sparepart_number' => $row['1'],
-                'sparepart_name' => $row['2'],
-                'unit_price_buy' => $row['3'],
-                'unit_price_sell' => $row['3'],
+                'slug' => Str::slug($row['sparepart_number']),
+                'sparepart_number' => $row['sparepart_number'],
+                'sparepart_name' => $row['sparepart_name'],
+                'unit_price_buy' => $row['purchase_price'],
+                'unit_price_sell' => $row['purchase_price'],
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
 
             $branchStockData[] = [
-                'sparepart_number' => $row[1],
-                'branch' => $row[5] ?? null,
+                'sparepart_number' => $row['sparepart_number'],
+                'branch' => $row['branch'] ?? null,
                 'quantity' => 0,
             ];
 
-            if (!empty($row[4])) {
+            if (!empty($row['seller'])) {
                 $detailSparepartData[] = [
-                    'sparepart_number' => $row[1], // We'll use this to link with sparepart later
-                    'seller_id' => $row[4],
-                    'unit_price' => $row[3],
+                    'sparepart_number' => $row['sparepart_number'],
+                    'seller_id' => $row['seller'],
+                    'unit_price' => $row['purchase_price'],
                     'quantity' => 0
                 ];
             }
 
-            $uniqueKeys[] = $row['1'];
+            $uniqueKeys[] = $row['sparepart_number'];
         }
 
         DB::transaction(function () use ($sparepartData, $detailSparepartData, $uniqueKeys, $branchStockData) {

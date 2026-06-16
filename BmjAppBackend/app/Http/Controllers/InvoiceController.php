@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
+    const INVOICE_DP1 = 'DP';
+    const INVOICE_DP2 = 'DP2';
+    const INVOICE_FINAL = 'Final';
+
     public function get(Request $request, $id)
     {
         try {
@@ -44,7 +48,7 @@ class InvoiceController extends Controller
                         $spareParts[] = [
                             'sparepart_id' => $sparepart->id ?? '',
                             'sparepart_name' => $sparepart->sparepart_name ?? '',
-                            'sparepart_number' => $sparepart->part_number ?? '',
+                            'sparepart_number' => $sparepart->sparepart_number ?? '',
                             'quantity' => $detail->quantity ?? 0,
                             'unit_price_sell' => $detail->unit_price ?? 0,
                             'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
@@ -60,14 +64,23 @@ class InvoiceController extends Controller
                 }
             }
 
+            $downPayment = $proformaInvoice->down_payment ?? 0;
+            $subtotal = $quotation->subtotal ?? 0;
+            $subtotalCalculated = $invoice->invoice_type === self::INVOICE_DP1 ? $subtotal * $downPayment / 100 : ($invoice->invoice_type === self::INVOICE_DP2 ? $subtotal * (100-$downPayment) / 100 : $subtotal);
+            $grandTotal = $quotation->grand_total ?? 0;
+            $grandTotalCalculated = $invoice->invoice_type === self::INVOICE_DP1 ? $grandTotal * $downPayment / 100 : ($invoice->invoice_type === self::INVOICE_DP2 ? $grandTotal * (100-$downPayment) / 100 : $grandTotal);
+
             $formattedInvoice = [
                 'id' => (string) $invoice->id,
                 'invoice' => [
                     'invoice_number' => $invoice->invoice_number,
                     'date' => $invoice->invoice_date,
+                    'type' => $invoice->invoice_type ?? '',
                     'term_of_payment' => $invoice->term_of_payment ?? '',
-                    'subtotal' => $quotation->subtotal ?? 0,
-                    'grand_total' => $quotation->grand_total ?? 0,
+                    'subtotal' => $subtotalCalculated,
+                    'grand_total' => $grandTotalCalculated,
+                    'version' => $invoice->version,
+                    'down_payment' => $downPayment,
                 ],
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
@@ -165,7 +178,7 @@ class InvoiceController extends Controller
                 ->getQuery()
                 ->select('invoice_number', DB::raw('MAX(id) as max_id'))
                 ->groupBy('invoice_number')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) DESC');
+                ->orderByRaw('CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(invoice_number, \'/\', 2), \'/\', -1) AS UNSIGNED) ASC, version ASC');
 
             $paginatedGroups = DB::table(DB::raw("({$grouped->toSql()}) as grouped"))
                 ->mergeBindings($grouped)
@@ -219,7 +232,7 @@ class InvoiceController extends Controller
                             $spareParts[] = [
                                 'sparepart_id' => $sparepart->id ?? '',
                                 'sparepart_name' => $sparepart->sparepart_name ?? '',
-                                'sparepart_number' => $sparepart->part_number ?? '',
+                                'sparepart_number' => $sparepart->sparepart_number ?? '',
                                 'quantity' => $detail->quantity ?? 0,
                                 'unit_price_sell' => $detail->unit_price ?? 0,
                                 'total_price' => ($detail->quantity * ($detail->unit_price ?? 0))
@@ -241,8 +254,10 @@ class InvoiceController extends Controller
                         'invoice_number' => $invoice->invoice_number,
                         'date' => $invoice->invoice_date,
                         'term_of_payment' => $invoice->term_of_payment ?? '',
+                        'type' => $invoice->invoice_type ?? '',
                         'subtotal' => $quotation->subtotal ?? 0,
                         'grand_total' => $quotation->grand_total ?? 0,
+                        'version' => $invoice->version,
                     ],
                     'purchase_order' => [
                         'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
@@ -290,6 +305,102 @@ class InvoiceController extends Controller
                 ]
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
+    public function setInvoiceType(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $invoice = Invoice::findOrFail($id);
+            $type = $request->input('type');
+
+            if (!in_array($type, [self::INVOICE_DP1, self::INVOICE_FINAL, self::INVOICE_DP2])) {
+                return response()->json([
+                    'message' => 'Invalid invoice type. Allowed values are "' . self::INVOICE_DP1 . '", "' . self::INVOICE_DP2 . '" or "' . self::INVOICE_FINAL . '".'
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // Find the latest versioned invoice for this proforma invoice
+            $latestInvoice = Invoice::where('proforma_invoice_id', $invoice->proforma_invoice_id)
+                ->orderBy('version', 'desc')
+                ->lockForUpdate()
+                ->first();
+
+            if(($type === self::INVOICE_DP1 && $latestInvoice->invoice_type != self::INVOICE_DP1) || $type === self::INVOICE_FINAL) {
+                if ($latestInvoice->version > 0) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'Cannot create DP1 invoice. An invoice version already exists.'
+                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
+                }
+                $latestVersion = $latestInvoice ? $latestInvoice->version : 0;
+                $newVersion = $latestVersion + 1;
+                $newInvoiceNumber = $latestInvoice->invoice_number;
+
+                $newInvoice = Invoice::create([
+                    'proforma_invoice_id' => $invoice->proforma_invoice_id,
+                    'invoice_number' => $newInvoiceNumber,
+                    'invoice_date' => now(),
+                    'invoice_type' => $type,
+                    'version' => $newVersion,
+                    'employee_id' => $invoice->employee_id,
+                    'term_of_payment' => $invoice->term_of_payment,
+                ]);
+
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'Invoice created successfully',
+                    'data' => [
+                        'id' => (string) $newInvoice->id,
+                        'invoice_number' => $newInvoice->invoice_number,
+                        'invoice_type' => $newInvoice->invoice_type,
+                        'version' => $newInvoice->version,
+                    ]
+                ], Response::HTTP_OK);
+            }
+            else {
+                if ($latestInvoice->invoice_type != self::INVOICE_DP1) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'Cannot create DP2 invoice. A DP1 invoice version must exist and be the latest version.'
+                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
+                }
+
+                $latestVersion = $latestInvoice ? $latestInvoice->version : 0;
+                $newVersion = $latestVersion + 1;
+
+                $parts = explode('/', $latestInvoice->invoice_number);
+                $number = intval($parts[1] ?? 0);
+                $parts[1] = str_pad($number + 1, 1, '0', STR_PAD_LEFT);
+                $newInvoiceNumber = implode('/', $parts);
+
+                $newInvoice = Invoice::create([
+                    'proforma_invoice_id' => $invoice->proforma_invoice_id,
+                    'invoice_number' => $newInvoiceNumber,
+                    'invoice_date' => now(),
+                    'invoice_type' => self::INVOICE_DP2,
+                    'version' => $newVersion,
+                    'employee_id' => $invoice->employee_id,
+                    'term_of_payment' => $invoice->term_of_payment,
+                ]);
+
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'Invoice created successfully',
+                    'data' => [
+                        'id' => (string) $newInvoice->id,
+                        'invoice_number' => $newInvoice->invoice_number,
+                        'invoice_type' => $newInvoice->invoice_type,
+                        'version' => $newInvoice->version,
+                    ]
+                ], Response::HTTP_OK);
+            }
+        } catch (\Throwable $th) {
+            DB::rollBack();
             return $this->handleError($th);
         }
     }

@@ -145,9 +145,6 @@ class SparepartController extends Controller
                 Excel::import($import, $finalPath);
                 DB::commit();
 
-                // Clean up merged file now that import succeeded
-                @unlink($finalPath);
-
                 return response()->json([
                     'message' => 'Spareparts data updated successfully',
                     'data' => [
@@ -157,15 +154,15 @@ class SparepartController extends Controller
                 ], Response::HTTP_OK);
             } catch (ValidationException $e) {
                 DB::rollBack();
-                @unlink($finalPath);
                 return response()->json([
                     'message' => 'Validation error in Excel file',
                     'errors' => $e->errors(),
                 ], Response::HTTP_BAD_REQUEST);
             } catch (\Exception $e) {
                 DB::rollBack();
-                @unlink($finalPath);
                 throw $e;
+            } finally {
+                @unlink($finalPath);
             }
         } catch (\Throwable $th) {
             return $this->handleError($th, 'Error processing spareparts data');
@@ -308,7 +305,7 @@ class SparepartController extends Controller
             'sparepartName' => 'required|string|max:255',
             'totalUnit' => 'required|array',
             'totalUnit.*.name' => 'required|string|max:255',
-            'totalUnit.*.stock' => 'required|integer|min:0',
+            'totalUnit.*.stock' => 'required|integer',
             'unitPriceBuy' => 'nullable|numeric|min:0',
             'unitPriceSell' => 'required|numeric|min:0',
             'unitPriceSeller' => 'present|array',
@@ -493,8 +490,6 @@ class SparepartController extends Controller
                 'stock' => (int) ($stock['quantity'] ?? 0),
             ];
         })->values()->toArray();
-        $branchName = $branchStock['branch'] ?? null;
-        $branchCode = $branchStock['branch_code'] ?? null;
 
         $response = [
             'id' => $sparepart->id ?? '',
@@ -503,8 +498,6 @@ class SparepartController extends Controller
             'sparepart_name' => $sparepart->sparepart_name ?? '',
             // 'total_unit' => $totalUnit,
             'total_unit' => $totalUnitByBranch,
-            'branch' => $branchName,
-            'branch_code' => $branchCode,
             'unit_price_buy' => $sparepart->unit_price_buy,
             'unit_price_sell' => $sparepart->unit_price_sell,
             'unit_price_seller' => $sparepart->detailSpareparts->map(function ($detail) {
@@ -583,7 +576,7 @@ class SparepartController extends Controller
             return null;
         }
 
-        $branch = $this->resolveBranchModel($user->branch ?? null);
+        $branch = $user->branch;
 
         return $branch?->id;
     }
@@ -592,7 +585,7 @@ class SparepartController extends Controller
     {
         $record = $this->stockService->ensureStockRecord($sparepart, $branch, true);
         $oldQuantity = (int) $record->quantity;
-        $newQuantity = max(0, $quantity);
+        $newQuantity = $quantity;
         $record->quantity = $newQuantity;
         $record->save();
 
@@ -654,7 +647,7 @@ class SparepartController extends Controller
                     $poIds = PurchaseOrder::whereHas('quotation', function($q) use ($filterId) {
                         $q->where('customer_id', $filterId);
                     })->pluck('id');
-                    
+
                     $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
                     $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
                     $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
@@ -682,7 +675,7 @@ class SparepartController extends Controller
                         $sub->where('sparepart_name', 'like', "%{$search}%")
                             ->orWhere('sparepart_number', 'like', "%{$search}%");
                     });
-                    
+
                     $q->orWhereHas('employee', function ($sub) use ($search) {
                         $sub->where('fullname', 'like', "%{$search}%");
                     });
@@ -692,7 +685,7 @@ class SparepartController extends Controller
                     })->pluck('id');
 
                     $poIdsByNumber = PurchaseOrder::where('purchase_order_number', 'like', "%{$search}%")->pluck('id');
-                    
+
                     $poIds = $poIdsByCustomer->merge($poIdsByNumber)->unique();
 
                     if ($poIds->isNotEmpty()) {

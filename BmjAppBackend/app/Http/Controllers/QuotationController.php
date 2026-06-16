@@ -134,7 +134,7 @@ class QuotationController extends Controller
             $currentMonth = Carbon::now()->month; // e.g., 7 for July
             $romanMonth = $this->getRomanMonth($currentMonth); // e.g., VII
             $currentYear = Carbon::now()->format('Y'); // Four-digit year
-            $branchIdentifier = $request->input('project.branch', $user->branch);
+            $branchIdentifier = $request->input('project.branch', $user->branch?->name);
             $branchModel = $this->resolveBranchModel($branchIdentifier);
 
             if (!$branchModel) {
@@ -2348,11 +2348,8 @@ class QuotationController extends Controller
             return $quotation->branch->id;
         }
 
-        $branch = $this->resolveBranchModel(optional($quotation->employee)->branch);
-
-        if (!$branch) {
-            $branch = $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
-        }
+        $branch = optional($quotation->employee)->branch
+            ?? $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
 
         if (!$branch) {
             throw new \RuntimeException('Unable to resolve branch for quotation ' . $quotation->id);

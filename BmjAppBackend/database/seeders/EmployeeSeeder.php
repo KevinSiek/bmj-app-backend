@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Http\Controllers\EmployeeController;
+use App\Models\Branch;
 use App\Models\Employee;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -12,10 +13,12 @@ class EmployeeSeeder extends Seeder
 {
     public function run(): void
     {
+        $branchMap = Branch::all()->keyBy(fn($b) => strtolower($b->name));
+
         $employees = [
             // Directors
-            ['fullname' => 'Budi Hartono', 'role' => 'Director', 'branch' => EmployeeController::JAKARTA, 'email' => 'director.jkt@bmj.com', 'username' => 'director_jkt'],
-            ['fullname' => 'Susilo Bambang', 'role' => 'Director', 'branch' => EmployeeController::SEMARANG, 'email' => 'director.smg@bmj.com', 'username' => 'director_smg'],
+            ['fullname' => 'Director Jakarta', 'role' => 'Director', 'branch' => EmployeeController::JAKARTA, 'email' => 'director.jkt@bmj.com', 'username' => 'director_jkt'],
+            ['fullname' => 'Director Semarang', 'role' => 'Director', 'branch' => EmployeeController::SEMARANG, 'email' => 'director.smg@bmj.com', 'username' => 'director_smg'],
             // Marketing
             ['fullname' => 'Citra Kirana', 'role' => 'Marketing', 'branch' => EmployeeController::JAKARTA, 'email' => 'citra.k@bmj.com', 'username' => 'citra_k'],
             ['fullname' => 'Dewi Lestari', 'role' => 'Marketing', 'branch' => EmployeeController::JAKARTA, 'email' => 'dewi.l@bmj.com', 'username' => 'dewi_l'],
@@ -34,14 +37,15 @@ class EmployeeSeeder extends Seeder
         ];
 
         foreach ($employees as $emp) {
+            $branch = $branchMap[strtolower($emp['branch'])] ?? null;
             Employee::create([
                 'fullname' => $emp['fullname'],
-                'branch' => $emp['branch'],
+                'branch_id' => $branch?->id,
                 'slug' => Str::slug($emp['fullname']) . '-' . strtolower(Str::random(4)),
                 'role' => $emp['role'],
                 'email' => $emp['email'],
                 'username' => $emp['username'],
-                'password' => Hash::make('password'), // Common password for all seeded users
+                'password' => Hash::make('password'),
                 'temp_password' => null,
                 'temp_pass_already_use' => true,
             ]);

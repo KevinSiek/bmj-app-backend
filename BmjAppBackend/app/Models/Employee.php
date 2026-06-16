@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Branch;
 
 class Employee extends Authenticatable
 {
@@ -14,7 +15,7 @@ class Employee extends Authenticatable
 
     protected $fillable = [
         'fullname',
-        'branch',
+        'branch_id',
         'slug',
         'role',
         'email',
@@ -31,6 +32,11 @@ class Employee extends Authenticatable
         'temp_pass_expires_at' => 'datetime',
         'must_change_password' => 'boolean',
     ];
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
 
     public function quotations()
     {
