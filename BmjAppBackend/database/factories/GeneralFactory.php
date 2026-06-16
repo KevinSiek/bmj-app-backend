@@ -20,8 +20,8 @@ class GeneralFactory extends Factory
     public function definition()
     {
         return [
-            'discount' => 0.1,
-            'ppn' => 0.11,
+            'discount' => 10,
+            'ppn' => 11,
             'currency_converter' => 110.8
         ];
     }

@@ -14,8 +14,8 @@ class GeneralSeeder extends Seeder
 
         // Create a single, realistic general settings record
         General::create([
-            'discount' => 0.05, // 5% default discount
-            'ppn' => 0.11,      // 11% PPN
+            'discount' => 5, // 5% default discount
+            'ppn' => 11,      // 11% PPN
             'currency_converter' => 15000.00 // Example USD to IDR rate
         ]);
     }

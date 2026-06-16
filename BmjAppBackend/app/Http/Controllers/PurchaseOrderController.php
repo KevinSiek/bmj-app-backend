@@ -81,8 +81,6 @@ class PurchaseOrderController extends Controller
             $formattedPurchaseOrder = [
                 'id' => (string) ($purchaseOrder->id ?? ''),
                 'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
-                'po_number' => $purchaseOrder->po_number ?? '',
-                'created_by_name' => $purchaseOrder->employee->fullname ?? '',
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                     'po_number' => $purchaseOrder->po_number ?? '',
@@ -294,7 +292,6 @@ class PurchaseOrderController extends Controller
                 return [
                     'id' => (string) ($po->id ?? ''),
                     'purchase_order_number' => $po->purchase_order_number ?? '',
-                    'po_number' => $po->po_number ?? '',
                     'purchase_order' => [
                         'purchase_order_number' => $po->purchase_order_number ?? '',
                         'po_number' => $po->po_number ?? '',
