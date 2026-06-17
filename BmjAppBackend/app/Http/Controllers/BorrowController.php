@@ -549,15 +549,24 @@ class BorrowController extends Controller
                 $detail->quantity_return = $qtyReturn;
                 $detail->save();
 
-                if ($qtyReturn > 0 && $detail->sparepart) {
+                // If there's a covering PO, the PO already debited the shortfall. We must credit
+                // the full borrowed amount (returned + shortfall) back to inventory to prevent
+                // double-debiting.
+                $creditQty = $qtyReturn;
+                $shortfall = $detail->quantity - $qtyReturn;
+                if ($shortfall > 0 && $sparepartPoId) {
+                    $creditQty += $shortfall;
+                }
+
+                if ($creditQty > 0 && $detail->sparepart) {
                     $this->stockService->increase(
                         $detail->sparepart,
                         $borrow->branch_id,
-                        $qtyReturn,
+                        $creditQty,
                         'Borrow',
                         $borrow->id,
                         $request->user()->id,
-                        'Borrow returned (reconciliation)'
+                        'Borrow returned (reconciliation)' . ($shortfall > 0 ? " + offset $shortfall for PO debit" : '')
                     );
                 }
             }
@@ -701,12 +710,7 @@ class BorrowController extends Controller
             return null;
         }
 
-        $normalized = strtolower($user->branch);
-
-        return Branch::query()
-            ->whereRaw('LOWER(name) = ?', [$normalized])
-            ->orWhereRaw('LOWER(code) = ?', [$normalized])
-            ->first();
+        return $user->branch;
     }
 
     protected function generateBorrowNumber(Branch $branch, $user): string

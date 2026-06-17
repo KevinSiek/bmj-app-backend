@@ -256,7 +256,6 @@ class BackOrderController extends Controller
             $branchId = $this->resolveQuotationBranchId($quotation);
 
             $missingItems = [];
-            $totalAvailable = 0;
 
             foreach ($backOrder->detailBackOrders as $detail) {
                 if ($detail->number_back_order <= 0) continue;
@@ -269,9 +268,6 @@ class BackOrderController extends Controller
                     $availableStock = $this->stockService->getQuantity($sparepart, $branchId);
                 }
 
-                $take = min($availableStock, $detail->number_back_order);
-                $totalAvailable += $take;
-
                 if ($availableStock < $detail->number_back_order) {
                     $missingItems[] = [
                         'sparepart_name' => $sparepart->sparepart_name,
@@ -282,26 +278,15 @@ class BackOrderController extends Controller
                 }
             }
 
-            if ($totalAvailable == 0 && !empty($missingItems)) {
-                return response()->json([
-                    'message' => 'No stock available to process any items. Please create a Buy order to fulfill the missing items.',
-                    'total_available' => $totalAvailable,
-                    'missing_items' => $missingItems
-                ], Response::HTTP_OK);
-            }
-
             if (!empty($missingItems)) {
-                // Return OK so the frontend allows proceeding with partial fulfillment
                 return response()->json([
-                    'message' => 'Stock is partially sufficient. Some items will remain in back order.',
-                    'total_available' => $totalAvailable,
+                    'message' => 'Quantity is not enough please contact purchasing to add the stock',
                     'missing_items' => $missingItems
-                ], Response::HTTP_OK);
+                ], Response::HTTP_BAD_REQUEST);
             }
 
             return response()->json([
                 'message' => 'Stock is sufficient',
-                'total_available' => $totalAvailable,
             ], Response::HTTP_OK);
 
         } catch (\Throwable $th) {
@@ -352,100 +337,70 @@ class BackOrderController extends Controller
                 throw new \Exception('Quotation not found for purchase order #' . $purchaseOrder->purchase_order_number);
             }
 
-            // First pass: Validate stock and calculate how much we can take
-            $totalTaken = 0;
-            $takes = []; // Store how much to take for each detail ID
+            // First pass: Validate stock is still sufficient to prevent race conditions
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
-                if ($detailBackOrder->number_back_order <= 0) {
-                    $takes[$detailBackOrder->id] = 0;
-                    continue;
-                }
+                if ($detailBackOrder->number_back_order <= 0) continue;
                 $sparepart = Sparepart::find($detailBackOrder->sparepart_id);
                 $availableStock = $this->stockService->getQuantity($sparepart, $branchId);
-                
-                $take = min($availableStock, $detailBackOrder->number_back_order);
-                $takes[$detailBackOrder->id] = $take;
-                $totalTaken += $take;
+                if ($availableStock < $detailBackOrder->number_back_order) {
+                    throw new \Exception("Quantity is not enough please contact purchasing to add the stock for {$sparepart->sparepart_name}");
+                }
             }
 
-            if ($totalTaken == 0) {
-                // Allow processing even if totalTaken is 0 so the Back Order status updates.
-                // Missing items will be fulfilled later via Buy.
-            }
-
-            $allFulfilled = true;
-
-            // Second pass: Decrement stock and update quantities
+            // Second pass: Decrement stock since we are officially fulfilling this Back Order
             foreach ($backOrder->detailBackOrders as $detailBackOrder) {
                 if ($detailBackOrder->number_back_order <= 0) continue;
 
-                $take = $takes[$detailBackOrder->id] ?? 0;
-                
-                if ($take > 0) {
-                    $sparepart = Sparepart::lockForUpdate()->find($detailBackOrder->sparepart_id);
-                    if (!$sparepart) {
-                        throw new \Exception("Sparepart with ID {$detailBackOrder->sparepart_id} not found.");
-                    }
-
-                    if ($branchId && $sparepart) {
-                        $this->stockService->decrease(
-                            $sparepart,
-                            $branchId,
-                            (int) $take,
-                            'BackOrder',
-                            $backOrder->id,
-                            $user->id,
-                            'BackOrder processed'
-                        );
-                    }
-
-                    $detailBackOrder->number_delivery_order += $take;
-                    $detailBackOrder->number_back_order -= $take;
-                    $detailBackOrder->save();
-
-                    if ($quotation && $detailBackOrder->number_back_order == 0) {
-                        $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
-                            ->where('sparepart_id', $detailBackOrder->sparepart_id)
-                            ->lockForUpdate()
-                            ->first();
-
-                        if ($detailQuotation && $detailQuotation->is_indent) {
-                            $detailQuotation->is_indent = false;
-                            $detailQuotation->save();
-                        }
-                    }
+                $sparepart = Sparepart::lockForUpdate()->find($detailBackOrder->sparepart_id);
+                if (!$sparepart) {
+                    throw new \Exception("Sparepart with ID {$detailBackOrder->sparepart_id} not found.");
                 }
 
-                if ($detailBackOrder->number_back_order > 0) {
-                    $allFulfilled = false;
+                if ($branchId && $sparepart) {
+                    $this->stockService->decrease(
+                        $sparepart,
+                        $branchId,
+                        (int) $detailBackOrder->number_back_order,
+                        'BackOrder',
+                        $backOrder->id,
+                        $user->id,
+                        'BackOrder processed'
+                    );
+                }
+
+                if ($quotation) {
+                    $detailQuotation = DetailQuotation::where('quotation_id', $quotation->id)
+                        ->where('sparepart_id', $detailBackOrder->sparepart_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($detailQuotation && $detailQuotation->is_indent) {
+                        $detailQuotation->is_indent = false;
+                        $detailQuotation->save();
+                    }
                 }
             }
 
-            if ($allFulfilled) {
-                $backOrder->current_status = self::READY;
-                $backOrder->save();
+            $backOrder->current_status = self::READY;
+            $backOrder->save();
 
-                $purchaseOrder->current_status = PurchaseOrderController::PREPARE;
-                $purchaseOrder->save();
+            $purchaseOrder->current_status = PurchaseOrderController::PREPARE;
+            $purchaseOrder->save();
 
-                $currentQuotationStatus = $quotation->status ?? [];
-                if (!is_array($currentQuotationStatus)) {
-                    $currentQuotationStatus = [];
-                }
-
-                $currentQuotationStatus[] = [
-                    'state' => QuotationController::Inventory,
-                    'employee' => $user->username,
-                    'timestamp' => now()->toIso8601String(),
-                ];
-
-                $quotation->status = $currentQuotationStatus;
-                $quotation->current_status = QuotationController::Inventory;
-                $quotation->save();
-            } else {
-                // Partially fulfilled, stays in PROCESS. Touch updated_at to indicate it was processed.
-                $backOrder->touch();
+            $currentQuotationStatus = $quotation->status ?? [];
+            if (!is_array($currentQuotationStatus)) {
+                $currentQuotationStatus = [];
             }
+
+            $currentQuotationStatus[] = [
+                'state' => QuotationController::Inventory,
+                'employee' => $user->username,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            $quotation->status = $currentQuotationStatus;
+            $quotation->current_status = QuotationController::Inventory;
+            $quotation->save();
 
             DB::commit();
 
@@ -540,8 +495,11 @@ class BackOrderController extends Controller
             return $quotation->branch->id;
         }
 
-        $branch = optional($quotation->employee)->branch
-            ?? $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
+        $branch = $this->resolveBranchModel(optional($quotation->employee)->branch);
+
+        if (!$branch) {
+            $branch = $this->resolveBranchModel($this->extractBranchCode($quotation->quotation_number));
+        }
 
         if (!$branch) {
             return null;

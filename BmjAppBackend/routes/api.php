@@ -74,7 +74,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         });
     });
 
-    Route::middleware(['role:marketing,finance,inventory,inventory_admin,head_inventory,director'])->group(function () {
+    Route::middleware(['role:marketing,finance,inventory,inventory_admin,head_inventory,service,director'])->group(function () {
         Route::prefix('purchase-order')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'getAll']);
             Route::get('/return', [PurchaseOrderController::class, 'getAllReturned']);
@@ -82,11 +82,16 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
             Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
             Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
             Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
-            Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
             Route::post('/done/{id}', [PurchaseOrderController::class, 'done']);
             Route::post('/decline/{id}', [PurchaseOrderController::class, 'decline']);
             Route::put('/{id}', [PurchaseOrderController::class, 'update']);
             Route::post('/reject/{id}', [PurchaseOrderController::class, 'decline']);
+        });
+    });
+
+    Route::middleware(['role:inventory_admin,head_inventory,director'])->group(function () {
+        Route::prefix('purchase-order')->group(function () {
+            Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
         });
     });
 
@@ -152,11 +157,16 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
             Route::put('/{id}', [BuyController::class, 'update']);
             Route::delete('/{id}', [BuyController::class, 'destroy']);
 
+            Route::post('/done/{id}', [BuyController::class, 'done']);
+            Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
+        });
+    });
+
+    Route::middleware(['role:head_inventory,director'])->group(function () {
+        Route::prefix('buy')->group(function () {
             Route::post('/approve/{id}', [BuyController::class, 'approve']);
             Route::post('/reject/{id}', [BuyController::class, 'decline']);
             Route::post('/needChange/{id}', [BuyController::class, 'needChange']);
-            Route::post('/done/{id}', [BuyController::class, 'done']);
-            Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
         });
     });
 

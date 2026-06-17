@@ -224,6 +224,10 @@ class QuotationController extends Controller
 
             // Prevent an employee from creating a quotation for a customer handled by another employee.
             // Directors are exempt from this rule.
+            // TODO: FUTURE BUSINESS LOGIC REFINEMENT
+            // Re-evaluate customer ownership lock. Currently, it locks the customer to the marketer FOREVER.
+            // We may want to refine this so that if the existingQuotation is 'Rejected', 'Cancelled', or 'Declined', 
+            // the customer becomes "open" for another Marketing person to take over.
             if ($user->role !== 'Director') {
                 $existingQuotation = Quotation::where('customer_id', $customer->id)
                     ->latest('created_at') // Get the most recent quotation for this customer
