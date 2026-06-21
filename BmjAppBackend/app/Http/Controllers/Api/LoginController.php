@@ -101,6 +101,7 @@ class LoginController extends Controller
     {
         try {
             $user = $request->user();
+            $user->load('branch');
             return response()->json([
                 'user'    => $user,
             ], Response::HTTP_OK);
