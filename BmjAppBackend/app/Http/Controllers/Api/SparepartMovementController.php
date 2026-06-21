@@ -14,6 +14,12 @@ class SparepartMovementController extends Controller
 {
     protected $sparepartStockService;
 
+    // State
+    const CREATED = 'Created';
+    const SENT = 'Send';
+    const RECEIVED = 'Received';
+    const CANCELLED = 'Cancelled';
+
     public function __construct(SparepartStockService $sparepartStockService)
     {
         $this->sparepartStockService = $sparepartStockService;
@@ -48,6 +54,7 @@ class SparepartMovementController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'source_branch' => 'required|string',
             'target_branch' => 'required|string',
             'details' => 'required|array|min:1',
             'details.*.sparepart_id' => 'required|exists:spareparts,id',
@@ -60,7 +67,7 @@ class SparepartMovementController extends Controller
         // Check stock availability in source branch BEFORE creating the movement
         foreach ($request->details as $item) {
             $sparepart = Sparepart::findOrFail($item['sparepart_id']);
-            if (!$this->sparepartStockService->hasSufficientStock($sparepart, $user->branch, $item['quantity'])) {
+            if (!$this->sparepartStockService->hasSufficientStock($sparepart, $request->source_branch, $item['quantity'])) {
                 return response()->json([
                     'message' => 'Insufficient stock for sparepart: ' . $sparepart->sparepart_name
                 ], 400);
@@ -78,11 +85,11 @@ class SparepartMovementController extends Controller
             $movement = SparepartMovement::create([
                 'movement_number' => $movementNumber,
                 'employee_id' => $user->id,
-                'source_branch' => $user->branch,
+                'source_branch' => $request->source_branch,
                 'target_branch' => $request->target_branch,
                 'current_status' => 'Created',
                 'status' => [
-                    ['status' => 'Created', 'date' => now(), 'by' => $user->fullname]
+                    ['state' => 'Created', 'timestamp' => now(), 'employee' => $user->fullname]
                 ],
                 'reason' => $request->reason,
             ]);
@@ -109,24 +116,52 @@ class SparepartMovementController extends Controller
 
     public function send(Request $request, $id)
     {
-        $movement = SparepartMovement::findOrFail($id);
+        $movement = SparepartMovement::with('detailSparepartMovements')->findOrFail($id);
         $user = $request->user();
 
         if ($movement->current_status !== 'Created') {
             return response()->json(['message' => 'Only Created movement can be sent'], 400);
         }
 
-        if ($movement->source_branch !== $user->branch) {
+        if ($movement->source_branch !== $user->branch && $user->role !== 'Director') {
              return response()->json(['message' => 'Only source branch inventory can send this movement'], 403);
         }
 
-        $movement->current_status = 'Send';
-        $statusArray = $movement->status ?? [];
-        $statusArray[] = ['status' => 'Send', 'date' => now(), 'by' => $user->fullname];
-        $movement->status = $statusArray;
-        $movement->save();
+        try {
+            DB::beginTransaction();
 
-        return response()->json(['message' => 'Stock Movement sent successfully', 'data' => $movement]);
+            // Decrease stock in source branch
+            foreach ($movement->detailSparepartMovements as $detail) {
+                $sparepart = Sparepart::findOrFail($detail->sparepart_id);
+
+                if (!$this->sparepartStockService->hasSufficientStock($sparepart, $movement->source_branch, $detail->quantity)) {
+                    throw new \Exception('Insufficient stock for sparepart: ' . $sparepart->sparepart_name . ' in source branch.');
+                }
+
+                $this->sparepartStockService->decrease(
+                    $sparepart,
+                    $movement->source_branch,
+                    $detail->quantity,
+                    'SparepartMovement',
+                    $movement->id,
+                    $user->id,
+                    'Stock Transfer to ' . $movement->target_branch
+                );
+            }
+
+            $movement->current_status = 'Send';
+            $statusArray = $movement->status ?? [];
+            $statusArray[] = ['state' => 'Send', 'timestamp' => now(), 'employee' => $user->fullname];
+            $movement->status = $statusArray;
+            $movement->save();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Stock Movement sent successfully', 'data' => $movement]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Failed to send Stock Movement: ' . $e->getMessage()], 400);
+        }
     }
 
     public function cancel(Request $request, $id)
@@ -138,13 +173,13 @@ class SparepartMovementController extends Controller
             return response()->json(['message' => 'Only Created movement can be cancelled'], 400);
         }
 
-        if ($movement->source_branch !== $user->branch) {
+        if ($movement->source_branch !== $user->branch && $user->role !== 'Director') {
              return response()->json(['message' => 'Only source branch inventory can cancel this movement'], 403);
         }
 
         $movement->current_status = 'Cancelled';
         $statusArray = $movement->status ?? [];
-        $statusArray[] = ['status' => 'Cancelled', 'date' => now(), 'by' => $user->fullname];
+        $statusArray[] = ['state' => 'Cancelled', 'timestamp' => now(), 'employee' => $user->fullname];
         $movement->status = $statusArray;
         $movement->save();
 
@@ -169,27 +204,13 @@ class SparepartMovementController extends Controller
 
             $movement->current_status = 'Received';
             $statusArray = $movement->status ?? [];
-            $statusArray[] = ['status' => 'Received', 'date' => now(), 'by' => $user->fullname];
+            $statusArray[] = ['state' => 'Received', 'timestamp' => now(), 'employee' => $user->fullname];
             $movement->status = $statusArray;
             $movement->save();
 
+            // Increase stock in target branch
             foreach ($movement->detailSparepartMovements as $detail) {
                 $sparepart = Sparepart::findOrFail($detail->sparepart_id);
-
-                // Check again to ensure stock hasn't dropped below requirement since creation
-                if (!$this->sparepartStockService->hasSufficientStock($sparepart, $movement->source_branch, $detail->quantity)) {
-                     throw new \Exception('Insufficient stock for sparepart: ' . $sparepart->sparepart_name . ' in source branch.');
-                }
-
-                $this->sparepartStockService->decrease(
-                    $sparepart,
-                    $movement->source_branch,
-                    $detail->quantity,
-                    'SparepartMovement',
-                    $movement->id,
-                    $user->id,
-                    'Stock Transfer to ' . $movement->target_branch
-                );
 
                 $this->sparepartStockService->increase(
                     $sparepart,
