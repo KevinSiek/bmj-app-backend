@@ -52,6 +52,7 @@ class QuotationController extends Controller
     // Status for whole quotation
     const PO = 'Po';
     const PI = 'Pi';
+    const BO = 'Bo';
     const Inventory = 'Inventory';
     const PAID = 'Paid';
     const DP_PAID = 'DP Paid';
@@ -226,7 +227,7 @@ class QuotationController extends Controller
             // Directors are exempt from this rule.
             // TODO: FUTURE BUSINESS LOGIC REFINEMENT
             // Re-evaluate customer ownership lock. Currently, it locks the customer to the marketer FOREVER.
-            // We may want to refine this so that if the existingQuotation is 'Rejected', 'Cancelled', or 'Declined', 
+            // We may want to refine this so that if the existingQuotation is 'Rejected', 'Cancelled', or 'Declined',
             // the customer becomes "open" for another Marketing person to take over.
             if ($user->role !== 'Director') {
                 $existingQuotation = Quotation::where('customer_id', $customer->id)
@@ -672,6 +673,8 @@ class QuotationController extends Controller
 
     public function needChange(Request $request, $slug)
     {
+        $request->validate(['notes' => 'required|string']);
+
         // Start a database transaction
         DB::beginTransaction();
 
@@ -694,6 +697,8 @@ class QuotationController extends Controller
 
             $quotation->review = false; // Make it false, because it need to be review again
             $quotation->current_status = QuotationController::NEED_CHANGE;
+            $existing = $quotation->notes ? $quotation->notes . "\n" : '';
+            $quotation->notes = $existing . '[Director Review]: ' . $request->input('notes');
             $quotation->save();
 
             // Commit the transaction
@@ -765,6 +770,8 @@ class QuotationController extends Controller
 
     public function decline(Request $request, $slug)
     {
+        $request->validate(['notes' => 'required|string']);
+
         // Start a database transaction
         DB::beginTransaction();
 
@@ -796,6 +803,8 @@ class QuotationController extends Controller
 
             $quotation->review = true;
             $quotation->current_status = QuotationController::REJECTED;
+            $existing = $quotation->notes ? $quotation->notes . "\n" : '';
+            $quotation->notes = $existing . '[Director Review]: ' . $request->input('notes');
             $quotation->save();
 
             // Commit the transaction
@@ -1188,6 +1197,8 @@ class QuotationController extends Controller
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
+                // is_direct is determined after stock evaluation; we start as false and
+                // update it below once we know whether any item had a backorder shortfall.
                 try {
                     // Expected quotation_number format: QUOT/033/BMJ-MEGAH/SMG/1/07/2025
                     $parts = explode('/', $quotation->quotation_number);
@@ -1197,6 +1208,7 @@ class QuotationController extends Controller
                         'purchase_order_id' => $purchaseOrder->id,
                         'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}",
                         'current_status' => BackOrderController::PROCESS,
+                        'is_direct' => false,
                     ]);
                 } catch (\Throwable $th) {
                     // Create BackOrder for Spareparts
@@ -1208,6 +1220,7 @@ class QuotationController extends Controller
                         'purchase_order_id' => $purchaseOrder->id,
                         'back_order_number' => "BO/{$boNumber}/BMJ-MEGAH/{$branchCode}/{$romanMonth}/{$year}",
                         'current_status' => BackOrderController::PROCESS,
+                        'is_direct' => false,
                     ]);
                 }
 
@@ -1262,7 +1275,7 @@ class QuotationController extends Controller
                                 'PurchaseOrder',
                                 $purchaseOrder->id,
                                 $request->user()?->id,
-                                'moveToPo decrement'
+                                'Create PO decrement'
                             );
                         }
 
@@ -1281,13 +1294,32 @@ class QuotationController extends Controller
                         ]);
                     }
 
-                    // If no backorder spareparts, update BackOrder to READY
+                    // If there is backorder sparepart, update quotation status to BO
+                    if ($hasBoSparepart) {
+                        $quotationStatus = $quotation->status ?? [];
+                        if (!is_array($quotationStatus)) {
+                            $quotationStatus = [];
+                        }
+
+                        $quotationStatus[] = [
+                            'state' => self::BO,
+                            'employee' => $user->username,
+                            'timestamp' => now()->toIso8601String(),
+                        ];
+
+                        $quotation->update([
+                            'status' => $quotationStatus,
+                            'current_status' => self::BO,
+                        ]);
+                    }
+
+                    // If no backorder spareparts, all stock was available — BO goes directly READY
                     if (!$hasBoSparepart) {
-                        $backOrder->update(['current_status' => BackOrderController::READY]);
+                        $backOrder->update(['current_status' => BackOrderController::READY, 'is_direct' => true]);
                     }
                 } else {
-                    // Directly change BO status to ready if this quotation number has quotation that returned.
-                    $backOrder->update(['current_status' => BackOrderController::READY]);
+                    // Returned quotation path — BO skips processing and goes directly READY
+                    $backOrder->update(['current_status' => BackOrderController::READY, 'is_direct' => true]);
                 }
             }
 
@@ -2274,18 +2306,25 @@ class QuotationController extends Controller
     {
         try {
             $user = $request->user();
-            $userId = $user->id;
             $role = $user->role;
-            $quotation = Quotation::with('customer')
-                ->where('employee_id', $userId);
 
-            // Allow director to see all quotation
-            if ($role == 'Director' || $role == 'Finance') {
-                $quotation = Quotation::with('customer');
+            // Directors and Finance see everything.
+            if ($role === 'Director' || $role === 'Finance') {
+                return Quotation::with('customer');
             }
 
-            // Return the response with transformed data and pagination details
-            return $quotation;
+            // Employees in a group see quotations from all group members.
+            if ($user->group_id) {
+                $groupMemberIds = \App\Models\Employee::where('group_id', $user->group_id)
+                    ->pluck('id');
+
+                return Quotation::with('customer')
+                    ->whereIn('employee_id', $groupMemberIds);
+            }
+
+            // No group — see only own quotations.
+            return Quotation::with('customer')
+                ->where('employee_id', $user->id);
         } catch (\Throwable $th) {
             echo ('Error at getAccessedQuotation: ' . $th->getMessage());
             return [];
