@@ -12,6 +12,7 @@ class DetailBuy extends Model
     protected $fillable = [
         'buy_id',
         'sparepart_id',
+        'seller_id',
         'quantity',
         'unit_price',
     ];
@@ -24,5 +25,10 @@ class DetailBuy extends Model
     public function sparepart()
     {
         return $this->belongsTo(Sparepart::class);
+    }
+
+    public function seller()
+    {
+        return $this->belongsTo(Seller::class);
     }
 }
