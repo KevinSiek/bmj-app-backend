@@ -74,9 +74,7 @@ class BuyController extends Controller
                 'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
                 'spareparts.*.unitPriceBuy' => 'required|numeric|min:1',
-                'spareparts.*.selectedSeller' => 'nullable|array',
-                'spareparts.*.selectedSeller.seller' => 'required_with:spareparts.*.selectedSeller|string',
-                'spareparts.*.selectedSeller.price' => 'required_with:spareparts.*.selectedSeller|numeric|min:0',
+                'spareparts.*.seller' => 'nullable|string',
             ]);
 
             $buyNumber = '';
@@ -133,9 +131,9 @@ class BuyController extends Controller
                 $quantityOrderSparepart = $spareparts['quantity'];
 
                 $sellerId = null;
-                if (!empty($spareparts['selectedSeller']['seller'])) {
+                if (!empty($spareparts['seller'])) {
                     $seller = Seller::firstOrCreate(
-                        ['name' => $spareparts['selectedSeller']['seller']]
+                        ['name' => $spareparts['seller']]
                     );
                     $sellerId = $seller->id;
                 }
@@ -198,9 +196,7 @@ class BuyController extends Controller
                 'spareparts.*.sparepartId' => 'required_with:spareparts|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required_with:spareparts|integer|min:1',
                 'spareparts.*.unitPriceBuy' => 'required_with:spareparts|numeric|min:1',
-                'spareparts.*.selectedSeller' => 'nullable|array',
-                'spareparts.*.selectedSeller.seller' => 'required_with:spareparts.*.selectedSeller|string',
-                'spareparts.*.selectedSeller.price' => 'required_with:spareparts.*.selectedSeller|numeric|min:0',
+                'spareparts.*.seller' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -251,9 +247,9 @@ class BuyController extends Controller
                     }
 
                     $sellerId = null;
-                    if (!empty($sparepart['selectedSeller']['seller'])) {
+                    if (!empty($sparepart['seller'])) {
                         $seller = Seller::firstOrCreate(
-                            ['name' => $sparepart['selectedSeller']['seller']]
+                            ['name' => $sparepart['seller']]
                         );
                         $sellerId = $seller->id;
                     }
@@ -272,7 +268,7 @@ class BuyController extends Controller
             }
 
             // Fetch updated buy with relations for response
-            $updatedBuy = Buy::with('detailBuys.sparepart')->findOrFail($buy->id);
+            $updatedBuy = Buy::with('detailBuys.sparepart', 'detailBuys.seller')->findOrFail($buy->id);
 
             // Calculate total purchase amount
             $totalPurchase = $updatedBuy->detailBuys->sum(function ($detail) {
@@ -287,6 +283,7 @@ class BuyController extends Controller
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
+                    'seller' => $detail->seller?->name ?? null,
                 ];
             });
 

@@ -883,6 +883,28 @@ class SparepartController extends Controller
         }
     }
 
+    public function getSellers($id)
+    {
+        try {
+            $sellers = DetailSparepart::with('seller')
+                ->where('sparepart_id', $id)
+                ->whereNotNull('seller_id')
+                ->get()
+                ->map(fn($detail) => [
+                    'seller' => $detail->seller?->name,
+                    'price'  => $detail->unit_price,
+                ])
+                ->values();
+
+            return response()->json([
+                'message' => 'Sellers retrieved successfully',
+                'data' => $sellers,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
+    }
+
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {

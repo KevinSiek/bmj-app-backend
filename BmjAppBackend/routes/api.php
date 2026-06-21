@@ -153,6 +153,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);
+            Route::get('/{id}/details', [BuyController::class, 'getDetails']);
             Route::get('/{id}', [BuyController::class, 'get']);
             Route::post('/', [BuyController::class, 'store']);
             Route::put('/{id}', [BuyController::class, 'update']);
@@ -241,6 +242,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
     Route::middleware(['role:inventory_purchase,inventory_admin,marketing,inventory,head_inventory,director'])->group(function () {
         Route::prefix('sparepart')->group(function () {
             Route::get('/', [SparepartController::class, 'getAll']);
+            Route::get('/{id}/sellers', [SparepartController::class, 'getSellers']);
             Route::get('/{id}', [SparepartController::class, 'get']);
             Route::post('/', [SparepartController::class, 'store']);
             Route::put('/{id}', [SparepartController::class, 'update']);
