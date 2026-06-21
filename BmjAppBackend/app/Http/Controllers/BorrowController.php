@@ -16,12 +16,13 @@ use App\Services\SparepartStockService;
 class BorrowController extends Controller
 {
     // Lifecycle: Created -> Approved -> Borrowed (Send decreases stock) ->
-    // Returned (Kembali) -> Done (reconciliation increases returned stock).
+    // Returned (Return) -> Done (reconciliation increases returned stock).
     // Side-exits: Rejected (reviewer, from Created), Cancelled (Marketing, from Created).
     const CREATED = 'Created';
     const APPROVED = 'Approved';
     const BORROWED = 'Borrowed';
     const RETURNED = 'Returned';
+    const RECEIVED = 'Received';
     const DONE = 'Done';
     const REJECTED = 'Rejected';
     const CANCELLED = 'Cancelled';
@@ -37,7 +38,7 @@ class BorrowController extends Controller
     {
         try {
             $query = $this->getAccessedBorrow($request)
-                ->with(['detailBorrows.sparepart', 'branch', 'employee', 'purchaseOrder.quotation', 'purchaseOrder.workOrder']);
+                ->with(['detailBorrows.sparepart', 'branch', 'employee', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']);
 
             if ($request->query('sort_date') === 'asc') {
                 $query->orderBy('created_at', 'asc');
@@ -162,7 +163,7 @@ class BorrowController extends Controller
     {
         try {
             $borrow = $this->getAccessedBorrow($request)
-                ->with(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder'])
+                ->with(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo'])
                 ->findOrFail($id);
 
             return response()->json([
@@ -182,13 +183,15 @@ class BorrowController extends Controller
             'spareparts' => 'required|array|min:1',
             'spareparts.*.sparepartId' => 'required|exists:spareparts,id|distinct',
             'spareparts.*.quantity' => 'required|integer|min:1',
+            'branch' => 'sometimes|nullable|exists:branches,id', // Optional branch override for Directors
         ]);
 
         DB::beginTransaction();
 
         try {
             $user = $request->user();
-            $branch = $this->resolveUserBranch($user);
+            $branchId = $request->input('branch');
+            $branch = $branchId ? Branch::find($branchId) : $this->resolveUserBranch($user);
 
             if (!$branch) {
                 DB::rollBack();
@@ -246,7 +249,7 @@ class BorrowController extends Controller
 
             return response()->json([
                 'message' => 'Borrow created successfully',
-                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder']))
+                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']))
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -310,7 +313,7 @@ class BorrowController extends Controller
 
             return response()->json([
                 'message' => 'Borrow updated successfully',
-                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder']))
+                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']))
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -347,7 +350,7 @@ class BorrowController extends Controller
      * Shared status-only transition guarded on a single from-status. No stock effect;
      * stock-bearing transitions (send/done) implement their own flow. When $requireOwner
      * is set, only the creator (or Director) may run it — used by the Marketing-owned
-     * transitions (cancel, kembali).
+     * transitions (cancel, return).
      */
     protected function transition(Request $request, $id, string $from, string $to, string $error, string $reason, ?callable $mutate = null, bool $requireOwner = false)
     {
@@ -381,7 +384,7 @@ class BorrowController extends Controller
 
             return response()->json([
                 'message' => $reason,
-                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder']))
+                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']))
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -452,7 +455,7 @@ class BorrowController extends Controller
 
             return response()->json([
                 'message' => 'Borrow sent',
-                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder']))
+                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']))
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -460,35 +463,14 @@ class BorrowController extends Controller
         }
     }
 
-    public function kembali(Request $request, $id)
+    public function return(Request $request, $id)
     {
-        $request->validate(['notes' => 'required|string']);
-
-        return $this->transition(
-            $request,
-            $id,
-            self::BORROWED,
-            self::RETURNED,
-            'Only a Borrowed borrow can be returned',
-            'Borrow returned',
-            fn (Borrow $borrow) => $borrow->return_notes = $request->input('notes'),
-            true
-        );
-    }
-
-    /**
-     * Done = reconciliation. Inventory records the actual returned quantity per line
-     * (0..borrowed); returned units restock the branch. Any shortfall (returned < borrowed)
-     * means those units were sold and must be justified by a Spareparts-type PO that covers
-     * the missing quantities. Moves Returned -> Done.
-     */
-    public function done(Request $request, $id)
-    {
-        $request->validate([
+         $request->validate([
             'returned' => 'required|array|min:1',
             'returned.*.sparepartId' => 'required|exists:spareparts,id',
             'returned.*.quantityReturn' => 'required|integer|min:0',
             'sparepartPoId' => 'nullable|exists:purchase_orders,id',
+            'returnNotes' => 'required|string'
         ]);
 
         DB::beginTransaction();
@@ -504,9 +486,9 @@ class BorrowController extends Controller
                 return $this->handleNotFound('Borrow not found');
             }
 
-            if ($borrow->current_status !== self::RETURNED) {
+            if ($borrow->current_status !== self::BORROWED) {
                 DB::rollBack();
-                return $this->statusError('Only a Returned borrow can be completed');
+                return $this->statusError('Only a Borrowed borrow can be returned');
             }
 
             $returnedBySparepart = collect($request->input('returned'))
@@ -543,46 +525,97 @@ class BorrowController extends Controller
                 $borrow->sparepart_po_id = $sparepartPoId;
             }
 
-            // Persist returned quantities and restock.
+            // Persist returned quantities only. Stock is increased in received().
             foreach ($borrow->detailBorrows as $detail) {
                 $qtyReturn = (int) $returnedBySparepart[$detail->sparepart_id]['quantityReturn'];
-                $detail->quantity_return = $qtyReturn;
+                $detail->quantity_return = ((int) ($detail->quantity_return ?? 0)) + $qtyReturn;
                 $detail->save();
-
-                // If there's a covering PO, the PO already debited the shortfall. We must credit
-                // the full borrowed amount (returned + shortfall) back to inventory to prevent
-                // double-debiting.
-                $creditQty = $qtyReturn;
-                $shortfall = $detail->quantity - $qtyReturn;
-                if ($shortfall > 0 && $sparepartPoId) {
-                    $creditQty += $shortfall;
-                }
-
-                if ($creditQty > 0 && $detail->sparepart) {
-                    $this->stockService->increase(
-                        $detail->sparepart,
-                        $borrow->branch_id,
-                        $creditQty,
-                        'Borrow',
-                        $borrow->id,
-                        $request->user()->id,
-                        'Borrow returned (reconciliation)' . ($shortfall > 0 ? " + offset $shortfall for PO debit" : '')
-                    );
-                }
             }
 
-            $this->appendStatus($borrow, self::DONE, $request);
+            $borrow->return_notes = $request->input('returnNotes');
+
+            $this->appendStatus($borrow, self::RETURNED, $request);
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Borrow completed',
-                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder']))
+                'message' => 'Borrow returned',
+                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']))
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to complete borrow');
+            return $this->handleError($th, 'Failed to return borrow');
         }
+    }
+
+    public function receive(Request $request, $id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $borrow = $this->getAccessedBorrow($request)
+                ->with('detailBorrows.sparepart')
+                ->lockForUpdate()
+                ->find($id);
+
+            if (!$borrow) {
+                DB::rollBack();
+                return $this->handleNotFound('Borrow not found');
+            }
+
+            if ($borrow->current_status !== self::RETURNED) {
+                DB::rollBack();
+                return $this->statusError('Only a Returned borrow can be received');
+            }
+
+            foreach ($borrow->detailBorrows as $detail) {
+                $qtyReturn = (int) ($detail->quantity_return ?? 0);
+
+                if ($qtyReturn > 0 && $detail->sparepart) {
+                    $this->stockService->increase(
+                        $detail->sparepart,
+                        $borrow->branch_id,
+                        $qtyReturn,
+                        'Borrow',
+                        $borrow->id,
+                        $request->user()->id,
+                        'Borrow received: stock restored'
+                    );
+                }
+            }
+
+            $this->appendStatus($borrow, self::RECEIVED, $request);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Borrow received',
+                'data' => $this->formatBorrow($borrow->fresh(['detailBorrows.sparepart', 'branch', 'purchaseOrder.quotation', 'purchaseOrder.workOrder', 'sparepartPo']))
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to receive borrow');
+        }
+    }
+
+    /**
+     * Done = reconciliation. Inventory records the actual returned quantity per line
+     * (0..borrowed); returned units restock the branch. Any shortfall (returned < borrowed)
+     * means those units were sold and must be justified by a Spareparts-type PO that covers
+     * the missing quantities. Moves Returned -> Done.
+     */
+    public function done(Request $request, $id)
+    {
+        return $this->transition(
+            $request,
+            $id,
+            self::RECEIVED,
+            self::DONE,
+            'Only a Borrowed borrow can be returned',
+            'Borrow returned',
+            null,
+            true
+        );
     }
 
     /**
@@ -600,14 +633,15 @@ class BorrowController extends Controller
             return 'The reconciliation purchase order must be of type Spareparts.';
         }
 
-        $available = $po->quotation->detailQuotations
+        $coveredIds = $po->quotation->detailQuotations
             ->filter(fn ($d) => $d->sparepart_id)
-            ->groupBy('sparepart_id')
-            ->map(fn ($lines) => (int) $lines->sum('quantity'));
+            ->pluck('sparepart_id')
+            ->unique()
+            ->flip();
 
         foreach ($shortfalls as $sparepartId => $missing) {
-            if (($available[$sparepartId] ?? 0) < $missing) {
-                return 'The selected Sparepart purchase order does not cover the missing quantities.';
+            if (!isset($coveredIds[$sparepartId])) {
+                return 'The selected Sparepart purchase order does not contain all shortfall spareparts.';
             }
         }
 
@@ -676,6 +710,7 @@ class BorrowController extends Controller
                 'worker' => $wo?->worker ?? '',
             ],
             'sparepart_po_id' => $borrow->sparepart_po_id,
+            'sparepart_po_number' => $borrow->sparepartPo?->po_number ?? null,
             'current_status' => $borrow->current_status,
             'status' => $borrow->status ?? [],
             'notes' => $borrow->notes ?? '',
