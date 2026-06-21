@@ -100,6 +100,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         // Employee Routes
         Route::prefix('employee')->group(function () {
             Route::get('/', [EmployeeController::class, 'getAll']);
+            Route::get('/groups', [EmployeeController::class, 'getGroups']);
             Route::get('/{slug}', [EmployeeController::class, 'get']);
             Route::post('/', [EmployeeController::class, 'store']);
             Route::put('/{slug}', [EmployeeController::class, 'update']);
@@ -185,6 +186,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
             Route::get('/{id}', [BackOrderController::class, 'get']);
             Route::get('/analyze/{id}', [BackOrderController::class, 'analyze']);
             Route::post('/process/{id}', [BackOrderController::class, 'process']);
+            Route::post('/adjust/{id}', [BackOrderController::class, 'adjust']);
         });
     });
 
@@ -201,7 +203,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
             Route::post('/', [BorrowController::class, 'store']);
             Route::put('/{id}', [BorrowController::class, 'update']);
             Route::post('/cancel/{id}', [BorrowController::class, 'cancel']);
-            Route::post('/kembali/{id}', [BorrowController::class, 'kembali']);
+            Route::post('/return/{id}', [BorrowController::class, 'return']);
         });
 
         // Review.
@@ -213,6 +215,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         // Handover + reconciliation (Inventory).
         Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
             Route::post('/send/{id}', [BorrowController::class, 'send']);
+            Route::post('/receive/{id}', [BorrowController::class, 'receive']);
             Route::post('/done/{id}', [BorrowController::class, 'done']);
         });
     });
