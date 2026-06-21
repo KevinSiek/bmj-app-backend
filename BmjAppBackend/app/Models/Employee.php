@@ -16,6 +16,7 @@ class Employee extends Authenticatable
     protected $fillable = [
         'fullname',
         'branch_id',
+        'group_id',
         'slug',
         'role',
         'email',
@@ -36,6 +37,11 @@ class Employee extends Authenticatable
     public function branch()
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function group()
+    {
+        return $this->belongsTo(Group::class);
     }
 
     public function quotations()
