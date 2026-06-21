@@ -342,6 +342,7 @@ class BuyController extends Controller
             $formattedBuy = [
                 'id' => $buy->id ?? '',
                 'buy_number' => $buy->buy_number ?? '',
+                'branch' => $buy->branch?->name ?? '',
                 'date' => $buy->created_at ?? '',
                 'notes' => $buy->notes ?? '',
                 'current_status' => $buy->current_status,
@@ -385,6 +386,7 @@ class BuyController extends Controller
                     return [
                         'id' => $buy->id ?? '',
                         'buy_number' => $buy->buy_number ?? '',
+                        'branch' => $buy->branch?->name ?? '',
                         'date' => $buy->created_at ?? '',
                         'notes' => $buy->notes ?? '',
                         'current_status' => $buy->current_status,
