@@ -198,6 +198,7 @@ class BackOrderController extends Controller
             'origin' => $backOrder->is_direct ? 'direct' : 'processed',
             'purchase_order' => [
                 'purchase_order_number' => $backOrder->purchaseOrder?->purchase_order_number,
+                'po_number' => $backOrder->purchaseOrder?->po_number ?? '',
                 'purchase_order_date' => $backOrder->purchaseOrder?->purchase_order_date,
                 'type' => $backOrder->purchaseOrder?->quotation?->type,
                 'branch' => $branch?->name ?? ''
@@ -519,6 +520,7 @@ class BackOrderController extends Controller
             // Key both maps by sparepartId for O(1) look-up
             $newItems   = collect($request->input('spareparts'))->keyBy('sparepartId');
             $oldDetails = $backOrder->detailBackOrders->keyBy('sparepart_id');
+            $noteLines  = [];
 
             // ── Pass 1: existing details ──────────────────────────────────────────
             foreach ($oldDetails as $sparepartId => $oldDetail) {
@@ -537,7 +539,9 @@ class BackOrderController extends Controller
                     $delta             = $oldDelivery - $newDelivery;
 
                     if ($delta !== 0 && $sparepart) {
+                        $label = $sparepart->sparepart_name . ' (' . $sparepart->sparepart_number . ')';
                         if ($delta > 0) {
+                            $noteLines[] = "- {$label}: delivery decreased by {$delta} (from {$oldDelivery} to {$newDelivery})";
                             // Delivery reduced — return stock
                             $this->stockService->increase(
                                 $sparepart, $branchId, $delta,
@@ -545,6 +549,7 @@ class BackOrderController extends Controller
                                 'BackOrder adjust: stock returned for ' . $sparepart->sparepart_number
                             );
                         } else {
+                            $noteLines[] = "- {$label}: delivery increased by " . abs($delta) . " (from {$oldDelivery} to {$newDelivery})";
                             // Delivery increased — take more stock
                             $this->stockService->decrease(
                                 $sparepart, $branchId, abs($delta),
@@ -559,6 +564,12 @@ class BackOrderController extends Controller
                     $oldDetail->save();
                 } else {
                     // Sparepart removed from new list — return all delivered stock
+                    $removedSparepart = $oldDetail->sparepart;
+                    $removedLabel     = $removedSparepart
+                        ? $removedSparepart->sparepart_name . ' (' . $removedSparepart->sparepart_number . ')'
+                        : "Sparepart #{$sparepartId}";
+                    $noteLines[] = "- {$removedLabel}: removed from back order";
+
                     if ($oldDetail->number_delivery_order > 0) {
                         $sparepart = Sparepart::lockForUpdate()->find($sparepartId);
                         if ($sparepart) {
@@ -586,6 +597,11 @@ class BackOrderController extends Controller
                 $newDelivery  = min($order, $currentStock);
                 $newBackOrder = $order - $newDelivery;
 
+                if ($sparepart) {
+                    $addedLabel  = $sparepart->sparepart_name . ' (' . $sparepart->sparepart_number . ')';
+                    $noteLines[] = "- {$addedLabel}: added (delivery: {$newDelivery}, back order: {$newBackOrder})";
+                }
+
                 if ($newDelivery > 0 && $sparepart) {
                     $this->stockService->decrease(
                         $sparepart, $branchId, $newDelivery,
@@ -600,6 +616,49 @@ class BackOrderController extends Controller
                     'number_back_order'     => $newBackOrder,
                     'number_delivery_order' => $newDelivery,
                 ]);
+            }
+
+            // ── Status update & notes ─────────────────────────────────────────────
+            $backOrder->load('detailBackOrders');
+            $allFulfilled = $backOrder->detailBackOrders->every(fn($d) => (int) $d->number_back_order === 0);
+
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($backOrder->purchase_order_id);
+            if ($purchaseOrder) {
+                // Append adjustment log to PO notes
+                if (!empty($noteLines)) {
+                    $timestamp = now()->format('Y-m-d H:i:s');
+                    $noteEntry = "[Adjusted by {$user->username} on {$timestamp}]\n" . implode("\n", $noteLines);
+                    $purchaseOrder->notes = trim(($purchaseOrder->notes ?? '') . "\n\n" . $noteEntry);
+                }
+
+                if ($allFulfilled) {
+                    $purchaseOrder->current_status = PurchaseOrderController::PREPARE;
+                }
+
+                $purchaseOrder->save();
+
+                if ($allFulfilled) {
+                    $quotationLocked = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                    if ($quotationLocked) {
+                        $currentQuotationStatus = $quotationLocked->status ?? [];
+                        if (!is_array($currentQuotationStatus)) {
+                            $currentQuotationStatus = [];
+                        }
+                        $currentQuotationStatus[] = [
+                            'state'     => QuotationController::Inventory,
+                            'employee'  => $user->username,
+                            'timestamp' => now()->toIso8601String(),
+                        ];
+                        $quotationLocked->status = $currentQuotationStatus;
+                        $quotationLocked->current_status = QuotationController::Inventory;
+                        $quotationLocked->save();
+                    }
+                }
+            }
+
+            if ($allFulfilled) {
+                $backOrder->current_status = self::READY;
+                $backOrder->save();
             }
 
             DB::commit();

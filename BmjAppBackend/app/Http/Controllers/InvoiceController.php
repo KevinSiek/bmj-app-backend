@@ -84,6 +84,7 @@ class InvoiceController extends Controller
                 ],
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'po_number' => $purchaseOrder->po_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                     'purchase_order_type' => $quotation->type ?? '',
                     'payment_due' => $purchaseOrder->payment_due,
@@ -261,6 +262,7 @@ class InvoiceController extends Controller
                     ],
                     'purchase_order' => [
                         'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                        'po_number' => $purchaseOrder->po_number ?? '',
                         'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                         'payment_due' => $purchaseOrder->payment_due,
                         'discount' => $quotation ? $quotation->discount : ''
