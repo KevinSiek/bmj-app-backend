@@ -178,6 +178,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
             Route::get('/{id}', [DeliveryOrderController::class, 'get']);
             Route::put('/{id}', [DeliveryOrderController::class, 'update']);
             Route::post('/process/{id}', [DeliveryOrderController::class, 'process']);
+            Route::post('/done/{id}', [DeliveryOrderController::class, 'done']);
         });
     });
 

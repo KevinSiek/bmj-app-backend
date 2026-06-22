@@ -406,6 +406,29 @@ class WorkOrderController extends Controller
                 'current_status' => self::ON_PROGRESS,
             ]);
 
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($workOrder->purchase_order_id);
+            if ($purchaseOrder) {
+                $purchaseOrder->current_status = PurchaseOrderController::RELEASE;
+                $purchaseOrder->save();
+
+                $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                if ($quotation) {
+                    $user = $request->user();
+                    $currentStatus = $quotation->status ?? [];
+                    if (!is_array($currentStatus)) {
+                        $currentStatus = [];
+                    }
+                    $currentStatus[] = [
+                        'state' => QuotationController::RELEASE,
+                        'employee' => $user->username,
+                        'timestamp' => now()->toIso8601String(),
+                    ];
+                    $quotation->status = $currentStatus;
+                    $quotation->current_status = QuotationController::RELEASE;
+                    $quotation->save();
+                }
+            }
+
             DB::commit();
 
             return response()->json([

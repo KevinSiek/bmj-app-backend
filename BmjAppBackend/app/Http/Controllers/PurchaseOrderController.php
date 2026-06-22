@@ -29,6 +29,8 @@ class PurchaseOrderController extends Controller
     const RETURNED = "Returned";
     const PAID = "Paid";
     const REJECTED = "Rejected";
+    const WAIT_ON_PROGRESS = "Wait On Progress";
+    const ON_PROGRESS = "On Progress";
 
     protected $quotationController;
     protected SparepartStockService $stockService;
@@ -780,6 +782,46 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    public function process(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            $purchaseOrder->current_status = PurchaseOrderController::RELEASE;
+            $purchaseOrder->save();
+
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if ($quotation) {
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::RELEASE,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::RELEASE;
+                $quotation->save();
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase order moved to progress',
+                'data' => ['purchase_order' => $purchaseOrder],
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to process purchase order');
+        }
+    }
+
     public function release(Request $request, $id)
     {
         DB::beginTransaction();
@@ -909,24 +951,6 @@ class PurchaseOrderController extends Controller
                     ]);
                 }
 
-                // Update purchase order status
-                $purchaseOrder->current_status = self::RELEASE;
-                $purchaseOrder->save();
-
-                // Inlined logic from QuotationController->changeStatusToRelease
-                $currentStatus = $quotation->status ?? [];
-                if (!is_array($currentStatus)) {
-                    $currentStatus = [];
-                }
-                $currentStatus[] = [
-                    'state' => QuotationController::RELEASE,
-                    'employee' => $user->username,
-                    'timestamp' => now()->toIso8601String(),
-                ];
-                $quotation->status = $currentStatus;
-                $quotation->current_status = QuotationController::RELEASE;
-                $quotation->save();
-
 
                 // Commit the transaction
                 DB::commit();
@@ -991,7 +1015,7 @@ class PurchaseOrderController extends Controller
                 $deliveryOrder = DeliveryOrder::create([
                     'purchase_order_id' => $purchaseOrder->id,
                     'type' => 'Sparepart',
-                    'current_status' => DeliveryOrderController::ON_PROGRESS,
+                    'current_status' => DeliveryOrderController::WAIT_ON_PROGRESS,
                     'delivery_order_number' => $deliveryOrderNumber,
                     'delivery_order_date' => $request->input('deliveryOrder.deliveryOrderDate') ?? null,
                     'prepared_by' => $request->input('deliveryOrder.preparedBy'),
@@ -1004,23 +1028,7 @@ class PurchaseOrderController extends Controller
                     'notes' => $request->input('notes'),
                 ]);
 
-                // Update purchase order status
-                $purchaseOrder->current_status = self::RELEASE;
-                $purchaseOrder->save();
 
-                // Inlined logic from QuotationController->changeStatusToRelease
-                $currentStatus = $quotation->status ?? [];
-                if (!is_array($currentStatus)) {
-                    $currentStatus = [];
-                }
-                $currentStatus[] = [
-                    'state' => QuotationController::RELEASE,
-                    'employee' => $user->username,
-                    'timestamp' => now()->toIso8601String(),
-                ];
-                $quotation->status = $currentStatus;
-                $quotation->current_status = QuotationController::RELEASE;
-                $quotation->save();
 
                 // Commit the transaction
                 DB::commit();

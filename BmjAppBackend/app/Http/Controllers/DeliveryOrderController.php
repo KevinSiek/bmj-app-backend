@@ -13,6 +13,7 @@ use Illuminate\Validation\Rule;
 
 class DeliveryOrderController extends Controller
 {
+    const WAIT_ON_PROGRESS = "Wait On Progress";
     const ON_PROGRESS = "On Progress";
     const DONE = "Done";
 
@@ -342,10 +343,73 @@ class DeliveryOrderController extends Controller
                 ], Response::HTTP_BAD_REQUEST);
             }
 
+            $deliveryOrder->current_status = self::ON_PROGRESS;
+            $deliveryOrder->save();
+
+            $purchaseOrder = PurchaseOrder::lockForUpdate()->find($deliveryOrder->purchase_order_id);
+            if ($purchaseOrder) {
+                $purchaseOrder->current_status = PurchaseOrderController::RELEASE;
+                $purchaseOrder->save();
+
+                $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+                if ($quotation) {
+                    $user = $request->user();
+                    $currentStatus = $quotation->status ?? [];
+                    if (!is_array($currentStatus)) {
+                        $currentStatus = [];
+                    }
+                    $currentStatus[] = [
+                        'state' => QuotationController::RELEASE,
+                        'employee' => $user->username,
+                        'timestamp' => now()->toIso8601String(),
+                    ];
+                    $quotation->status = $currentStatus;
+                    $quotation->current_status = QuotationController::RELEASE;
+                    $quotation->save();
+                }
+            }
+
+            DB::commit();
+
+            // Fetch updated delivery order for response
+            $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
+                ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
+                ->findOrFail($id);
+
+            return response()->json([
+                'message' => 'Delivery order moved to progress successfully',
+                'data' => $this->formatDeliveryOrder($updatedDeliveryOrder)
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Delivery order process failed');
+        }
+    }
+
+    /**
+     * Mark delivery order as done
+     */
+    public function done(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $deliveryOrder = $this->getAccessedDeliveryOrder($request)->lockForUpdate()->find($id);
+
+            if (!$deliveryOrder) {
+                DB::rollBack();
+                return $this->handleNotFound('Delivery order not found');
+            }
+
+            if ($deliveryOrder->current_status === self::DONE) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Delivery order already done'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
             $deliveryOrder->current_status = self::DONE;
             $deliveryOrder->save();
 
-            // Lock the related purchase order and quotation for updating
             $purchaseOrder = PurchaseOrder::lockForUpdate()->find($deliveryOrder->purchase_order_id);
             if ($purchaseOrder) {
                 $purchaseOrder->current_status = PurchaseOrderController::DONE;
@@ -353,7 +417,6 @@ class DeliveryOrderController extends Controller
 
                 $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
                 if ($quotation) {
-                    // Inlined logic from QuotationController->changeStatusToDone
                     $user = $request->user();
                     $currentStatus = $quotation->status ?? [];
                     if (!is_array($currentStatus)) {
@@ -372,18 +435,17 @@ class DeliveryOrderController extends Controller
 
             DB::commit();
 
-            // Fetch updated delivery order for response
             $updatedDeliveryOrder = $this->getAccessedDeliveryOrder($request)
                 ->with(['purchaseOrder.quotation.customer', 'purchaseOrder.quotation.detailQuotations.sparepart'])
                 ->findOrFail($id);
 
             return response()->json([
-                'message' => 'Delivery order processed successfully',
+                'message' => 'Delivery order completed successfully',
                 'data' => $this->formatDeliveryOrder($updatedDeliveryOrder)
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Delivery order process failed');
+            return $this->handleError($th, 'Delivery order done failed');
         }
     }
 
