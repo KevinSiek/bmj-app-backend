@@ -334,7 +334,7 @@ class InvoiceController extends Controller
                 if ($latestInvoice->version > 0) {
                     DB::rollBack();
                     return response()->json([
-                        'message' => 'Cannot create DP1 invoice. An invoice version already exists.'
+                        'message' => 'Cannot create this invoice. An invoice version already exists.'
                     ], Response::HTTP_UNPROCESSABLE_ENTITY);
                 }
                 $latestVersion = $latestInvoice ? $latestInvoice->version : 0;

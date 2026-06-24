@@ -1312,14 +1312,16 @@ class PurchaseOrderController extends Controller
 
             // Only allow purchase orders for authorized users
             if ($role == 'Marketing') {
-                $query->where('employee_id', $userId);
+                if ($user->group_id) {
+                    $groupMemberIds = \App\Models\Employee::where('group_id', $user->group_id)
+                        ->pluck('id');
+                    $query->whereIn('employee_id', $groupMemberIds);
+                } else {
+                    $query->where('employee_id', $userId);
+                }
             } elseif ($role == 'Service') {
                 $query->whereHas('quotation', function ($q) {
                     $q->where('type', QuotationController::SERVICE);
-                });
-            } elseif ($role == 'Inventory Admin' || $role == 'Head Inventory') {
-                $query->whereHas('quotation', function ($q) {
-                    $q->where('type', QuotationController::SPAREPARTS);
                 });
             }
 

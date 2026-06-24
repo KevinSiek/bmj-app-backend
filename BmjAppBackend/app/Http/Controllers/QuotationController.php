@@ -840,6 +840,7 @@ class QuotationController extends Controller
                             'sparepart_id' => $sparepart ? $sparepart->id : '',
                             'sparepart_name' => $sparepart ? $sparepart->sparepart_name : '',
                             'sparepart_number' => $sparepart ? $sparepart->sparepart_number : '',
+                            'total_unit' => $this->formatSparepartStocks($detail->sparepart),
                             'quantity' => $detail->quantity ?? 0,
                             'unit_price_sell' => $detail->unit_price ?? 0,
                             'total_price' => ($detail->quantity * ($detail->unit_price ?? 0)),
@@ -2402,6 +2403,24 @@ class QuotationController extends Controller
         $quotation->save();
 
         return $branch->id;
+    }
+
+    protected function formatSparepartStocks(?Sparepart $sparepart): array
+    {
+        if (!$sparepart) {
+            return [];
+        }
+
+        $branchStocks = $sparepart->relationLoaded('branchStocks')
+            ? $sparepart->branchStocks
+            : $sparepart->branchStocks()->with('branch')->get();
+
+        return $branchStocks->map(function ($stock) {
+            return [
+                'name' => $stock->branch->name ?? '',
+                'stock' => (int) ($stock->quantity ?? 0),
+            ];
+        })->values()->toArray();
     }
 
     protected function formatQuotation($quotation)

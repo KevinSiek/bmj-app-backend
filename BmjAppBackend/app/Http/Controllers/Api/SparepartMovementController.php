@@ -123,7 +123,7 @@ class SparepartMovementController extends Controller
             return response()->json(['message' => 'Only Created movement can be sent'], 400);
         }
 
-        if ($movement->source_branch !== $user->branch && $user->role !== 'Director') {
+        if ($movement->source_branch !== $user->branch->name && $user->role !== 'Director' && $user->role !== 'Head Inventory') {
              return response()->json(['message' => 'Only source branch inventory can send this movement'], 403);
         }
 
@@ -173,7 +173,7 @@ class SparepartMovementController extends Controller
             return response()->json(['message' => 'Only Created movement can be cancelled'], 400);
         }
 
-        if ($movement->source_branch !== $user->branch && $user->role !== 'Director') {
+        if ($movement->source_branch !== $user->branch->name && $user->role !== 'Director' && $user->role !== 'Head Inventory') {
              return response()->json(['message' => 'Only source branch inventory can cancel this movement'], 403);
         }
 
@@ -195,7 +195,7 @@ class SparepartMovementController extends Controller
             return response()->json(['message' => 'Only Send movement can be received'], 400);
         }
 
-        if ($movement->target_branch !== $user->branch && $user->role !== 'Director') {
+        if ($movement->target_branch !== $user->branch->name && $user->role !== 'Director' && $user->role !== 'Head Inventory') {
             return response()->json(['message' => 'Only target branch inventory can receive this movement'], 403);
         }
 

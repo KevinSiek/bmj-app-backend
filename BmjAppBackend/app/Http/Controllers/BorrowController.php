@@ -523,6 +523,34 @@ class BorrowController extends Controller
                     return $this->statusError($covered);
                 }
                 $borrow->sparepart_po_id = $sparepartPoId;
+
+                // For each shortfall covered by the PO, if the PO detail quantity
+                // exactly matches the shortfall (quantity - qtyReturn), restore
+                // that stock back to the branch immediately.
+                $sparepartPo = PurchaseOrder::with('quotation.detailQuotations')->find($sparepartPoId);
+                if ($sparepartPo && $sparepartPo->quotation) {
+                    $poDetailsBySparepart = $sparepartPo->quotation->detailQuotations
+                        ->filter(fn($d) => $d->sparepart_id)
+                        ->keyBy('sparepart_id');
+
+                    foreach ($shortfalls as $sparepartId => $missing) {
+                        $poDetail = $poDetailsBySparepart->get($sparepartId);
+                        if ($poDetail && (int) $poDetail->quantity === (int) $missing) {
+                            $sparepart = Sparepart::find($sparepartId);
+                            if ($sparepart) {
+                                $this->stockService->increase(
+                                    $sparepart,
+                                    $borrow->branch_id,
+                                    (int) $missing,
+                                    'Borrow',
+                                    $borrow->id,
+                                    $request->user()->id,
+                                    'Borrow return: shortfall covered by PO'
+                                );
+                            }
+                        }
+                    }
+                }
             }
 
             // Persist returned quantities only. Stock is increased in received().
