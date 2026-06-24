@@ -101,6 +101,7 @@ class LoginController extends Controller
     {
         try {
             $user = $request->user();
+            $user->load('branch');
             return response()->json([
                 'user'    => $user,
             ], Response::HTTP_OK);
@@ -141,15 +142,23 @@ class LoginController extends Controller
             $validatedData['password'] = bcrypt($request->password);
             $employee->update($validatedData);
 
-            // Clear any temporary password and mark it as used to prevent reuse
+            // Clear any temporary password and lift the force-change gate.
             $employee->temp_password = null;
             $employee->temp_pass_already_use = true;
+            $employee->must_change_password = false;
             $employee->save();
 
             return response()->json([
                 'message' => 'Change password success',
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            // Let validation/not-found/http exceptions surface with their real status
+            // (e.g. a weak password must be 422, not a generic 500).
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             return response()->json([
                 'message' => 'Fail to change password',
                 'error' => $th->getMessage()

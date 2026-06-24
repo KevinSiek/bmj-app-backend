@@ -29,6 +29,8 @@ class PurchaseOrderController extends Controller
     const RETURNED = "Returned";
     const PAID = "Paid";
     const REJECTED = "Rejected";
+    const WAIT_ON_PROGRESS = "Wait On Progress";
+    const ON_PROGRESS = "On Progress";
 
     protected $quotationController;
     protected SparepartStockService $stockService;
@@ -83,6 +85,7 @@ class PurchaseOrderController extends Controller
                 'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'po_number' => $purchaseOrder->po_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                     'type' => $quotation ? $quotation->type : ''
                 ],
@@ -130,6 +133,16 @@ class PurchaseOrderController extends Controller
 
     public function getAll(Request $request)
     {
+        return $this->getAllInternal($request, false);
+    }
+
+    public function getAllReturn(Request $request)
+    {
+        return $this->getAllInternal($request, true);
+    }
+
+    protected function getAllInternal(Request $request, $isReturn)
+    {
         try {
             // Get query parameters
             $q = $request->query('search');
@@ -137,8 +150,15 @@ class PurchaseOrderController extends Controller
             $year = $request->query('year');
 
             // Get all purchaseOrder numbers first to ensure we capture all versions
-            $purchaseOrderNumbers = $this->getAccessedPurchaseOrder($request)
-                ->select('purchase_order_number');
+            $purchaseOrderNumbers = $this->getAccessedPurchaseOrder($request);
+
+            if ($isReturn) {
+                $purchaseOrderNumbers->whereHas('quotation', function ($q) {
+                    $q->where('is_return', true);
+                });
+            }
+
+            $purchaseOrderNumbers = $purchaseOrderNumbers->select('purchase_order_number');
 
             // Apply search term filter if 'q' is provided
             if ($q) {
@@ -167,6 +187,12 @@ class PurchaseOrderController extends Controller
 
             // Build a base query (apply access rules and initial filters) to derive groups
             $baseBuilder = $this->getAccessedPurchaseOrder($request);
+
+            if ($isReturn) {
+                $baseBuilder->whereHas('quotation', function ($q) {
+                    $q->where('is_return', true);
+                });
+            }
 
             // Apply search term filter if 'q' is provided
             if ($q) {
@@ -270,6 +296,7 @@ class PurchaseOrderController extends Controller
                     'purchase_order_number' => $po->purchase_order_number ?? '',
                     'purchase_order' => [
                         'purchase_order_number' => $po->purchase_order_number ?? '',
+                        'po_number' => $po->po_number ?? '',
                         'purchase_order_date' => $po->purchase_order_date ?? '',
                         'type' => $quotation ? $quotation->type : ''
                     ],
@@ -611,8 +638,16 @@ class PurchaseOrderController extends Controller
     {
         DB::beginTransaction();
 
-        $status = $request->input('status');
         try {
+            // Only accept known PO statuses — reject arbitrary strings (422).
+            $validated = $request->validate([
+                'status' => ['required', 'string', Rule::in([
+                    self::BO, self::PREPARE, self::READY, self::RELEASE,
+                    self::DONE, self::RETURNED, self::PAID, self::REJECTED,
+                ])],
+            ]);
+            $status = $validated['status'];
+
             $purchaseOrder = $this->getAccessedPurchaseOrder($request)
                 ->lockForUpdate() // Lock the record for update
                 ->findOrFail($id);
@@ -630,7 +665,7 @@ class PurchaseOrderController extends Controller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return $this->handleError($th, 'Failed to update purchase order status to ' . $status);
+            return $this->handleError($th, 'Failed to update purchase order status');
         }
     }
 
@@ -747,6 +782,46 @@ class PurchaseOrderController extends Controller
         }
     }
 
+    public function process(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $purchaseOrder = $this->getAccessedPurchaseOrder($request)
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            $purchaseOrder->current_status = PurchaseOrderController::RELEASE;
+            $purchaseOrder->save();
+
+            $quotation = Quotation::lockForUpdate()->find($purchaseOrder->quotation_id);
+            if ($quotation) {
+                $user = $request->user();
+                $currentStatus = $quotation->status ?? [];
+                if (!is_array($currentStatus)) {
+                    $currentStatus = [];
+                }
+                $currentStatus[] = [
+                    'state' => QuotationController::RELEASE,
+                    'employee' => $user->username,
+                    'timestamp' => now()->toIso8601String(),
+                ];
+                $quotation->status = $currentStatus;
+                $quotation->current_status = QuotationController::RELEASE;
+                $quotation->save();
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Purchase order moved to progress',
+                'data' => ['purchase_order' => $purchaseOrder],
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->handleError($th, 'Failed to process purchase order');
+        }
+    }
+
     public function release(Request $request, $id)
     {
         DB::beginTransaction();
@@ -849,7 +924,7 @@ class PurchaseOrderController extends Controller
                     'expected_end_date' => $request->input('serviceOrder.endDate'),
                     'start_date' => $request->input('date.startDate'),
                     'end_date' => $request->input('date.endDate'),
-                    'current_status' => WorkOrderController::ON_PROGRESS,
+                    'current_status' => WorkOrderController::WAIT_ON_PROGRESS,
                     'worker' => $request->input('poc.worker'),
                     'compiled' => $request->input('poc.compiled'),
                     'head_of_service' => $request->input('poc.headOfService'),
@@ -875,24 +950,6 @@ class PurchaseOrderController extends Controller
                         'quantity' => $unit['quantity'] ?? null,
                     ]);
                 }
-
-                // Update purchase order status
-                $purchaseOrder->current_status = self::RELEASE;
-                $purchaseOrder->save();
-
-                // Inlined logic from QuotationController->changeStatusToRelease
-                $currentStatus = $quotation->status ?? [];
-                if (!is_array($currentStatus)) {
-                    $currentStatus = [];
-                }
-                $currentStatus[] = [
-                    'state' => QuotationController::RELEASE,
-                    'employee' => $user->username,
-                    'timestamp' => now()->toIso8601String(),
-                ];
-                $quotation->status = $currentStatus;
-                $quotation->current_status = QuotationController::RELEASE;
-                $quotation->save();
 
 
                 // Commit the transaction
@@ -958,7 +1015,7 @@ class PurchaseOrderController extends Controller
                 $deliveryOrder = DeliveryOrder::create([
                     'purchase_order_id' => $purchaseOrder->id,
                     'type' => 'Sparepart',
-                    'current_status' => DeliveryOrderController::ON_PROGRESS,
+                    'current_status' => DeliveryOrderController::WAIT_ON_PROGRESS,
                     'delivery_order_number' => $deliveryOrderNumber,
                     'delivery_order_date' => $request->input('deliveryOrder.deliveryOrderDate') ?? null,
                     'prepared_by' => $request->input('deliveryOrder.preparedBy'),
@@ -971,23 +1028,7 @@ class PurchaseOrderController extends Controller
                     'notes' => $request->input('notes'),
                 ]);
 
-                // Update purchase order status
-                $purchaseOrder->current_status = self::RELEASE;
-                $purchaseOrder->save();
 
-                // Inlined logic from QuotationController->changeStatusToRelease
-                $currentStatus = $quotation->status ?? [];
-                if (!is_array($currentStatus)) {
-                    $currentStatus = [];
-                }
-                $currentStatus[] = [
-                    'state' => QuotationController::RELEASE,
-                    'employee' => $user->username,
-                    'timestamp' => now()->toIso8601String(),
-                ];
-                $quotation->status = $currentStatus;
-                $quotation->current_status = QuotationController::RELEASE;
-                $quotation->save();
 
                 // Commit the transaction
                 DB::commit();
@@ -1081,7 +1122,11 @@ class PurchaseOrderController extends Controller
                         $this->stockService->increase(
                             $detail->sparepart,
                             $quotationBranchId,
-                            (int) $detail->quantity
+                            (int) $detail->quantity,
+                            'PurchaseOrder',
+                            $purchaseOrder->id,
+                            $user->id,
+                            'PO declined restock'
                         );
                     }
                 }
@@ -1267,14 +1312,16 @@ class PurchaseOrderController extends Controller
 
             // Only allow purchase orders for authorized users
             if ($role == 'Marketing') {
-                $query->where('employee_id', $userId);
+                if ($user->group_id) {
+                    $groupMemberIds = \App\Models\Employee::where('group_id', $user->group_id)
+                        ->pluck('id');
+                    $query->whereIn('employee_id', $groupMemberIds);
+                } else {
+                    $query->where('employee_id', $userId);
+                }
             } elseif ($role == 'Service') {
                 $query->whereHas('quotation', function ($q) {
                     $q->where('type', QuotationController::SERVICE);
-                });
-            } elseif ($role == 'Inventory Admin') {
-                $query->whereHas('quotation', function ($q) {
-                    $q->where('type', QuotationController::SPAREPARTS);
                 });
             }
 
@@ -1302,6 +1349,15 @@ class PurchaseOrderController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage()

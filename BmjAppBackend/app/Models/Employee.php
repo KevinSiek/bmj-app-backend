@@ -16,6 +16,7 @@ class Employee extends Authenticatable
     protected $fillable = [
         'fullname',
         'branch_id',
+        'group_id',
         'slug',
         'role',
         'email',
@@ -23,12 +24,24 @@ class Employee extends Authenticatable
         'password',
         'temp_password',
         'temp_pass_already_use',
-        'temp_pass_expires_at'
+        'temp_pass_expires_at',
+        'must_change_password',
+    ];
+
+    protected $casts = [
+        'temp_pass_already_use' => 'boolean',
+        'temp_pass_expires_at' => 'datetime',
+        'must_change_password' => 'boolean',
     ];
 
     public function branch()
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function group()
+    {
+        return $this->belongsTo(Group::class);
     }
 
     public function quotations()

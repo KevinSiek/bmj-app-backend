@@ -5,9 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Sparepart;
+use App\Models\StockMovement;
 use App\Models\DetailSparepart;
 use App\Models\Seller;
 use App\Models\Branch;
+use App\Models\PurchaseOrder;
+use App\Models\Buy;
+use App\Models\Borrow;
+use App\Models\BackOrder;
 use App\Services\SparepartStockService;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\Response;
@@ -247,7 +252,7 @@ class SparepartController extends Controller
             foreach ($request->input('totalUnit', []) as $unitData) {
                 $branchModel = $this->resolveBranchModel($unitData['name']);
                 if ($branchModel) {
-                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock']);
+                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock'], $request->user()?->id);
                 }
             }
 
@@ -353,7 +358,7 @@ class SparepartController extends Controller
             foreach ($request->input('totalUnit', []) as $unitData) {
                 $branchModel = $this->resolveBranchModel($unitData['name']);
                 if ($branchModel) {
-                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock']);
+                    $this->setStockForBranch($sparepart, $branchModel->id, (int) $unitData['stock'], $request->user()?->id);
                 }
             }
 
@@ -506,9 +511,17 @@ class SparepartController extends Controller
             'stocks' => $stocks->values()->toArray(),
         ];
 
-        // Hide unitPriceSell for Inventory Admin role
-        if ($user->role === 'Inventory Admin' || $user->role === 'Inventory Purchase') {
-            $response['unitPriceSell'] = null;
+        // Hide the sell price from Inventory Admin / Purchase (they don't need margin info).
+        // NOTE: the response key is snake_case (unit_price_sell), not unitPriceSell.
+        if ($user->role === 'Inventory Admin' || $user->role === 'Inventory Purchase' || $user->role === 'Head Inventory') {
+            $response['unit_price_sell'] = null;
+        }
+
+        // Marketing may browse spareparts but must NOT see costing: hide buy price
+        // and the seller list entirely. They keep number, name, sell price, and stock.
+        if ($user->role === 'Marketing') {
+            $response['unit_price_buy'] = null;
+            $response['unit_price_seller'] = [];
         }
 
         return $response;
@@ -527,8 +540,8 @@ class SparepartController extends Controller
             $user = $request->user();
             $role = $user->role;
 
-            if ($role == 'Inventory Admin' || $role == 'Inventory Purchase') {
-                // Hide the 'unit_price_sell' field for Inventory Admin and Inventory Purchase roles
+            if ($role == 'Inventory Admin' || $role == 'Inventory Purchase' || $role == 'Head Inventory') {
+                // Hide the 'unit_price_sell' field for Inventory Admin, Inventory Purchase, and Head Inventory roles
                 $spareparts = Sparepart::query()->select('*')->addSelect(['unit_price_sell' => function ($query) {
                     $query->selectRaw('NULL');
                 }]);
@@ -568,16 +581,342 @@ class SparepartController extends Controller
         return $branch?->id;
     }
 
-    protected function setStockForBranch(Sparepart $sparepart, $branch, int $quantity): void
+    protected function setStockForBranch(Sparepart $sparepart, $branch, int $quantity, ?int $employeeId = null): void
     {
         $record = $this->stockService->ensureStockRecord($sparepart, $branch, true);
-        $record->quantity = $quantity;
+        $oldQuantity = (int) $record->quantity;
+        $newQuantity = $quantity;
+        $record->quantity = $newQuantity;
         $record->save();
+
+        // This SETS an absolute quantity rather than applying a delta, so log the net change
+        // explicitly to keep the ledger complete.
+        $delta = $newQuantity - $oldQuantity;
+        if ($delta !== 0) {
+            $this->stockService->logMovement(
+                $sparepart,
+                $record->branch_id,
+                $delta,
+                'ManualEdit',
+                $sparepart->id,
+                $employeeId,
+                'Manual stock edit'
+            );
+        }
+    }
+
+    // Global stock movement ledger across ALL spareparts — backs the standalone Stock History
+    // page. Inventory + Director only. Supports filters:
+    //   search (sparepart name/number), branch (id or name), source_type, month + year.
+    public function stockMovements(Request $request)
+    {
+        try {
+            $query = StockMovement::with(['sparepart', 'branch', 'employee'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id');
+
+            $filterType = $request->query('filter_type');
+            $filterId = $request->query('filter_id');
+
+            if ($filterType && $filterId) {
+                if ($filterType === 'Sparepart') {
+                    $query->where('sparepart_id', $filterId);
+                } elseif (in_array($filterType, ['Buy', 'Borrow'])) {
+                    $query->where('source_type', $filterType)
+                          ->where('source_id', $filterId);
+                } elseif ($filterType === 'PurchaseOrder') {
+                    $poIds = collect([$filterId]);
+                    $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
+                    $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
+                    $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
+
+                    $query->where(function($q) use ($poIds, $boIds, $buyIds, $borrowIds) {
+                        $q->where(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'PurchaseOrder')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'Return')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($boIds) {
+                            $sub->where('source_type', 'BackOrder')->whereIn('source_id', $boIds);
+                        })->orWhere(function($sub) use ($buyIds) {
+                            $sub->where('source_type', 'Buy')->whereIn('source_id', $buyIds);
+                        })->orWhere(function($sub) use ($borrowIds) {
+                            $sub->where('source_type', 'Borrow')->whereIn('source_id', $borrowIds);
+                        });
+                    });
+                } elseif ($filterType === 'Customer') {
+                    $poIds = PurchaseOrder::whereHas('quotation', function($q) use ($filterId) {
+                        $q->where('customer_id', $filterId);
+                    })->pluck('id');
+
+                    $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
+                    $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
+                    $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
+
+                    $query->where(function($q) use ($poIds, $boIds, $buyIds, $borrowIds) {
+                        $q->where(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'PurchaseOrder')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($poIds) {
+                            $sub->where('source_type', 'Return')->whereIn('source_id', $poIds);
+                        })->orWhere(function($sub) use ($boIds) {
+                            $sub->where('source_type', 'BackOrder')->whereIn('source_id', $boIds);
+                        })->orWhere(function($sub) use ($buyIds) {
+                            $sub->where('source_type', 'Buy')->whereIn('source_id', $buyIds);
+                        })->orWhere(function($sub) use ($borrowIds) {
+                            $sub->where('source_type', 'Borrow')->whereIn('source_id', $borrowIds);
+                        });
+                    });
+                } elseif ($filterType === 'Employee') {
+                    $query->where('employee_id', $filterId);
+                }
+            } elseif ($search = $request->query('search')) {
+                // Fallback text search across multiple entities
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('sparepart', function ($sub) use ($search) {
+                        $sub->where('sparepart_name', 'like', "%{$search}%")
+                            ->orWhere('sparepart_number', 'like', "%{$search}%");
+                    });
+
+                    $q->orWhereHas('employee', function ($sub) use ($search) {
+                        $sub->where('fullname', 'like', "%{$search}%");
+                    });
+
+                    $poIdsByCustomer = PurchaseOrder::whereHas('quotation.customer', function($sub) use ($search) {
+                        $sub->where('company_name', 'like', "%{$search}%");
+                    })->pluck('id');
+
+                    $poIdsByNumber = PurchaseOrder::where('purchase_order_number', 'like', "%{$search}%")->pluck('id');
+
+                    $poIds = $poIdsByCustomer->merge($poIdsByNumber)->unique();
+
+                    if ($poIds->isNotEmpty()) {
+                        $boIds = BackOrder::whereIn('purchase_order_id', $poIds)->pluck('id');
+                        $buyIds = Buy::whereIn('back_order_id', $boIds)->pluck('id');
+                        $borrowIds = Borrow::whereIn('purchase_order_id', $poIds)->pluck('id');
+
+                        $q->orWhere(function($sub) use ($poIds, $boIds, $buyIds, $borrowIds) {
+                            $sub->where(function($s) use ($poIds) {
+                                $s->where('source_type', 'PurchaseOrder')->whereIn('source_id', $poIds);
+                            })->orWhere(function($s) use ($poIds) {
+                                $s->where('source_type', 'Return')->whereIn('source_id', $poIds);
+                            })->orWhere(function($s) use ($boIds) {
+                                $s->where('source_type', 'BackOrder')->whereIn('source_id', $boIds);
+                            })->orWhere(function($s) use ($buyIds) {
+                                $s->where('source_type', 'Buy')->whereIn('source_id', $buyIds);
+                            })->orWhere(function($s) use ($borrowIds) {
+                                $s->where('source_type', 'Borrow')->whereIn('source_id', $borrowIds);
+                            });
+                        });
+                    }
+
+                    $directBuyIds = Buy::where('buy_number', 'like', "%{$search}%")->pluck('id');
+                    if ($directBuyIds->isNotEmpty()) {
+                        $q->orWhere(function($sub) use ($directBuyIds) {
+                            $sub->where('source_type', 'Buy')->whereIn('source_id', $directBuyIds);
+                        });
+                    }
+
+                    $directBorrowIds = Borrow::where('borrow_number', 'like', "%{$search}%")->pluck('id');
+                    if ($directBorrowIds->isNotEmpty()) {
+                        $q->orWhere(function($sub) use ($directBorrowIds) {
+                            $sub->where('source_type', 'Borrow')->whereIn('source_id', $directBorrowIds);
+                        });
+                    }
+                });
+            }
+
+            if ($branch = $request->query('branch')) {
+                if (is_numeric($branch)) {
+                    $query->where('branch_id', (int) $branch);
+                } else {
+                    $query->whereHas('branch', function ($q) use ($branch) {
+                        $q->whereRaw('LOWER(name) = ?', [strtolower($branch)]);
+                    });
+                }
+            }
+
+            if ($sourceType = $request->query('source_type')) {
+                $query->where('source_type', $sourceType);
+            }
+
+            if ($startDate = $request->query('start_date')) {
+                // Ensure the start date includes the beginning of the day
+                $query->where('created_at', '>=', date('Y-m-d 00:00:00', strtotime($startDate)));
+            }
+            if ($endDate = $request->query('end_date')) {
+                // Ensure the end date includes the end of the day
+                $query->where('created_at', '<=', date('Y-m-d 23:59:59', strtotime($endDate)));
+            }
+
+            if (!$startDate && !$endDate) {
+                // Fallback to legacy month/year if no date range is provided
+                if ($year = $request->query('year')) {
+                    $query->whereYear('created_at', $year);
+                    if ($month = $request->query('month')) {
+                        $monthNumber = is_numeric($month) ? $month : date('m', strtotime($month));
+                        $query->whereMonth('created_at', $monthNumber);
+                    }
+                }
+            }
+
+            $movements = $query->paginate(20)->through(function ($movement) {
+                return [
+                    'id' => $movement->id,
+                    'delta' => $movement->delta,
+                    'source_type' => $movement->source_type,
+                    'source_id' => $movement->source_id,
+                    'reason' => $movement->reason,
+                    'sparepart' => $movement->sparepart ? [
+                        'id' => $movement->sparepart->id,
+                        'sparepart_name' => $movement->sparepart->sparepart_name,
+                        'sparepart_number' => $movement->sparepart->sparepart_number,
+                    ] : null,
+                    'branch' => $movement->branch ? [
+                        'id' => $movement->branch->id,
+                        'name' => $movement->branch->name,
+                    ] : null,
+                    'employee' => $movement->employee ? [
+                        'id' => $movement->employee->id,
+                        'name' => $movement->employee->fullname ?? $movement->employee->username,
+                    ] : null,
+                    'created_at' => $movement->created_at,
+                ];
+            });
+
+            return response()->json([
+                'message' => 'Stock movements retrieved successfully',
+                'data' => $movements,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Error retrieving stock movements');
+        }
+    }
+
+    public function stockMovementSuggestions(Request $request)
+    {
+        try {
+            $q = $request->query('q');
+            if (!$q) {
+                return response()->json(['message' => 'Query is required', 'data' => []], Response::HTTP_OK);
+            }
+
+            $suggestions = collect();
+
+            // 1. Spareparts
+            $spareparts = Sparepart::where('sparepart_name', 'like', "%{$q}%")
+                ->orWhere('sparepart_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($spareparts as $sp) {
+                $suggestions->push([
+                    'type' => 'Sparepart',
+                    'id' => $sp->id,
+                    'label' => "Sparepart: {$sp->sparepart_name} ({$sp->sparepart_number})",
+                ]);
+            }
+
+            // 2. Purchase Orders
+            $pos = PurchaseOrder::where('purchase_order_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($pos as $po) {
+                $suggestions->push([
+                    'type' => 'PurchaseOrder',
+                    'id' => $po->id,
+                    'label' => "PO: {$po->purchase_order_number}",
+                ]);
+            }
+
+            // 3. Buys
+            $buys = Buy::where('buy_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($buys as $buy) {
+                $suggestions->push([
+                    'type' => 'Buy',
+                    'id' => $buy->id,
+                    'label' => "Buy: {$buy->buy_number}",
+                ]);
+            }
+
+            // 4. Borrows
+            $borrows = Borrow::where('borrow_number', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($borrows as $borrow) {
+                $suggestions->push([
+                    'type' => 'Borrow',
+                    'id' => $borrow->id,
+                    'label' => "Borrow: {$borrow->borrow_number}",
+                ]);
+            }
+
+            // 5. Customers (via PO)
+            $customers = \App\Models\Customer::where('company_name', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($customers as $customer) {
+                $suggestions->push([
+                    'type' => 'Customer',
+                    'id' => $customer->id,
+                    'label' => "Customer: {$customer->company_name}",
+                ]);
+            }
+
+            // 6. Employees
+            $employees = \App\Models\Employee::where('fullname', 'like', "%{$q}%")
+                ->take(5)
+                ->get();
+            foreach ($employees as $employee) {
+                $suggestions->push([
+                    'type' => 'Employee',
+                    'id' => $employee->id,
+                    'label' => "Employee: {$employee->fullname}",
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Suggestions retrieved successfully',
+                'data' => $suggestions->toArray(),
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th, 'Error retrieving suggestions');
+        }
+    }
+
+    public function getSellers($id)
+    {
+        try {
+            $sellers = DetailSparepart::with('seller')
+                ->where('sparepart_id', $id)
+                ->whereNotNull('seller_id')
+                ->get()
+                ->map(fn($detail) => [
+                    'seller' => $detail->seller?->name,
+                    'price'  => $detail->unit_price,
+                ])
+                ->values();
+
+            return response()->json([
+                'message' => 'Sellers retrieved successfully',
+                'data' => $sellers,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return $this->handleError($th);
+        }
     }
 
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage(),

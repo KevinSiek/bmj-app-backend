@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('quotation_id')->constrained('quotations');
             $table->string('purchase_order_number');
+            $table->string('po_number')->nullable()->unique();
             $table->string('current_status');
             $table->date('purchase_order_date');
             $table->date('payment_due')->nullable();

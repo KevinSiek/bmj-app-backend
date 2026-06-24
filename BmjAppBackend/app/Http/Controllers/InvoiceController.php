@@ -84,6 +84,7 @@ class InvoiceController extends Controller
                 ],
                 'purchase_order' => [
                     'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                    'po_number' => $purchaseOrder->po_number ?? '',
                     'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                     'purchase_order_type' => $quotation->type ?? '',
                     'payment_due' => $purchaseOrder->payment_due,
@@ -261,6 +262,7 @@ class InvoiceController extends Controller
                     ],
                     'purchase_order' => [
                         'purchase_order_number' => $purchaseOrder->purchase_order_number ?? '',
+                        'po_number' => $purchaseOrder->po_number ?? '',
                         'purchase_order_date' => $purchaseOrder->purchase_order_date ?? '',
                         'payment_due' => $purchaseOrder->payment_due,
                         'discount' => $quotation ? $quotation->discount : ''
@@ -332,7 +334,7 @@ class InvoiceController extends Controller
                 if ($latestInvoice->version > 0) {
                     DB::rollBack();
                     return response()->json([
-                        'message' => 'Cannot create DP1 invoice. An invoice version already exists.'
+                        'message' => 'Cannot create this invoice. An invoice version already exists.'
                     ], Response::HTTP_UNPROCESSABLE_ENTITY);
                 }
                 $latestVersion = $latestInvoice ? $latestInvoice->version : 0;
@@ -429,6 +431,15 @@ class InvoiceController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage()

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('back_order_number');
             $table->foreignId('purchase_order_id')->constrained('purchase_orders');
             $table->string('current_status')->nullable();
+            $table->boolean('is_direct')->default(false);
             $table->timestamps();
         });
     }

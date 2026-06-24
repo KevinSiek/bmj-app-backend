@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\DetailAccesses;
+use App\Models\Group;
 use Illuminate\Http\Request;
 use App\Models\Employee;
 use App\Models\Branch;
@@ -28,7 +29,7 @@ class EmployeeController extends Controller
     public function index()
     {
         try {
-            $employees = Employee::with('branch')->get()->map(fn($e) => $this->formatEmployee($e));
+            $employees = Employee::with(['branch', 'group'])->get()->map(fn($e) => $this->formatEmployee($e));
             return response()->json([
                 'message' => 'Employees retrieved successfully',
                 'data' => $employees
@@ -49,6 +50,7 @@ class EmployeeController extends Controller
             'branch' => 'required|string|max:255',
             'email' => 'required|email|unique:employees,email',
             'username' => 'required|string|unique:employees,username|max:255',
+            'group' => 'nullable|string|max:255',
         ]);
 
         DB::beginTransaction();
@@ -65,12 +67,21 @@ class EmployeeController extends Controller
             unset($validatedData['branch']);
             $validatedData['branch_id'] = $branch->id;
 
+            // Resolve group: find by name or create it.
+            if (!empty($validatedData['group'])) {
+                $group = Group::firstOrCreate(['name' => $validatedData['group']]);
+                $validatedData['group_id'] = $group->id;
+            }
+            unset($validatedData['group']);
+
             // Generate a random temporary password
             $tempPassword = Str::random(12);
             $validatedData['password'] = bcrypt($tempPassword);
             $validatedData['temp_password'] = $tempPassword;
             $validatedData['temp_pass_already_use'] = false;
             $validatedData['temp_pass_expires_at'] = now()->addDay();
+            // Gate the account until the user replaces the temp password (single-use in effect).
+            $validatedData['must_change_password'] = true;
 
             // Create a slug for the employee
             $slug = Str::slug($validatedData['fullname']);
@@ -106,6 +117,7 @@ class EmployeeController extends Controller
             'branch' => 'required|string|max:255',
             'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
             'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
+            'group' => 'nullable|string|max:255',
         ]);
 
         DB::beginTransaction();
@@ -131,6 +143,17 @@ class EmployeeController extends Controller
 
             unset($validatedData['branch']);
             $validatedData['branch_id'] = $branch->id;
+
+            // Resolve group: find by name or create it. Pass null to clear the group.
+            if (array_key_exists('group', $validatedData)) {
+                if (!empty($validatedData['group'])) {
+                    $group = Group::firstOrCreate(['name' => $validatedData['group']]);
+                    $validatedData['group_id'] = $group->id;
+                } else {
+                    $validatedData['group_id'] = null;
+                }
+            }
+            unset($validatedData['group']);
 
             // Update only the provided fields
             $employee->update($validatedData);
@@ -172,6 +195,7 @@ class EmployeeController extends Controller
                 'password' => $encryptPassword,
                 'temp_pass_already_use' => false,
                 'temp_pass_expires_at' => now()->addDay(),
+                'must_change_password' => true,
             ]);
 
             DB::commit();
@@ -229,7 +253,7 @@ class EmployeeController extends Controller
     public function get(Request $request, $slug)
     {
         try {
-            $employee = Employee::with('branch')->where('slug', $slug)->first();
+            $employee = Employee::with(['branch', 'group'])->where('slug', $slug)->first();
 
             if (!$employee) {
                 return response()->json([
@@ -253,7 +277,7 @@ class EmployeeController extends Controller
     {
         try {
             $q = $request->query('search');
-            $query = Employee::with('branch');
+            $query = Employee::with(['branch', 'group']);
 
             if ($q) {
                 $searchTerm = $q;
@@ -278,6 +302,30 @@ class EmployeeController extends Controller
         }
     }
 
+    public function getGroups(Request $request)
+    {
+        try {
+            $search = $request->query('search');
+            $query = Group::query();
+
+            if ($search) {
+                $query->where('name', 'like', "%{$search}%");
+            }
+
+            $groups = $query->orderBy('name')->get(['id', 'name']);
+
+            return response()->json([
+                'message' => 'Groups retrieved successfully',
+                'data' => $groups,
+            ], Response::HTTP_OK);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'message' => 'Internal server error',
+                'error' => $th->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     private function formatEmployee(Employee $employee): array
     {
         return [
@@ -289,6 +337,8 @@ class EmployeeController extends Controller
             'role' => $employee->role,
             'branch' => $employee->branch?->name,
             'branch_id' => $employee->branch_id,
+            'group' => $employee->group?->name,
+            'group_id' => $employee->group_id,
             'created_at' => $employee->created_at,
             'updated_at' => $employee->updated_at,
         ];
@@ -316,6 +366,7 @@ class EmployeeController extends Controller
                 'Marketing' => ['path' => '/marketing', 'name' => 'Marketing'],
                 'Inventory Purchase' => ['path' => '/inventory-purchase', 'name' => 'Inventory Purchase'],
                 'Inventory Admin' => ['path' => '/inventory-admin', 'name' => 'Inventory Admin'],
+                'Head Inventory' => ['path' => '/head-inventory', 'name' => 'Head Inventory'],
                 'Finance' => ['path' => '/finance', 'name' => 'Finance'],
                 'Service' => ['path' => '/service', 'name' => 'Service'],
             ];

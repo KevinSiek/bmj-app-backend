@@ -265,9 +265,13 @@ class SummaryController extends Controller
                     ->whereMonth('start_date', $currentMonth)
                     ->distinct()
                     ->count('work_order_number');
+                // "On progress" = any active (not-yet-done) WO: Wait On Progress + On Progress.
                 $workOrderOnProgress = WorkOrder::whereYear('start_date', $currentYear)
                     ->whereMonth('start_date', $currentMonth)
-                    ->where('current_status', WorkOrderController::ON_PROGRESS)
+                    ->whereIn('current_status', [
+                        WorkOrderController::WAIT_ON_PROGRESS,
+                        WorkOrderController::ON_PROGRESS,
+                    ])
                     ->distinct()
                     ->count('work_order_number');
                 $workOrderDone = WorkOrder::whereYear('start_date', $currentYear)
@@ -294,6 +298,15 @@ class SummaryController extends Controller
 
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage()

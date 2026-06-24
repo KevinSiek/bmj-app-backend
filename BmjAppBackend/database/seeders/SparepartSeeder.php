@@ -62,5 +62,49 @@ class SparepartSeeder extends Seeder
                 ]);
             }
         });
+
+        // Add a guaranteed sparepart for E2E tests with high stock
+        $e2eSparepart = Sparepart::create([
+            'sparepart_number' => 'E2E-SPAREPART-001',
+            'sparepart_name' => 'E2E Guaranteed Stock Sparepart',
+            'slug' => 'e2e-guaranteed-stock-sparepart',
+            'unit_price_buy' => 100000,
+            'unit_price_sell' => 150000,
+        ]);
+        foreach ($branches as $branch) {
+            BranchSparepart::create([
+                'sparepart_id' => $e2eSparepart->id,
+                'branch_id' => $branch->id,
+                'quantity' => 100000 // Very high stock so it never runs out
+            ]);
+        }
+        DetailSparepart::create([
+            'sparepart_id' => $e2eSparepart->id,
+            'seller_id' => $sellers->first()->id,
+            'unit_price' => 100000,
+            'quantity' => 100000,
+        ]);
+
+        // Add a low stock sparepart for BackOrder tests
+        $e2eLowStock = Sparepart::create([
+            'sparepart_number' => 'E2E-LOW-001',
+            'sparepart_name' => 'E2E Low Stock Sparepart',
+            'slug' => 'e2e-low-stock-sparepart',
+            'unit_price_buy' => 50000,
+            'unit_price_sell' => 75000,
+        ]);
+        foreach ($branches as $branch) {
+            BranchSparepart::create([
+                'sparepart_id' => $e2eLowStock->id,
+                'branch_id' => $branch->id,
+                'quantity' => 10 // Low stock to trigger indent easily
+            ]);
+        }
+        DetailSparepart::create([
+            'sparepart_id' => $e2eLowStock->id,
+            'seller_id' => $sellers->first()->id,
+            'unit_price' => 50000,
+            'quantity' => 10,
+        ]);
     }
 }

@@ -32,6 +32,11 @@ class CustomerController extends Controller
                 'data' => $customers
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             return response()->json([
                 'message' => 'Internal server error',
                 'error' => $th->getMessage()
@@ -53,6 +58,11 @@ class CustomerController extends Controller
                 'data' => $customer
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             return response()->json([
                 'message' => 'Internal server error',
                 'error' => $th->getMessage()
@@ -73,9 +83,12 @@ class CustomerController extends Controller
                 'city' => 'required|string',
                 'province' => 'required|string',
                 'postal_code' => 'required|numeric',
+                'email' => 'nullable|email',
             ]);
 
-            $validated['slug'] = Str::slug($validated['company_name']) . '-' . Str::random(6);
+            // Cap the slug body so a max-length (255) company name can't overflow the
+            // slug column once the random suffix is appended.
+            $validated['slug'] = Str::limit(Str::slug($validated['company_name']), 240, '') . '-' . Str::random(6);
 
             $customer = Customer::create($validated);
 
@@ -86,6 +99,11 @@ class CustomerController extends Controller
                 'data' => $customer
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             DB::rollBack();
             return response()->json([
                 'message' => 'Customer creation failed',
@@ -113,6 +131,7 @@ class CustomerController extends Controller
                 'city' => 'required|string',
                 'province' => 'required|string',
                 'postal_code' => 'required|numeric',
+                'email' => 'nullable|email',
             ]);
 
             $customer->update($validated);
@@ -124,6 +143,11 @@ class CustomerController extends Controller
                 'data' => $customer
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             DB::rollBack();
             return response()->json([
                 'message' => 'Customer update failed',
@@ -156,6 +180,11 @@ class CustomerController extends Controller
                 'data' => $deleted
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             DB::rollBack();
             return response()->json([
                 'message' => 'Customer deletion failed',

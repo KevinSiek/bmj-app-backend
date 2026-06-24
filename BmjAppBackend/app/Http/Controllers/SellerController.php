@@ -28,6 +28,11 @@ class SellerController extends Controller
                 'data' => $sellers
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             return response()->json([
                 'message' => 'Internal server error',
                 'error' => $th->getMessage()
@@ -38,7 +43,7 @@ class SellerController extends Controller
     public function get(Request $request, $slug)
     {
         try {
-            $seller = Seller::where('slug', $slug)->first();
+            $seller = Seller::where('code', $slug)->first();
 
             if (!$seller) {
                 return response()->json(['message' => 'Seller not found'], Response::HTTP_NOT_FOUND);
@@ -49,6 +54,11 @@ class SellerController extends Controller
                 'data' => $seller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             return response()->json([
                 'message' => 'Internal server error',
                 'error' => $th->getMessage()
@@ -64,7 +74,8 @@ class SellerController extends Controller
             'type' => 'nullable|string'
         ]);
 
-        $validated['slug'] = Str::slug($validated['code']) . '-' . Str::random(6);
+        // Cap the slug body so a max-length code can't overflow the slug column.
+        $validated['slug'] = Str::limit(Str::slug($validated['code']), 240, '') . '-' . Str::random(6);
 
         DB::beginTransaction();
         try {
@@ -77,6 +88,11 @@ class SellerController extends Controller
                 'data' => $seller
             ], Response::HTTP_CREATED);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             DB::rollBack();
             return response()->json([
                 'message' => 'Seller creation failed',
@@ -95,7 +111,7 @@ class SellerController extends Controller
 
         DB::beginTransaction();
         try {
-            $seller = Seller::where('slug', $slug)->lockForUpdate()->first();
+            $seller = Seller::where('code', $slug)->lockForUpdate()->first();
             if (!$seller) {
                 DB::rollBack();
                 return response()->json(['message' => 'Seller not found'], Response::HTTP_NOT_FOUND);
@@ -110,6 +126,11 @@ class SellerController extends Controller
                 'data' => $seller
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             DB::rollBack();
             return response()->json([
                 'message' => 'Seller update failed',
@@ -122,7 +143,7 @@ class SellerController extends Controller
     {
         DB::beginTransaction();
         try {
-            $seller = Seller::where('slug', $slug)->lockForUpdate()->first();
+            $seller = Seller::where('code', $slug)->lockForUpdate()->first();
             if (!$seller) {
                 DB::rollBack();
                 return response()->json(['message' => 'Seller not found'], Response::HTTP_NOT_FOUND);
@@ -141,6 +162,11 @@ class SellerController extends Controller
                 'message' => 'Seller deleted successfully',
             ], Response::HTTP_OK);
         } catch (\Throwable $th) {
+            if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $th instanceof \Illuminate\Validation\ValidationException) {
+                throw $th;
+            }
             DB::rollBack();
             return response()->json([
                 'message' => 'Seller deletion failed',

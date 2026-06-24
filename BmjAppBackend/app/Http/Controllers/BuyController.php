@@ -74,6 +74,7 @@ class BuyController extends Controller
                 'spareparts.*.sparepartId' => 'required|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required|integer|min:1',
                 'spareparts.*.unitPriceBuy' => 'required|numeric|min:1',
+                'spareparts.*.seller' => 'nullable|string',
             ]);
 
             $buyNumber = '';
@@ -129,6 +130,14 @@ class BuyController extends Controller
                 $sparepartsUnitPrice = $spareparts['unitPriceBuy'];
                 $quantityOrderSparepart = $spareparts['quantity'];
 
+                $sellerId = null;
+                if (!empty($spareparts['seller'])) {
+                    $seller = Seller::firstOrCreate(
+                        ['name' => $spareparts['seller']]
+                    );
+                    $sellerId = $seller->id;
+                }
+
                 // Validate each spareparts data
                 $sparepartsValidator = Validator::make($spareparts, [
                     'sparepartId' => 'required|exists:spareparts,id',
@@ -144,6 +153,7 @@ class BuyController extends Controller
                 DB::table('detail_buys')->insert([
                     'buy_id' => $buy->id,
                     'sparepart_id' => $sparepartsId,
+                    'seller_id' => $sellerId,
                     'quantity' => $quantityOrderSparepart,
                     'unit_price' => $sparepartsUnitPrice,
                     'created_at' => now(),
@@ -186,6 +196,7 @@ class BuyController extends Controller
                 'spareparts.*.sparepartId' => 'required_with:spareparts|exists:spareparts,id',
                 'spareparts.*.quantity' => 'required_with:spareparts|integer|min:1',
                 'spareparts.*.unitPriceBuy' => 'required_with:spareparts|numeric|min:1',
+                'spareparts.*.seller' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -235,10 +246,19 @@ class BuyController extends Controller
                         throw new \Exception('Invalid sparepart data: ' . $sparepartValidator->errors()->first());
                     }
 
+                    $sellerId = null;
+                    if (!empty($sparepart['seller'])) {
+                        $seller = Seller::firstOrCreate(
+                            ['name' => $sparepart['seller']]
+                        );
+                        $sellerId = $seller->id;
+                    }
+
                     // Insert into detail_buys
                     DB::table('detail_buys')->insert([
                         'buy_id' => $buy->id,
                         'sparepart_id' => $sparepart['sparepartId'],
+                        'seller_id' => $sellerId,
                         'quantity' => $sparepart['quantity'],
                         'unit_price' => $sparepart['unitPriceBuy'],
                         'created_at' => now(),
@@ -248,7 +268,7 @@ class BuyController extends Controller
             }
 
             // Fetch updated buy with relations for response
-            $updatedBuy = Buy::with('detailBuys.sparepart')->findOrFail($buy->id);
+            $updatedBuy = Buy::with('detailBuys.sparepart', 'detailBuys.seller')->findOrFail($buy->id);
 
             // Calculate total purchase amount
             $totalPurchase = $updatedBuy->detailBuys->sum(function ($detail) {
@@ -263,6 +283,7 @@ class BuyController extends Controller
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
+                    'seller' => $detail->seller?->name ?? null,
                 ];
             });
 
@@ -299,6 +320,10 @@ class BuyController extends Controller
                 return $this->handleNotFound('Buy not found');
             }
 
+            // Remove child line items first; detail_buys has a FK to buys with no
+            // cascade, so deleting the parent directly raises an integrity violation.
+            DB::table('detail_buys')->where('buy_id', $buy->id)->delete();
+
             $buy->delete();
             DB::commit();
             return response()->json([
@@ -314,7 +339,7 @@ class BuyController extends Controller
     public function get($id)
     {
         try {
-            $buy = Buy::with('detailBuys.sparepart')
+            $buy = Buy::with('detailBuys.sparepart', 'detailBuys.seller')
                 ->findOrFail($id);
 
             // Calculate total purchase amount
@@ -331,6 +356,7 @@ class BuyController extends Controller
                     'quantity' => $detail->quantity,
                     'unit_price_buy' => $detail->unit_price,
                     'total_price' => $detail->quantity * $detail->unit_price,
+                    'seller' => $detail->seller?->name ?? null,
                 ];
             });
 
@@ -338,6 +364,7 @@ class BuyController extends Controller
             $formattedBuy = [
                 'id' => $buy->id ?? '',
                 'buy_number' => $buy->buy_number ?? '',
+                'branch' => $buy->branch?->name ?? '',
                 'date' => $buy->created_at ?? '',
                 'notes' => $buy->notes ?? '',
                 'current_status' => $buy->current_status,
@@ -357,7 +384,7 @@ class BuyController extends Controller
     public function getAll()
     {
         try {
-            $buys = Buy::with('detailBuys.sparepart')
+            $buys = Buy::with('detailBuys.sparepart', 'detailBuys.seller')
                 ->orderBy('created_at', 'DESC')
                 ->paginate(20)
                 ->through(function ($buy) {
@@ -374,6 +401,7 @@ class BuyController extends Controller
                             'quantity' => $detail?->quantity,
                             'unit_price_buy' => $detail?->unit_price,
                             'total_price' => $detail?->quantity * $detail?->unit_price,
+                            'seller' => $detail?->seller?->name ?? null,
                         ];
                     });
 
@@ -381,6 +409,7 @@ class BuyController extends Controller
                     return [
                         'id' => $buy->id ?? '',
                         'buy_number' => $buy->buy_number ?? '',
+                        'branch' => $buy->branch?->name ?? '',
                         'date' => $buy->created_at ?? '',
                         'notes' => $buy->notes ?? '',
                         'current_status' => $buy->current_status,
@@ -583,13 +612,22 @@ class BuyController extends Controller
 
             // Add sparepart quantity
             $branchId = $this->ensureBuyBranchId($buy);
-            $buy->detailBuys->each(function ($detail) use ($branchId) {
+            $employeeId = $request->user()?->id;
+            $buy->detailBuys->each(function ($detail) use ($branchId, $buy, $employeeId) {
                 $sparepart = $detail->sparepart;
                 if (!$sparepart) {
                     return;
                 }
 
-                $this->stockService->increase($sparepart, $branchId, (int) $detail->quantity);
+                $this->stockService->increase(
+                    $sparepart,
+                    $branchId,
+                    (int) $detail->quantity,
+                    'Buy',
+                    $buy->id,
+                    $employeeId,
+                    'Buy received'
+                );
 
                 if ($detail->unit_price > $sparepart->unit_price_buy) {
                     $sparepart->unit_price_buy = $detail->unit_price;
@@ -617,6 +655,15 @@ class BuyController extends Controller
     // Helper methods for consistent error handling
     protected function handleError(\Throwable $th, $message = 'Internal server error')
     {
+        // Preserve Laravel HTTP semantics: not-found / validation / auth / http exceptions
+        // must surface with their real status code, not be flattened into a generic 500 here.
+        if ($th instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+            || $th instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+            || $th instanceof \Illuminate\Validation\ValidationException
+            || $th instanceof \Illuminate\Auth\Access\AuthorizationException) {
+            throw $th;
+        }
+
         return response()->json([
             'message' => $message,
             'error' => $th->getMessage(),

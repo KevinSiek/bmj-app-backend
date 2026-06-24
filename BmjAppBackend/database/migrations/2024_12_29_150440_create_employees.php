@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('fullname');
             $table->string('username');
             $table->unsignedBigInteger('branch_id')->nullable();
+            $table->unsignedBigInteger('group_id')->nullable();
             $table->string('slug');
             $table->string('role');
             $table->string('email')->unique();

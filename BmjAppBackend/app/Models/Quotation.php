@@ -19,6 +19,7 @@ class Quotation extends Model
         'date',
         'amount',
         'discount',
+        'total_discount_percent',
         'subtotal',
         'ppn',
         'grand_total',

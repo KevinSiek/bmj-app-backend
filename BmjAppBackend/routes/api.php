@@ -12,11 +12,13 @@ use App\Http\Controllers\BackOrderController;
 use App\Http\Controllers\BuyController;
 use App\Http\Controllers\SparepartController;
 use App\Http\Controllers\WorkOrderController;
+use App\Http\Controllers\BorrowController;
 use App\Http\Controllers\DashboardController; // Added DashboardController
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\GeneralController;
 use App\Http\Controllers\SummaryController;
+use App\Http\Controllers\Api\SparepartMovementController;
 
 // Token and Login Routes
 Route::post('/tokens/create', function (Request $request) {
@@ -26,7 +28,7 @@ Route::post('/tokens/create', function (Request $request) {
 Route::post('/login',  [LoginController::class, 'index']);
 
 // Authenticated Routes
-Route::middleware("auth:sanctum")->group(function () {
+Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
     // Authorization
     Route::prefix('user')->group(function () {
         Route::get('/', [LoginController::class, 'getCurrentUser']);
@@ -72,7 +74,7 @@ Route::middleware("auth:sanctum")->group(function () {
         });
     });
 
-    Route::middleware(['role:marketing,finance,inventory,inventory_admin,director'])->group(function () {
+    Route::middleware(['role:marketing,finance,inventory,inventory_admin,head_inventory,service,director'])->group(function () {
         Route::prefix('purchase-order')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'getAll']);
             Route::get('/return', [PurchaseOrderController::class, 'getAllReturned']);
@@ -80,11 +82,16 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::post('/moveToPi/{id}', [PurchaseOrderController::class, 'moveToPi']);
             Route::post('/status/{id}', [PurchaseOrderController::class, 'updateStatus']);
             Route::post('/ready/{id}', [PurchaseOrderController::class, 'ready']);
-            Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
             Route::post('/done/{id}', [PurchaseOrderController::class, 'done']);
             Route::post('/decline/{id}', [PurchaseOrderController::class, 'decline']);
             Route::put('/{id}', [PurchaseOrderController::class, 'update']);
             Route::post('/reject/{id}', [PurchaseOrderController::class, 'decline']);
+        });
+    });
+
+    Route::middleware(['role:inventory_admin,head_inventory,director'])->group(function () {
+        Route::prefix('purchase-order')->group(function () {
+            Route::post('/release/{id}', [PurchaseOrderController::class, 'release']);
         });
     });
 
@@ -93,6 +100,7 @@ Route::middleware("auth:sanctum")->group(function () {
         // Employee Routes
         Route::prefix('employee')->group(function () {
             Route::get('/', [EmployeeController::class, 'getAll']);
+            Route::get('/groups', [EmployeeController::class, 'getGroups']);
             Route::get('/{slug}', [EmployeeController::class, 'get']);
             Route::post('/', [EmployeeController::class, 'store']);
             Route::put('/{slug}', [EmployeeController::class, 'update']);
@@ -136,48 +144,106 @@ Route::middleware("auth:sanctum")->group(function () {
             Route::get('/{id}', [WorkOrderController::class, 'get']);
             Route::put('/{id}', [WorkOrderController::class, 'update']);
             Route::post('/process/{id}', [WorkOrderController::class, 'process']);
+            Route::post('/done/{id}', [WorkOrderController::class, 'done']);
         });
     });
 
     // Buy
-    Route::middleware(['role:inventory_purchase,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_purchase,inventory,head_inventory,director'])->group(function () {
         // Buy Routes
         Route::prefix('buy')->group(function () {
             Route::get('/', [BuyController::class, 'getAll']);
+            Route::get('/{id}/details', [BuyController::class, 'getDetails']);
             Route::get('/{id}', [BuyController::class, 'get']);
             Route::post('/', [BuyController::class, 'store']);
             Route::put('/{id}', [BuyController::class, 'update']);
             Route::delete('/{id}', [BuyController::class, 'destroy']);
 
-            Route::post('/approve/{id}', [BuyController::class, 'approve']);
-            Route::post('/reject/{id}', [BuyController::class, 'decline']);
-            Route::post('/needChange/{id}', [BuyController::class, 'needChange']);
             Route::post('/done/{id}', [BuyController::class, 'done']);
             Route::get('/review/{isNeedReview}', [BuyController::class, 'isNeedReview']);
         });
     });
 
-    Route::middleware(['role:inventory_admin,inventory,director'])->group(function () {
+    Route::middleware(['role:head_inventory,director'])->group(function () {
+        Route::prefix('buy')->group(function () {
+            Route::post('/approve/{id}', [BuyController::class, 'approve']);
+            Route::post('/reject/{id}', [BuyController::class, 'decline']);
+            Route::post('/needChange/{id}', [BuyController::class, 'needChange']);
+        });
+    });
+
+    Route::middleware(['role:inventory_admin,inventory,head_inventory,director'])->group(function () {
         Route::prefix('delivery-order')->group(function () {
             Route::get('/', [DeliveryOrderController::class, 'getAll']);
             Route::get('/{id}', [DeliveryOrderController::class, 'get']);
             Route::put('/{id}', [DeliveryOrderController::class, 'update']);
             Route::post('/process/{id}', [DeliveryOrderController::class, 'process']);
+            Route::post('/done/{id}', [DeliveryOrderController::class, 'done']);
         });
     });
 
-    Route::middleware(['role:inventory_purchase,inventory_admin,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_purchase,inventory_admin,inventory,head_inventory,director'])->group(function () {
         Route::prefix('back-order')->group(function () {
             Route::get('/', [BackOrderController::class, 'getAll']);
             Route::get('/{id}', [BackOrderController::class, 'get']);
+            Route::get('/analyze/{id}', [BackOrderController::class, 'analyze']);
             Route::post('/process/{id}', [BackOrderController::class, 'process']);
+            Route::post('/adjust/{id}', [BackOrderController::class, 'adjust']);
+        });
+    });
+
+    Route::prefix('borrow')->group(function () {
+        // Read + PO option pickers: every Pinjaman participant.
+        Route::middleware(['role:marketing,inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+            Route::get('/', [BorrowController::class, 'getAll']);
+            Route::get('/options/purchase-orders', [BorrowController::class, 'purchaseOrderOptions']);
+            Route::get('/{id}', [BorrowController::class, 'get']);
+        });
+
+        // Creation + Marketing-owned transitions.
+        Route::middleware(['role:marketing,director'])->group(function () {
+            Route::post('/', [BorrowController::class, 'store']);
+            Route::put('/{id}', [BorrowController::class, 'update']);
+            Route::post('/cancel/{id}', [BorrowController::class, 'cancel']);
+            Route::post('/return/{id}', [BorrowController::class, 'return']);
+        });
+
+        // Review.
+        Route::middleware(['role:head_inventory,director'])->group(function () {
+            Route::post('/approve/{id}', [BorrowController::class, 'approve']);
+            Route::post('/reject/{id}', [BorrowController::class, 'reject']);
+        });
+
+        // Handover + reconciliation (Inventory).
+        Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+            Route::post('/send/{id}', [BorrowController::class, 'send']);
+            Route::post('/receive/{id}', [BorrowController::class, 'receive']);
+            Route::post('/done/{id}', [BorrowController::class, 'done']);
+        });
+    });
+
+    // Global stock movement ledger across all spareparts (backs the standalone Stock History page).
+    // Inventory + Director only — Marketing must NOT see the movement ledger.
+    Route::middleware(['role:inventory_admin,inventory_purchase,head_inventory,director'])->group(function () {
+        Route::get('stock-movement/suggestions', [SparepartController::class, 'stockMovementSuggestions']);
+        Route::get('stock-movement', [SparepartController::class, 'stockMovements']);
+
+        // Sparepart Movement (Stock Transfer)
+        Route::prefix('sparepart-movement')->group(function () {
+            Route::get('/', [SparepartMovementController::class, 'index']);
+            Route::post('/', [SparepartMovementController::class, 'store']);
+            Route::get('/{id}', [SparepartMovementController::class, 'show']);
+            Route::post('/send/{id}', [SparepartMovementController::class, 'send']);
+            Route::post('/cancel/{id}', [SparepartMovementController::class, 'cancel']);
+            Route::post('/receive/{id}', [SparepartMovementController::class, 'receive']);
         });
     });
 
     // Sparepart Routes
-    Route::middleware(['role:inventory_purchase,inventory_admin,marketing,inventory,director'])->group(function () {
+    Route::middleware(['role:inventory_purchase,inventory_admin,marketing,inventory,head_inventory,director'])->group(function () {
         Route::prefix('sparepart')->group(function () {
             Route::get('/', [SparepartController::class, 'getAll']);
+            Route::get('/{id}/sellers', [SparepartController::class, 'getSellers']);
             Route::get('/{id}', [SparepartController::class, 'get']);
             Route::post('/', [SparepartController::class, 'store']);
             Route::put('/{id}', [SparepartController::class, 'update']);

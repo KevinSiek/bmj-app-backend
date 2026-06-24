@@ -13,6 +13,7 @@ class BackOrder extends Model
         'purchase_order_id',
         'back_order_number',
         'current_status',
+        'is_direct',
         'employee_id'
     ];
 
