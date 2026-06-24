@@ -26,6 +26,9 @@ Route::post('/tokens/create', function (Request $request) {
     return ['token' => $token->plainTextToken];
 });
 Route::post('/login',  [LoginController::class, 'index']);
+Route::get('/login', function () {
+    return response()->json(['message' => 'Unauthenticated.'], 401);
+})->name('login');
 
 // Authenticated Routes
 Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
