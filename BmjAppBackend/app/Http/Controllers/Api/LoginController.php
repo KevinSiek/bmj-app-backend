@@ -29,6 +29,7 @@ class LoginController extends Controller
 
             if ($isAuth) {
                 $user = Auth::guard('employee')->user();
+                $user->load('branch');
                 $isUseTempPassword = false;
                 if ($user->temp_password) {
                     $isExpired = $user->temp_pass_expires_at && \Carbon\Carbon::parse($user->temp_pass_expires_at)->isPast();

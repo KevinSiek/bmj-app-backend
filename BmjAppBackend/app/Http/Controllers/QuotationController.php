@@ -235,7 +235,7 @@ class QuotationController extends Controller
                     ->first();
 
                 // If a quotation exists and it belongs to a different employee, block the creation.
-                if ($existingQuotation && $existingQuotation->employee_id !== $userId) {
+                if ($existingQuotation && $existingQuotation->employee_id != $userId) {
                     $handlingEmployee = $existingQuotation->employee;
                     $employeeName = $handlingEmployee ? $handlingEmployee->username : 'another employee';
                     return response()->json([
