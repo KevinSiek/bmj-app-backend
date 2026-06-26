@@ -192,12 +192,14 @@ class SparepartImport implements ToCollection, WithHeadingRow, WithChunkReading
                 'purchase_price'   => $row['purchase_price'],
                 'seller'   => $row['seller'] ?? null,
                 'branch'   => $row['branch'] ?? null,
+                'quantity' => $row['quantity'] ?? null,
             ], [
                 'sparepart_number' => 'required|string',
-                'sparepart_name' => 'required|string',
+                'sparepart_name' => 'nullable|string',
                 'purchase_price' => 'required|numeric|min:0',
                 'seller' => 'nullable',
                 'branch' => 'nullable',
+                'quantity' => 'nullable|integer|min:0',
             ]);
 
             if ($validator->fails()) {
@@ -208,7 +210,7 @@ class SparepartImport implements ToCollection, WithHeadingRow, WithChunkReading
             $sparepartData[] = [
                 'slug' => Str::slug($row['sparepart_number']),
                 'sparepart_number' => $row['sparepart_number'],
-                'sparepart_name' => $row['sparepart_name'],
+                'sparepart_name' => $row['sparepart_name'] ?? 'UNDEFINED',
                 'unit_price_buy' => $row['purchase_price'],
                 'unit_price_sell' => $row['purchase_price'],
                 'created_at' => now(),
@@ -218,7 +220,7 @@ class SparepartImport implements ToCollection, WithHeadingRow, WithChunkReading
             $branchStockData[] = [
                 'sparepart_number' => $row['sparepart_number'],
                 'branch' => $row['branch'] ?? null,
-                'quantity' => 0,
+                'quantity' => $row['quantity'] ?? 0,
             ];
 
             if (!empty($row['seller'])) {
@@ -226,7 +228,7 @@ class SparepartImport implements ToCollection, WithHeadingRow, WithChunkReading
                     'sparepart_number' => $row['sparepart_number'],
                     'seller_id' => $row['seller'],
                     'unit_price' => $row['purchase_price'],
-                    'quantity' => 0
+                    'quantity' => $row['quantity'] ?? 0
                 ];
             }
 
@@ -255,7 +257,7 @@ class SparepartImport implements ToCollection, WithHeadingRow, WithChunkReading
             Sparepart::upsert(
                 $maxSparepartData,
                 ['sparepart_number'], // unique key to check for existing record
-                ['unit_price_buy']    // columns to update if record exists
+                ['unit_price_buy', 'unit_price_sell'],    // columns to update if record exists
             );
             $spareparts = Sparepart::whereIn('sparepart_number', array_column($sparepartData, 'sparepart_number'))
                 ->get()
