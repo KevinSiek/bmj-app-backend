@@ -35,6 +35,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         Route::post('/changePassword', [LoginController::class, 'changePassword']);
     });
     Route::post('logout', [LoginController::class, 'logout']);
+    Route::get('general', [GeneralController::class, 'get']);
 
     Route::prefix('summary')->group(function () {
         Route::get('/director', [SummaryController::class, 'summaryDirector']);
@@ -110,7 +111,6 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
         });
         // Api to store general value in future, like discount etc
         Route::prefix('general')->group(function () {
-            Route::get('/', [GeneralController::class, 'get']);
             Route::put('/', [GeneralController::class, 'update']);
         });
         // Dashboard Route
