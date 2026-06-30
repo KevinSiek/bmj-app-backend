@@ -101,6 +101,7 @@ class QuotationController extends Controller
             'price.amount' => 'required|numeric',
             'price.totalDiscountPercent' => 'sometimes|numeric|min:0|max:100',
             'project.branch' => 'sometimes|string',
+            'project.nameUP' => 'sometimes',
             'notes' => 'sometimes|string',
             // Customer validation
             'customer.companyName' => 'required|string',
@@ -180,6 +181,7 @@ class QuotationController extends Controller
                 'quotation_number' => $quotationNumber,
                 'version' => 1, // Set initial version to 1
                 'type' => $request->input('project.type'),
+                'name_up' => $request->input('project.nameUP'),
                 'date' => now(),
                 'amount' => $totalAmount,
                 'grand_total' => 0,
@@ -388,6 +390,7 @@ class QuotationController extends Controller
             'project.date' => 'required|date',
             'price.amount' => 'required|numeric',
             'price.totalDiscountPercent' => 'sometimes|numeric|min:0|max:100',
+            'project.nameUP' => 'sometimes',
             'notes' => 'sometimes|string',
             // Customer validation
             'customer.companyName' => 'required|string',
@@ -466,6 +469,7 @@ class QuotationController extends Controller
                 'type' => $request->input('project.type'),
                 'date' => $request->input('project.date'),
                 'amount' => $request->input('price.amount'),
+                'name_up' => $request->input('project.nameUP'),
                 'discount' => 0,
                 'total_discount_percent' => $totalDiscountPercent,
                 'subtotal' => 0,
@@ -883,7 +887,8 @@ class QuotationController extends Controller
                     'quotation_number' => $quotation->quotation_number,
                     'type' => $quotation->type,
                     'date' => $quotation->date,
-                    'branch' => $branch ? $branch->name : ''
+                    'branch' => $branch ? $branch->name : '',
+                    'name_up' => $quotation->name_up ?? ''
                 ],
                 'price' => [
                     'amount' => $quotation->amount,
@@ -1062,7 +1067,8 @@ class QuotationController extends Controller
                         'quotation_number' => $quotation->quotation_number,
                         'type' => $quotation->type,
                         'date' => $quotation->date,
-                        'branch' => $branch ? $branch->name : ''
+                        'branch' => $branch ? $branch->name : '',
+                        'name_up' => $quotation->name_up ?? ''
                     ],
                     'price' => [
                         'amount' => $quotation->amount,

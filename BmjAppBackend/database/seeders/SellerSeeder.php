@@ -15,7 +15,7 @@ class SellerSeeder extends Seeder
     public function run()
     {
         $sellers = [
-            ['name' => 'PT Sparepart Jaya', 'type' => 'Distributor', 'code' => '1'],
+            ['name' => 'PT Berkat Megah Jaya', 'type' => 'Distributor', 'code' => '1'],
             ['name' => 'CV Mesin Handal', 'type' => 'Supplier', 'code' => '2'],
             ['name' => 'Sumber Teknik', 'type' => 'Retailer', 'code' => '3'],
         ];

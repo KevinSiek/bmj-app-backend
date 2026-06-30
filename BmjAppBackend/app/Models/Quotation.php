@@ -14,6 +14,7 @@ class Quotation extends Model
         'version', // Added version field
         'slug',
         'customer_id',
+        'name_up',
         'project',
         'type',
         'date',

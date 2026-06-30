@@ -32,7 +32,7 @@ Route::middleware(["auth:sanctum", "password.changed"])->group(function () {
     // Authorization
     Route::prefix('user')->group(function () {
         Route::get('/', [LoginController::class, 'getCurrentUser']);
-        Route::post('/changePassword', [LoginController::class, 'changePassword']);
+        Route::post('/changePasswordOrPhone', [LoginController::class, 'changePasswordOrPhone']);
     });
     Route::post('logout', [LoginController::class, 'logout']);
     Route::get('general', [GeneralController::class, 'get']);

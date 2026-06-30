@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('role');
             $table->string('email')->unique();
             $table->string('password');
+            $table->string('phone')->nullable();
             $table->string('temp_password')->nullable();
             $table->boolean('temp_pass_already_use')->nullable()->default(false);
             $table->timestamps();

@@ -31,6 +31,7 @@ class CustomerFactory extends Factory
             'city' => $this->faker->city,
             'province' => $this->faker->state,
             'postal_code' => $this->faker->postcode,
+            'npwp' => $this->faker->randomNumber(9) . '-' . $this->faker->randomNumber(3) . '.' . $this->faker->randomNumber(3),
         ];
     }
 }

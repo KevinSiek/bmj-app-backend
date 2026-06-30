@@ -22,20 +22,20 @@ class DatabaseSeeder extends Seeder
 
             // 2. Core Entities
             EmployeeSeeder::class,
-            CustomerSeeder::class,
+            // CustomerSeeder::class,
 
             // 3. Inventory Setup
             SparepartSeeder::class,
 
             // 4. Workflow Simulation (in chronological order)
-            QuotationSeeder::class,       // Creates Quotations (some Approved)
-            PurchaseOrderSeeder::class,   // Creates POs from Approved Quotations, and BackOrders if needed
-            BackOrderSeeder::class,       // Processes some BackOrders
-            BuySeeder::class,             // Simulates review of Buy orders created by BackOrderSeeder
-            ProformaInvoiceSeeder::class, // Creates PIs from POs and simulates payments
-            WorkOrderSeeder::class,       // Creates WOs for fulfilled Service POs
-            DeliveryOrderSeeder::class,   // Creates DOs for fulfilled Sparepart POs
-            InvoiceSeeder::class,         // Creates final Invoices for paid PIs
+            // QuotationSeeder::class,       // Creates Quotations (some Approved)
+            // PurchaseOrderSeeder::class,   // Creates POs from Approved Quotations, and BackOrders if needed
+            // BackOrderSeeder::class,       // Processes some BackOrders
+            // BuySeeder::class,             // Simulates review of Buy orders created by BackOrderSeeder
+            // ProformaInvoiceSeeder::class, // Creates PIs from POs and simulates payments
+            // WorkOrderSeeder::class,       // Creates WOs for fulfilled Service POs
+            // DeliveryOrderSeeder::class,   // Creates DOs for fulfilled Sparepart POs
+            // InvoiceSeeder::class,         // Creates final Invoices for paid PIs
         ]);
     }
 }

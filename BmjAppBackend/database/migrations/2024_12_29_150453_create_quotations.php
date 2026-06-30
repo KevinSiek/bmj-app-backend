@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('quotation_number');
             $table->integer('version')->default(1); // Positioned after quotation_number
             $table->string('slug');
+            $table->string('name_up')->nullable();
             $table->foreignId('customer_id')->constrained('customers');
             $table->string('project');
             $table->string('type');

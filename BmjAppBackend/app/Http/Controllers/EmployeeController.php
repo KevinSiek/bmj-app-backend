@@ -47,6 +47,7 @@ class EmployeeController extends Controller
         $validatedData = $request->validate([
             'fullname' => 'required|string|max:255',
             'role' => 'required|string',
+            'phone' => 'nullable|string|max:20',
             'branch' => 'required|string|max:255',
             'email' => 'required|email|unique:employees,email',
             'username' => 'required|string|unique:employees,username|max:255',
@@ -115,6 +116,7 @@ class EmployeeController extends Controller
             'fullname' => 'required|string|max:255',
             'role' => 'required|string',
             'branch' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
             'email' => 'required|email|unique:employees,email,' . $slug . ',slug',
             'username' => 'required|string|unique:employees,username,' . $slug . ',slug',
             'group' => 'nullable|string|max:255',
@@ -334,6 +336,7 @@ class EmployeeController extends Controller
             'fullname' => $employee->fullname,
             'username' => $employee->username,
             'email' => $employee->email,
+            'phone' => $employee->phone,
             'role' => $employee->role,
             'branch' => $employee->branch?->name,
             'branch_id' => $employee->branch_id,

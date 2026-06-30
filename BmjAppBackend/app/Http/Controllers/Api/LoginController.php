@@ -114,7 +114,7 @@ class LoginController extends Controller
         }
     }
 
-    public function changePassword(Request $request)
+    public function changePasswordOrPhone(Request $request)
     {
         try {
             $user = $request->user();
@@ -138,9 +138,13 @@ class LoginController extends Controller
                         ->numbers(),   // Requires at least one number.
                 ],
                 'confirm_password' => 'required|string|same:password',
+                'phone' => 'nullable|string|max:20',
             ]);
 
             $validatedData['password'] = bcrypt($request->password);
+            if (isset($validatedData['phone'])) {
+                $employee->phone = $validatedData['phone'];
+            }
             $employee->update($validatedData);
 
             // Clear any temporary password and lift the force-change gate.
